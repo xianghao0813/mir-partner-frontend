@@ -1,0 +1,92 @@
+import { cookies } from "next/headers";
+import { NextResponse } from "next/server";
+import { createClient } from "@/lib/supabase/server";
+import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import {
+  BOSS_LAST_HIT_COOKIE,
+  BOSS_LAST_HIT_REWARD_POINTS,
+  buildBossLastHitPublicState,
+  createBossLastHitRewardReceipt,
+  getRewardClaimDateInShanghai,
+  getTodayRewardClaimed,
+  parseBossLastHitState,
+  readMirPoints,
+} from "@/lib/bossLastHit";
+
+export async function POST() {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+  }
+
+  const cookieStore = await cookies();
+  const gameState = parseBossLastHitState(cookieStore.get(BOSS_LAST_HIT_COOKIE)?.value);
+
+  if (!gameState?.finished || gameState.successes < 2) {
+    return NextResponse.json({ message: "Daily mission not completed." }, { status: 400 });
+  }
+
+  const today = getRewardClaimDateInShanghai();
+  const rewardClaimedDate = getTodayRewardClaimed(user.user_metadata);
+
+  if (rewardClaimedDate === today) {
+    return NextResponse.json(
+      {
+        message: "Reward already claimed today.",
+        points: readMirPoints(user.user_metadata),
+        rewardClaimedToday: true,
+      },
+      { status: 400 }
+    );
+  }
+
+  const currentPoints = readMirPoints(user.user_metadata);
+  const nextPoints = currentPoints + BOSS_LAST_HIT_REWARD_POINTS;
+  const receipt = createBossLastHitRewardReceipt({
+    userId: user.id,
+    claimedDate: today,
+    awardedPoints: BOSS_LAST_HIT_REWARD_POINTS,
+  });
+
+  const { error } = await supabaseAdmin.auth.admin.updateUserById(user.id, {
+    user_metadata: {
+      ...user.user_metadata,
+      mir_points: nextPoints,
+      boss_last_hit_reward_date: today,
+      boss_last_hit_reward_receipt: receipt,
+    },
+  });
+
+  if (error) {
+    return NextResponse.json({ message: error.message }, { status: 500 });
+  }
+
+  const nextGameState = {
+    ...gameState,
+    rewardClaimedDate: today,
+  };
+
+  const response = NextResponse.json({
+    ok: true,
+    points: nextPoints,
+    awardedPoints: BOSS_LAST_HIT_REWARD_POINTS,
+    rewardClaimedToday: true,
+    rewardClaimedDate: today,
+    receipt,
+    game: buildBossLastHitPublicState(nextGameState),
+  });
+
+  cookieStore.set(BOSS_LAST_HIT_COOKIE, JSON.stringify(nextGameState), {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+    path: "/",
+    maxAge: 60 * 60 * 6,
+  });
+
+  return response;
+}
