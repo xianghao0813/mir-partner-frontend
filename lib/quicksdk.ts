@@ -76,6 +76,10 @@ export async function createQuickSdkOauthUrl({
     throw new Error("QuickSDK oauth request did not return a login URL.");
   }
 
+  if (!isAbsoluteHttpUrl(location)) {
+    throw new Error(location);
+  }
+
   return location;
 }
 
@@ -174,7 +178,7 @@ function normalizeReturnedUrl(value: string) {
   );
 
   if (!json) {
-    return "";
+    return trimmed;
   }
 
   if (typeof json.data === "string") {
@@ -186,6 +190,15 @@ function normalizeReturnedUrl(value: string) {
   }
 
   return json.message ?? "";
+}
+
+function isAbsoluteHttpUrl(value: string) {
+  try {
+    const url = new URL(value);
+    return url.protocol === "http:" || url.protocol === "https:";
+  } catch {
+    return false;
+  }
 }
 
 function parseJson<T>(value: string) {
