@@ -1,9 +1,10 @@
 import crypto from "node:crypto";
 
-const QUICKSDK_BASE_URL = "https://sdkapi.gamewemade.com";
+const QUICKSDK_DEFAULT_BASE_URL = "https://qkgamesdk.quickapi.net";
 const QUICKSDK_DEFAULT_CHANNEL_CODE = "website";
 
 type QuickSdkConfig = {
+  baseUrl: string;
   openId: string;
   openKey: string;
   productCode: string;
@@ -26,6 +27,8 @@ export type QuickSdkCheckTokenResponse = {
 };
 
 export function getQuickSdkConfig(): QuickSdkConfig {
+  const baseUrl =
+    process.env.QUICKSDK_BASE_URL?.trim().replace(/\/+$/, "") ?? QUICKSDK_DEFAULT_BASE_URL;
   const openId = process.env.QUICKSDK_OPEN_ID?.trim() ?? "";
   const openKey = process.env.QUICKSDK_OPEN_KEY?.trim() ?? "";
   const productCode = process.env.QUICKSDK_PRODUCT_CODE?.trim() ?? "";
@@ -40,6 +43,7 @@ export function getQuickSdkConfig(): QuickSdkConfig {
   }
 
   return {
+    baseUrl,
     openId,
     openKey,
     productCode,
@@ -64,7 +68,7 @@ export async function createQuickSdkOauthUrl({
     cancalUrl: cancelUrl,
   });
 
-  const response = await postForm(`${QUICKSDK_BASE_URL}/webOpen/oauth`, payload);
+  const response = await postForm(`${config.baseUrl}/webOpen/oauth`, payload);
   const text = await response.text();
   const location = normalizeReturnedUrl(text);
 
@@ -99,7 +103,7 @@ export async function verifyQuickSdkToken({
     authToken,
   });
 
-  const response = await postForm(`${QUICKSDK_BASE_URL}/webOpen/checkToken`, payload);
+  const response = await postForm(`${config.baseUrl}/webOpen/checkToken`, payload);
   const text = await response.text();
   const json = parseJson<QuickSdkCheckTokenResponse>(text);
 
