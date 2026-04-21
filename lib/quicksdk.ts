@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 
-const QUICKSDK_DEFAULT_BASE_URL = "https://qkgamesdk.quickapi.net";
+const QUICKSDK_DEFAULT_BASE_URL = "http://custom-sdkapi.gamewemade.com";
 const QUICKSDK_DEFAULT_CHANNEL_CODE = "website";
 
 type QuickSdkConfig = {
@@ -10,6 +10,7 @@ type QuickSdkConfig = {
   productCode: string;
   channelCode: string;
   localAuthSecret: string;
+  publicBaseUrl: string;
 };
 
 export type QuickSdkCheckTokenResponse = {
@@ -35,6 +36,7 @@ export function getQuickSdkConfig(): QuickSdkConfig {
   const channelCode =
     process.env.QUICKSDK_CHANNEL_CODE?.trim() ?? QUICKSDK_DEFAULT_CHANNEL_CODE;
   const localAuthSecret = process.env.QUICKSDK_LOCAL_AUTH_SECRET?.trim() ?? "";
+  const publicBaseUrl = process.env.QUICKSDK_PUBLIC_BASE_URL?.trim().replace(/\/+$/, "") ?? "";
 
   if (!openId || !openKey || !productCode || !localAuthSecret) {
     throw new Error(
@@ -49,7 +51,13 @@ export function getQuickSdkConfig(): QuickSdkConfig {
     productCode,
     channelCode,
     localAuthSecret,
+    publicBaseUrl,
   };
+}
+
+export function getQuickSdkPublicBaseUrl(requestOrigin: string) {
+  const { publicBaseUrl } = getQuickSdkConfig();
+  return publicBaseUrl || requestOrigin;
 }
 
 export async function createQuickSdkOauthUrl({
@@ -177,7 +185,11 @@ function normalizeReturnedUrl(value: string) {
     return trimmed;
   }
 
-  const json = parseJson<{ status?: boolean; message?: string; data?: string | { url?: string } }>(
+  const json = parseJson<{
+    status?: boolean;
+    message?: string;
+    data?: string | { url?: string; loginUrl?: string };
+  }>(
     trimmed
   );
 
@@ -191,6 +203,10 @@ function normalizeReturnedUrl(value: string) {
 
   if (json.data && typeof json.data === "object" && typeof json.data.url === "string") {
     return json.data.url;
+  }
+
+  if (json.data && typeof json.data === "object" && typeof json.data.loginUrl === "string") {
+    return json.data.loginUrl;
   }
 
   return json.message ?? "";
