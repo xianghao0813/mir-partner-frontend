@@ -2,125 +2,97 @@ import crypto from "node:crypto";
 
 export const BOSS_LAST_HIT_COOKIE = "mir-boss-last-hit-state";
 export const BOSS_LAST_HIT_REWARD_POINTS = 50;
-export const BOSS_LAST_HIT_TOTAL_WAVES = 12;
-export const BOSS_LAST_HIT_CLEAR_SUCCESS_COUNT = 8;
+export const RUNNER_REQUIRED_SCORE = 180;
 
-export type SlashDirection = "left" | "right";
-
-export type BossLastHitAttempt = {
-  wave: number;
-  direction: SlashDirection;
-  reactionMs: number;
-  success: boolean;
-  label: string;
-};
-
-export type BossLastHitWaveState = {
-  wave: number;
-  direction: SlashDirection;
-  spawnedAt: number;
-  timeLimitMs: number;
+export type RunnerRunSummary = {
+  score: number;
+  distance: number;
+  obstaclesCleared: number;
+  durationMs: number;
+  completedAt: number;
 };
 
 export type BossLastHitGameState = {
-  wave: number;
-  successes: number;
-  combo: number;
-  bestCombo: number;
-  attempts: BossLastHitAttempt[];
+  active: boolean;
   finished: boolean;
+  score: number;
+  bestScore: number;
+  distance: number;
+  obstaclesCleared: number;
+  durationMs: number;
+  requiredScore: number;
   rewardClaimedDate?: string;
-  currentWave: BossLastHitWaveState | null;
+  startedAt: number | null;
+  runs: RunnerRunSummary[];
 };
 
 export function createInitialBossLastHitState(rewardClaimedDate?: string): BossLastHitGameState {
   return {
-    wave: 1,
-    successes: 0,
-    combo: 0,
-    bestCombo: 0,
-    attempts: [],
+    active: true,
     finished: false,
+    score: 0,
+    bestScore: 0,
+    distance: 0,
+    obstaclesCleared: 0,
+    durationMs: 0,
+    requiredScore: RUNNER_REQUIRED_SCORE,
     rewardClaimedDate,
-    currentWave: createWaveState(1),
+    startedAt: Date.now(),
+    runs: [],
   };
 }
 
 export function resolveBossLastHitStrike(
   state: BossLastHitGameState,
-  direction: SlashDirection,
+  result: {
+    score: number;
+    distance: number;
+    obstaclesCleared: number;
+    durationMs: number;
+  },
   now = Date.now()
 ): BossLastHitGameState {
-  if (!state.currentWave || state.finished) {
-    return state;
-  }
-
-  const reactionMs = Math.max(0, now - state.currentWave.spawnedAt);
-  const withinTime = reactionMs <= state.currentWave.timeLimitMs;
-  const success = withinTime && direction === state.currentWave.direction;
-  const label = !withinTime
-    ? "出手太慢"
-    : direction === state.currentWave.direction
-      ? "斩杀成功"
-      : "方向错误";
-  const successes = state.successes + (success ? 1 : 0);
-  const combo = success ? state.combo + 1 : 0;
-  const bestCombo = Math.max(state.bestCombo, combo);
-  const attempts = [
-    ...state.attempts,
+  const score = clampMetric(result.score);
+  const distance = clampMetric(result.distance);
+  const obstaclesCleared = clampMetric(result.obstaclesCleared);
+  const durationMs = clampMetric(result.durationMs);
+  const runs = [
     {
-      wave: state.currentWave.wave,
-      direction: state.currentWave.direction,
-      reactionMs,
-      success,
-      label,
+      score,
+      distance,
+      obstaclesCleared,
+      durationMs,
+      completedAt: now,
     },
-  ];
-
-  if (state.currentWave.wave >= BOSS_LAST_HIT_TOTAL_WAVES) {
-    return {
-      ...state,
-      wave: BOSS_LAST_HIT_TOTAL_WAVES,
-      successes,
-      combo,
-      bestCombo,
-      attempts,
-      finished: true,
-      currentWave: null,
-    };
-  }
-
-  const nextWave = state.currentWave.wave + 1;
+    ...state.runs,
+  ].slice(0, 6);
 
   return {
     ...state,
-    wave: nextWave,
-    successes,
-    combo,
-    bestCombo,
-    attempts,
-    finished: false,
-    currentWave: createWaveState(nextWave, now),
+    active: false,
+    finished: true,
+    score,
+    bestScore: Math.max(state.bestScore, score),
+    distance,
+    obstaclesCleared,
+    durationMs,
+    startedAt: state.startedAt ?? now,
+    runs,
   };
 }
 
 export function buildBossLastHitPublicState(state: BossLastHitGameState) {
   return {
-    wave: state.wave,
-    totalWaves: BOSS_LAST_HIT_TOTAL_WAVES,
-    requiredSuccesses: BOSS_LAST_HIT_CLEAR_SUCCESS_COUNT,
-    successes: state.successes,
-    combo: state.combo,
-    bestCombo: state.bestCombo,
-    attempts: state.attempts,
+    requiredScore: state.requiredScore,
+    score: state.score,
+    bestScore: state.bestScore,
+    distance: state.distance,
+    obstaclesCleared: state.obstaclesCleared,
+    durationMs: state.durationMs,
+    runs: state.runs,
     gameFinished: state.finished,
-    gameActive: Boolean(state.currentWave),
-    currentEnemy: state.currentWave
-      ? {
-          direction: state.currentWave.direction,
-        }
-      : null,
-    timeLimitMs: state.currentWave?.timeLimitMs ?? 0,
+    gameActive: state.active,
+    rewardClaimedDate: state.rewardClaimedDate ?? "",
   };
 }
 
@@ -186,14 +158,10 @@ export function createBossLastHitRewardReceipt({
     .toUpperCase();
 }
 
-function createWaveState(wave: number, spawnedAt = Date.now()): BossLastHitWaveState {
-  const baseTimeLimit = 1050;
-  const reducedTimeLimit = baseTimeLimit - (wave - 1) * 28;
+function clampMetric(value: number) {
+  if (!Number.isFinite(value)) {
+    return 0;
+  }
 
-  return {
-    wave,
-    direction: Math.random() > 0.5 ? "left" : "right",
-    spawnedAt,
-    timeLimitMs: Math.max(420, reducedTimeLimit + Math.floor(Math.random() * 140)),
-  };
+  return Math.max(0, Math.floor(value));
 }

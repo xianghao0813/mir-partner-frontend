@@ -6,7 +6,6 @@ import {
   buildBossLastHitPublicState,
   parseBossLastHitState,
   resolveBossLastHitStrike,
-  type SlashDirection,
 } from "@/lib/bossLastHit";
 
 export async function POST(request: Request) {
@@ -26,14 +25,30 @@ export async function POST(request: Request) {
     return NextResponse.json({ message: "No active game session." }, { status: 400 });
   }
 
-  const body = (await request.json().catch(() => null)) as { direction?: SlashDirection } | null;
-  const direction = body?.direction;
+  const body = (await request.json().catch(() => null)) as
+    | {
+        score?: number;
+        distance?: number;
+        obstaclesCleared?: number;
+        durationMs?: number;
+      }
+    | null;
 
-  if (direction !== "left" && direction !== "right") {
-    return NextResponse.json({ message: "Invalid strike direction." }, { status: 400 });
+  if (
+    typeof body?.score !== "number" ||
+    typeof body?.distance !== "number" ||
+    typeof body?.obstaclesCleared !== "number" ||
+    typeof body?.durationMs !== "number"
+  ) {
+    return NextResponse.json({ message: "Invalid run result." }, { status: 400 });
   }
 
-  const nextState = resolveBossLastHitStrike(state, direction);
+  const nextState = resolveBossLastHitStrike(state, {
+    score: body.score,
+    distance: body.distance,
+    obstaclesCleared: body.obstaclesCleared,
+    durationMs: body.durationMs,
+  });
   const response = NextResponse.json({
     ok: true,
     game: buildBossLastHitPublicState(nextState),
