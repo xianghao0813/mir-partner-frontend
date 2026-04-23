@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
-import { createQuickSdkOauthUrl, getQuickSdkPublicBaseUrl } from "@/lib/quicksdk";
+import { createQuickSdkOauthUrl } from "@/lib/quicksdk";
 
 export async function GET(request: Request) {
   try {
     const currentUrl = new URL(request.url);
-    const publicBaseUrl = getQuickSdkPublicBaseUrl(currentUrl.origin);
-    const successUrl = `${publicBaseUrl}/auth/sdk/callback`;
-    const cancelUrl = `${publicBaseUrl}/login?cancelled=1`;
+    const origin = currentUrl.origin;
+    const successUrl = `${origin}/auth/sdk/callback`;
+    const cancelUrl = `${origin}/login?cancelled=1`;
     const loginUrl = await createQuickSdkOauthUrl({
       successUrl,
       cancelUrl,

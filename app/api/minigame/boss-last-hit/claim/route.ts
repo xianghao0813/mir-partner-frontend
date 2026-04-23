@@ -26,7 +26,7 @@ export async function POST() {
   const cookieStore = await cookies();
   const gameState = parseBossLastHitState(cookieStore.get(BOSS_LAST_HIT_COOKIE)?.value);
 
-  if (!gameState?.finished || gameState.score < gameState.requiredScore) {
+  if (!gameState?.finished || gameState.successes < 2) {
     return NextResponse.json({ message: "Daily mission not completed." }, { status: 400 });
   }
 

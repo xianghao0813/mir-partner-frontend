@@ -1,26 +1,27 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 
-type RunnerRun = {
-  score: number;
-  distance: number;
-  obstaclesCleared: number;
-  durationMs: number;
-  completedAt: number;
+type Attempt = {
+  wave: number;
+  direction: "left" | "right";
+  reactionMs: number;
+  success: boolean;
+  label: string;
 };
 
 type BossGamePayload = {
-  requiredScore: number;
-  score: number;
-  bestScore: number;
-  distance: number;
-  obstaclesCleared: number;
-  durationMs: number;
-  runs: RunnerRun[];
+  wave: number;
+  totalWaves: number;
+  requiredSuccesses: number;
+  successes: number;
+  combo: number;
+  bestCombo: number;
+  attempts: Attempt[];
   gameFinished: boolean;
   gameActive: boolean;
-  rewardClaimedDate: string;
+  currentEnemy: { direction: "left" | "right" } | null;
+  timeLimitMs: number;
 };
 
 type BossSlashTrialProps = {
@@ -28,368 +29,196 @@ type BossSlashTrialProps = {
   onPointsChange?: (points: number) => void;
 };
 
-type RunnerObstacle = {
-  id: number;
-  x: number;
-  width: number;
-  height: number;
-  passed: boolean;
-};
-
-const TRACK_WIDTH = 520;
-const TRACK_HEIGHT = 250;
-const GROUND_HEIGHT = 44;
-const PLAYER_LEFT = 86;
-const PLAYER_WIDTH = 44;
-const PLAYER_HEIGHT = 58;
-const GRAVITY = 0.95;
-const JUMP_FORCE = 15.5;
-const START_SPEED = 6.2;
-const MAX_SPEED = 12.4;
-const TARGET_SCORE = 180;
-
 export default function BossSlashTrial({ initialPoints, onPointsChange }: BossSlashTrialProps) {
-  const [mirPoints, setMirPoints] = useState(initialPoints);
-  const [requiredScore, setRequiredScore] = useState(TARGET_SCORE);
-  const [bestScore, setBestScore] = useState(0);
-  const [serverScore, setServerScore] = useState(0);
-  const [serverDistance, setServerDistance] = useState(0);
-  const [serverObstacles, setServerObstacles] = useState(0);
-  const [serverDuration, setServerDuration] = useState(0);
+  const [wave, setWave] = useState(1);
+  const [totalWaves, setTotalWaves] = useState(12);
+  const [requiredSuccesses, setRequiredSuccesses] = useState(8);
+  const [successes, setSuccesses] = useState(0);
+  const [combo, setCombo] = useState(0);
+  const [bestCombo, setBestCombo] = useState(0);
+  const [attempts, setAttempts] = useState<Attempt[]>([]);
   const [gameActive, setGameActive] = useState(false);
   const [gameFinished, setGameFinished] = useState(false);
-  const [rewardClaimedToday, setRewardClaimedToday] = useState(false);
+  const [enemyDirection, setEnemyDirection] = useState<"left" | "right">("left");
+  const [enemyTimeLimit, setEnemyTimeLimit] = useState(950);
+  const [enemyProgress, setEnemyProgress] = useState(0);
   const [rewardClaimedDate, setRewardClaimedDate] = useState("");
-  const [runs, setRuns] = useState<RunnerRun[]>([]);
-  const [statusMessage, setStatusMessage] = useState(
-    "Sprint through the ruins, jump over shattered banners, and hit the target score to claim today's reward."
+  const [rewardClaimedToday, setRewardClaimedToday] = useState(false);
+  const [mirPoints, setMirPoints] = useState(initialPoints);
+  const [bossMessage, setBossMessage] = useState(
+    "点击“开始挑战”进入斩妖试炼。怪物会从左右两侧突进，方向正确时立即挥刀。"
   );
+  const [slashEffect, setSlashEffect] = useState<"" | "left" | "right">("");
+  const [impactFlash, setImpactFlash] = useState<"success" | "fail" | "">("");
+  const [isSubmittingStrike, setIsSubmittingStrike] = useState(false);
   const [isStartingGame, setIsStartingGame] = useState(false);
-  const [isSubmittingRun, setIsSubmittingRun] = useState(false);
   const [isClaimingReward, setIsClaimingReward] = useState(false);
-
-  const [score, setScore] = useState(0);
-  const [distance, setDistance] = useState(0);
-  const [obstaclesCleared, setObstaclesCleared] = useState(0);
-  const [speed, setSpeed] = useState(START_SPEED);
-  const [playerY, setPlayerY] = useState(0);
-  const [isJumping, setIsJumping] = useState(false);
-  const [obstacles, setObstacles] = useState<RunnerObstacle[]>([]);
-
-  const rafRef = useRef<number | null>(null);
-  const lastFrameRef = useRef(0);
-  const startedAtRef = useRef(0);
-  const velocityRef = useRef(0);
-  const obstacleIdRef = useRef(0);
-  const nextSpawnRef = useRef(900);
-  const activeRef = useRef(false);
-  const submittedRef = useRef(false);
-  const scoreRef = useRef(0);
-  const distanceRef = useRef(0);
-  const obstaclesRef = useRef(0);
-  const speedRef = useRef(START_SPEED);
-  const playerYRef = useRef(0);
-  const obstacleStateRef = useRef<RunnerObstacle[]>([]);
-
-  const missionCleared = gameFinished && serverScore >= requiredScore;
 
   useEffect(() => {
     setMirPoints(initialPoints);
   }, [initialPoints]);
 
   useEffect(() => {
-    scoreRef.current = score;
-  }, [score]);
+    async function fetchBossStatus() {
+      try {
+        const response = await fetch("/api/minigame/boss-last-hit/status", {
+          cache: "no-store",
+        });
 
-  useEffect(() => {
-    distanceRef.current = distance;
-  }, [distance]);
+        if (!response.ok) {
+          return;
+        }
 
-  useEffect(() => {
-    obstaclesRef.current = obstaclesCleared;
-  }, [obstaclesCleared]);
+        const payload = await response.json();
+        setMirPoints(payload.points ?? initialPoints);
+        setRewardClaimedDate(payload.rewardClaimedDate ?? "");
+        setRewardClaimedToday(Boolean(payload.rewardClaimedToday));
+        onPointsChange?.(payload.points ?? initialPoints);
 
-  useEffect(() => {
-    speedRef.current = speed;
-  }, [speed]);
+        if (payload.game) {
+          syncGameStateFromApi(payload.game);
+        }
+      } catch (error) {
+        console.error(error);
+      }
+    }
 
-  useEffect(() => {
-    playerYRef.current = playerY;
-  }, [playerY]);
-
-  useEffect(() => {
-    obstacleStateRef.current = obstacles;
-  }, [obstacles]);
-
-  useEffect(() => {
-    void fetchRunnerStatus();
+    fetchBossStatus();
   }, [initialPoints, onPointsChange]);
 
   useEffect(() => {
+    if (!gameActive || gameFinished) {
+      return;
+    }
+
+    const startedAt = window.performance.now();
+    const timer = window.setInterval(() => {
+      const elapsed = window.performance.now() - startedAt;
+      const progress = Math.min(1, elapsed / enemyTimeLimit);
+      setEnemyProgress(progress);
+
+      if (progress >= 1) {
+        window.clearInterval(timer);
+        void submitStrike(enemyDirection);
+      }
+    }, 16);
+
+    return () => {
+      window.clearInterval(timer);
+    };
+  }, [enemyDirection, enemyTimeLimit, gameActive, gameFinished]);
+
+  useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
-      if (event.code === "Space" || event.code === "ArrowUp" || event.key.toLowerCase() === "w") {
-        event.preventDefault();
-        if (!gameActive) {
-          return;
-        }
-        jump();
+      if (!gameActive || isSubmittingStrike) {
+        return;
+      }
+
+      const key = event.key.toLowerCase();
+      if (key === "a" || key === "arrowleft") {
+        setSlashEffect("left");
+        void submitStrike("left");
+      }
+      if (key === "d" || key === "arrowright") {
+        setSlashEffect("right");
+        void submitStrike("right");
       }
     }
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [gameActive]);
+  }, [gameActive, isSubmittingStrike]);
 
-  useEffect(() => {
-    return () => {
-      stopLoop();
-    };
-  }, []);
+  const dailyRewardClaimed = rewardClaimedToday;
+  const missionCleared = gameFinished && successes >= requiredSuccesses;
 
-  const progress = useMemo(() => Math.min(1, score / requiredScore), [requiredScore, score]);
-
-  async function fetchRunnerStatus() {
-    try {
-      const response = await fetch("/api/minigame/boss-last-hit/status", {
-        cache: "no-store",
-      });
-
-      if (!response.ok) {
-        return;
-      }
-
-      const payload = await response.json();
-      setMirPoints(payload.points ?? initialPoints);
-      setRewardClaimedDate(payload.rewardClaimedDate ?? "");
-      setRewardClaimedToday(Boolean(payload.rewardClaimedToday));
-      onPointsChange?.(payload.points ?? initialPoints);
-
-      if (payload.game) {
-        syncGameStateFromApi(payload.game);
-      }
-    } catch (error) {
-      console.error(error);
-    }
-  }
-
-  async function startRunner() {
+  async function startBossLastHitGame() {
     try {
       setIsStartingGame(true);
-
       const response = await fetch("/api/minigame/boss-last-hit/start", {
         method: "POST",
       });
+
       const payload = await response.json();
 
       if (!response.ok) {
-        setStatusMessage(payload.message ?? "Failed to start the runner challenge.");
+        setBossMessage(payload.message ?? "挑战开始失败，请稍后重试。");
         return;
       }
 
       syncGameStateFromApi(payload.game);
-      resetLocalRun();
-      beginLoop();
-      setStatusMessage("Run live. Press Space, W, or tap Jump to vault over obstacles.");
+      setBossMessage("怪物已经出现，观察左右方向并立刻挥刀。支持键盘 A / D 或方向键。");
     } catch (error) {
       console.error(error);
-      setStatusMessage("Failed to start the runner challenge.");
+      setBossMessage("挑战开始失败，请稍后重试。");
     } finally {
       setIsStartingGame(false);
     }
   }
 
-  function resetLocalRun() {
-    stopLoop();
-    activeRef.current = true;
-    submittedRef.current = false;
-    setGameActive(true);
-    setGameFinished(false);
-    setScore(0);
-    setDistance(0);
-    setObstaclesCleared(0);
-    setSpeed(START_SPEED);
-    setPlayerY(0);
-    setIsJumping(false);
-    setObstacles([]);
-    velocityRef.current = 0;
-    obstacleIdRef.current = 0;
-    nextSpawnRef.current = 900;
-    scoreRef.current = 0;
-    distanceRef.current = 0;
-    obstaclesRef.current = 0;
-    speedRef.current = START_SPEED;
-    playerYRef.current = 0;
-    obstacleStateRef.current = [];
-  }
-
-  function beginLoop() {
-    stopLoop();
-    lastFrameRef.current = window.performance.now();
-    startedAtRef.current = lastFrameRef.current;
-    rafRef.current = window.requestAnimationFrame(loop);
-  }
-
-  function stopLoop() {
-    activeRef.current = false;
-    if (rafRef.current !== null) {
-      window.cancelAnimationFrame(rafRef.current);
-      rafRef.current = null;
-    }
-  }
-
-  function loop(timestamp: number) {
-    const delta = Math.min(32, timestamp - lastFrameRef.current);
-    lastFrameRef.current = timestamp;
-
-    if (!activeRef.current) {
+  function handleStrike(direction: "left" | "right") {
+    if (!gameActive) {
       return;
     }
 
-    const nextDistance = distanceRef.current + speedRef.current * (delta / 16);
-    const nextScore = Math.floor(nextDistance / 7) + obstaclesRef.current * 12;
-    const nextSpeed = Math.min(MAX_SPEED, START_SPEED + nextDistance / 300);
-    const playerVelocity = velocityRef.current - GRAVITY * (delta / 16);
-    let nextPlayerY = Math.max(0, playerYRef.current + playerVelocity * (delta / 16));
-
-    if (nextPlayerY <= 0) {
-      nextPlayerY = 0;
-      velocityRef.current = 0;
-      if (playerYRef.current > 0) {
-        setIsJumping(false);
-      }
-    } else {
-      velocityRef.current = playerVelocity;
-    }
-
-    nextSpawnRef.current -= delta;
-    let nextObstacles = obstacleStateRef.current.map((obstacle) => ({
-      ...obstacle,
-      x: obstacle.x - nextSpeed * (delta / 16),
-    }));
-
-    if (nextSpawnRef.current <= 0) {
-      nextObstacles.push(createObstacle());
-      nextSpawnRef.current = 760 + Math.random() * 520 - nextDistance / 8;
-    }
-
-    let nextCleared = obstaclesRef.current;
-    nextObstacles = nextObstacles
-      .map((obstacle) => {
-        if (!obstacle.passed && obstacle.x + obstacle.width < PLAYER_LEFT) {
-          nextCleared += 1;
-          return {
-            ...obstacle,
-            passed: true,
-          };
-        }
-
-        return obstacle;
-      })
-      .filter((obstacle) => obstacle.x + obstacle.width > -80);
-
-    const collided = nextObstacles.some((obstacle) => {
-      const overlapX =
-        obstacle.x < PLAYER_LEFT + PLAYER_WIDTH && obstacle.x + obstacle.width > PLAYER_LEFT + 4;
-      const playerBottom = nextPlayerY + PLAYER_HEIGHT;
-      const obstacleTop = obstacle.height;
-      return overlapX && playerBottom > obstacleTop - 6;
-    });
-
-    setDistance(nextDistance);
-    setScore(nextScore);
-    setSpeed(nextSpeed);
-    setPlayerY(nextPlayerY);
-    setObstaclesCleared(nextCleared);
-    setObstacles(nextObstacles);
-
-    scoreRef.current = nextScore;
-    distanceRef.current = nextDistance;
-    obstaclesRef.current = nextCleared;
-    speedRef.current = nextSpeed;
-    playerYRef.current = nextPlayerY;
-    obstacleStateRef.current = nextObstacles;
-
-    if (collided) {
-      stopLoop();
-      setGameActive(false);
-      setGameFinished(true);
-      setStatusMessage(
-        nextScore >= requiredScore
-          ? "Run complete. You hit the target score and can claim the daily reward."
-          : "Run over. You need a little more distance to hit today's target score."
-      );
-      void submitRunResult({
-        score: nextScore,
-        distance: nextDistance,
-        obstaclesCleared: nextCleared,
-        durationMs: Math.max(0, Math.floor(timestamp - startedAtRef.current)),
-      });
-      return;
-    }
-
-    rafRef.current = window.requestAnimationFrame(loop);
+    setSlashEffect(direction);
+    void submitStrike(direction);
   }
 
-  function createObstacle(): RunnerObstacle {
-    obstacleIdRef.current += 1;
-
-    return {
-      id: obstacleIdRef.current,
-      x: TRACK_WIDTH + 12,
-      width: 22 + Math.random() * 26,
-      height: 28 + Math.random() * 38,
-      passed: false,
-    };
-  }
-
-  function jump() {
-    if (!activeRef.current || playerYRef.current > 0) {
+  async function submitStrike(direction: "left" | "right") {
+    if (isSubmittingStrike) {
       return;
     }
-
-    velocityRef.current = JUMP_FORCE;
-    setIsJumping(true);
-  }
-
-  async function submitRunResult(result: {
-    score: number;
-    distance: number;
-    obstaclesCleared: number;
-    durationMs: number;
-  }) {
-    if (submittedRef.current) {
-      return;
-    }
-
-    submittedRef.current = true;
 
     try {
-      setIsSubmittingRun(true);
+      setIsSubmittingStrike(true);
+      setGameActive(false);
+      setEnemyProgress(1);
+
       const response = await fetch("/api/minigame/boss-last-hit/strike", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(result),
+        body: JSON.stringify({ direction }),
       });
       const payload = await response.json();
 
       if (!response.ok) {
-        setStatusMessage(payload.message ?? "Failed to save the run result.");
+        setBossMessage(payload.message ?? "本次出手未能完成判定，请重新开始。");
         return;
       }
 
       syncGameStateFromApi(payload.game);
+
+      const latestAttempt = payload.game?.attempts?.[payload.game.attempts.length - 1];
+      setImpactFlash(latestAttempt?.success ? "success" : "fail");
+      window.setTimeout(() => setImpactFlash(""), 220);
+      window.setTimeout(() => setSlashEffect(""), 220);
+
+      if (payload.game?.gameFinished) {
+        setBossMessage(
+          payload.game.successes >= payload.game.requiredSuccesses
+            ? "挑战成功。你已达成今日目标，可以立即领取 50 米尔积分。"
+            : "本次挑战未达成今日目标。再试一次，抓住怪物突进方向并及时挥刀。"
+        );
+      } else {
+        setBossMessage(
+          latestAttempt?.success
+            ? `第 ${latestAttempt.wave} 波斩杀成功，准备迎接下一只怪物。`
+            : `第 ${latestAttempt.wave} 波 ${latestAttempt?.label ?? "判定失败"}，下一只怪物正在逼近。`
+        );
+      }
     } catch (error) {
       console.error(error);
-      setStatusMessage("Failed to save the run result.");
+      setBossMessage("本次出手未能完成判定，请重新开始。");
     } finally {
-      setIsSubmittingRun(false);
+      setIsSubmittingStrike(false);
     }
   }
 
   async function claimDailyReward() {
-    if (!missionCleared || rewardClaimedToday) {
+    if (!missionCleared || dailyRewardClaimed) {
       return;
     }
 
@@ -401,7 +230,7 @@ export default function BossSlashTrial({ initialPoints, onPointsChange }: BossSl
       const payload = await response.json();
 
       if (!response.ok) {
-        setStatusMessage(payload.message ?? "Failed to claim the reward.");
+        setBossMessage(payload.message ?? "奖励领取失败，请稍后再试。");
         return;
       }
 
@@ -412,10 +241,10 @@ export default function BossSlashTrial({ initialPoints, onPointsChange }: BossSl
       if (payload.game) {
         syncGameStateFromApi(payload.game);
       }
-      setStatusMessage(`Reward claimed. ${payload.awardedPoints ?? 50} MIR points were added.`);
+      setBossMessage(`奖励领取成功，已到账 ${payload.awardedPoints ?? 50} 米尔积分。`);
     } catch (error) {
       console.error(error);
-      setStatusMessage("Failed to claim the reward.");
+      setBossMessage("奖励领取失败，请稍后再试。");
     } finally {
       setIsClaimingReward(false);
     }
@@ -426,179 +255,245 @@ export default function BossSlashTrial({ initialPoints, onPointsChange }: BossSl
       return;
     }
 
-    setRequiredScore(game.requiredScore);
-    setServerScore(game.score);
-    setBestScore(game.bestScore);
-    setServerDistance(game.distance);
-    setServerObstacles(game.obstaclesCleared);
-    setServerDuration(game.durationMs);
-    setRuns(game.runs);
+    setWave(game.wave);
+    setTotalWaves(game.totalWaves);
+    setRequiredSuccesses(game.requiredSuccesses);
+    setSuccesses(game.successes);
+    setCombo(game.combo);
+    setBestCombo(game.bestCombo);
+    setAttempts(game.attempts);
     setGameFinished(game.gameFinished);
     setGameActive(game.gameActive);
-    setRewardClaimedDate(game.rewardClaimedDate ?? "");
+    setEnemyDirection(game.currentEnemy?.direction ?? "left");
+    setEnemyTimeLimit(game.timeLimitMs || 950);
+    setEnemyProgress(0);
   }
 
-  const skylineStyle: React.CSSProperties = {
-    position: "absolute",
-    inset: 0,
-    background:
-      "linear-gradient(180deg, rgba(20,26,38,0.1) 0%, rgba(20,26,38,0.6) 100%), radial-gradient(circle at 20% 20%, rgba(255,207,128,0.35), transparent 30%), linear-gradient(90deg, rgba(255,255,255,0.06) 0 2px, transparent 2px 70px)",
-    opacity: 0.95,
-  };
-
   return (
-    <section style={shellStyle}>
-      <div style={headerRowStyle}>
+    <section style={sectionStyle}>
+      <div style={sectionHeaderStyle}>
         <div>
-          <p style={eyebrowStyle}>Runner Challenge</p>
-          <h2 style={titleStyle}>Shadow Sprint</h2>
+          <div style={eyebrowStyle}>Daily Trial</div>
+          <h2 style={titleStyle}>斩妖试炼</h2>
           <p style={subtitleStyle}>
-            Clear the collapsing causeway, hit {requiredScore} points, and secure today's MIR reward.
+            怪物会从左右两侧突然突进，在正确方向及时挥刀即可完成斩杀。每日完成 {totalWaves} 波中的{" "}
+            {requiredSuccesses} 次成功斩杀，即可领取今日 50 米尔积分。
           </p>
         </div>
-        <div style={pointsBadgeStyle}>
-          <span style={{ fontSize: 12, opacity: 0.72 }}>Current MIR</span>
-          <strong style={{ fontSize: 28 }}>{mirPoints}</strong>
+        <div style={headerMetaStyle}>
+          <div style={headerMetaValueStyle}>+50</div>
+          <div style={headerMetaLabelStyle}>今日奖励 / 米尔积分</div>
         </div>
       </div>
 
-      <div style={mainGridStyle}>
-        <div style={arenaCardStyle}>
-          <div style={arenaTopBarStyle}>
-            <div>
-              <div style={statLabelStyle}>Run Score</div>
-              <div style={statValueStyle}>{score}</div>
-            </div>
-            <div>
-              <div style={statLabelStyle}>Target</div>
-              <div style={statValueStyle}>{requiredScore}</div>
-            </div>
-            <div>
-              <div style={statLabelStyle}>Best</div>
-              <div style={statValueStyle}>{bestScore}</div>
-            </div>
+      <div style={contentGridStyle}>
+        <div style={primaryCardStyle}>
+          <div style={statsGridStyle}>
+            <StatCard label="当前波次" value={`${wave}/${totalWaves}`} accent="#f8fafc" />
+            <StatCard label="成功次数" value={`${successes}`} accent="#fdba74" />
+            <StatCard label="今日目标" value={`${requiredSuccesses}`} accent="#fef08a" />
+            <StatCard label="当前连斩" value={`${combo}`} accent="#fca5a5" />
           </div>
 
-          <div style={progressRailStyle}>
-            <div style={{ ...progressFillStyle, transform: `scaleX(${progress})` }} />
-          </div>
-
-          <div style={trackShellStyle}>
-            <div style={skylineStyle} />
-            <div style={sunGlowStyle} />
-            <div style={trackRuinLayerStyle} />
-            {obstacles.map((obstacle) => (
-              <div
-                key={obstacle.id}
-                style={{
-                  ...obstacleStyle,
-                  width: obstacle.width,
-                  height: obstacle.height,
-                  left: obstacle.x,
-                }}
-              />
-            ))}
+          <div
+            style={{
+              ...arenaStyle,
+              boxShadow:
+                impactFlash === "success"
+                  ? "0 0 0 2px rgba(250,204,21,0.28) inset, 0 0 38px rgba(250,204,21,0.25)"
+                  : impactFlash === "fail"
+                    ? "0 0 0 2px rgba(239,68,68,0.24) inset, 0 0 32px rgba(239,68,68,0.2)"
+                    : "none",
+            }}
+          >
             <div
               style={{
-                ...playerStyle,
-                bottom: GROUND_HEIGHT + playerY,
-                transform: isJumping ? "scale(0.98) rotate(-6deg)" : "scale(1)",
+                position: "absolute",
+                inset: 0,
+                background:
+                  impactFlash === "success"
+                    ? "radial-gradient(circle, rgba(250,204,21,0.2), rgba(250,204,21,0))"
+                    : impactFlash === "fail"
+                      ? "radial-gradient(circle, rgba(239,68,68,0.18), rgba(239,68,68,0))"
+                      : "transparent",
+                pointerEvents: "none",
+              }}
+            />
+
+            <div style={arenaCenterLineStyle} />
+
+            <div style={arenaTopLeftLabelStyle}>
+              {gameActive ? "Enemy incoming" : gameFinished ? "Trial ended" : "Ready"}
+            </div>
+
+            <div style={arenaTopRightLabelStyle}>
+              {gameActive ? `${Math.max(0, Math.ceil((1 - enemyProgress) * enemyTimeLimit))} ms` : "A / D"}
+            </div>
+
+            <div
+              style={{
+                position: "absolute",
+                top: "50%",
+                left: slashEffect === "left" ? "30%" : slashEffect === "right" ? "70%" : "50%",
+                width: slashEffect ? "140px" : "0px",
+                height: "5px",
+                borderRadius: "999px",
+                background:
+                  slashEffect === "left"
+                    ? "linear-gradient(90deg, rgba(255,255,255,0), rgba(248,113,113,0.95), rgba(255,255,255,0))"
+                    : "linear-gradient(90deg, rgba(255,255,255,0), rgba(251,146,60,0.95), rgba(255,255,255,0))",
+                transform:
+                  slashEffect === "left"
+                    ? "translate(-50%, -50%) rotate(-30deg)"
+                    : slashEffect === "right"
+                      ? "translate(-50%, -50%) rotate(30deg)"
+                      : "translate(-50%, -50%) rotate(0deg)",
+                opacity: slashEffect ? 1 : 0,
+                boxShadow: slashEffect ? "0 0 18px rgba(255,255,255,0.35)" : "none",
+                transition: "all 140ms ease",
+                pointerEvents: "none",
+              }}
+            />
+
+            <div style={arenaCoreStyle} />
+
+            <div
+              style={{
+                ...enemyStyle,
+                [enemyDirection === "left" ? "left" : "right"]: `calc(${(1 - enemyProgress) * 78}% - 40px)`,
+                background:
+                  enemyDirection === "left"
+                    ? "linear-gradient(135deg, #ef4444, #7f1d1d)"
+                    : "linear-gradient(135deg, #f97316, #9a3412)",
+                boxShadow: gameActive
+                  ? combo >= 3
+                    ? "0 0 34px rgba(250,204,21,0.32)"
+                    : "0 0 28px rgba(248,113,113,0.35)"
+                  : "none",
+                transition: gameActive ? "none" : "all 180ms ease",
               }}
             >
-              <div style={playerCapeStyle} />
-              <div style={playerBladeStyle} />
+              {enemyDirection === "left" ? "妖" : "魔"}
             </div>
-            <div style={groundStyle} />
           </div>
 
-          <div style={controlRowStyle}>
+          <div style={controlsStyle}>
             <button
               type="button"
-              onClick={startRunner}
+              onClick={startBossLastHitGame}
               disabled={gameActive || isStartingGame}
               style={{
-                ...primaryButtonStyle,
+                ...actionButtonStyle,
+                background: "linear-gradient(135deg, #6d28d9, #7c3aed)",
                 opacity: gameActive || isStartingGame ? 0.45 : 1,
                 cursor: gameActive || isStartingGame ? "not-allowed" : "pointer",
               }}
             >
-              {isStartingGame ? "Starting..." : gameFinished || runs.length > 0 ? "Run Again" : "Start Run"}
+              {isStartingGame ? "正在开始..." : attempts.length === 0 && !gameFinished ? "开始挑战" : "重新开始"}
             </button>
 
             <button
               type="button"
-              onClick={jump}
-              disabled={!gameActive}
+              onClick={() => handleStrike("left")}
+              disabled={!gameActive || isSubmittingStrike}
               style={{
-                ...secondaryButtonStyle,
-                opacity: gameActive ? 1 : 0.45,
-                cursor: gameActive ? "pointer" : "not-allowed",
+                ...actionButtonStyle,
+                background:
+                  enemyDirection === "left"
+                    ? "linear-gradient(135deg, #db2777, #ef4444)"
+                    : "linear-gradient(135deg, #7c2d12, #c2410c)",
+                opacity: gameActive && !isSubmittingStrike ? 1 : 0.45,
+                cursor: gameActive && !isSubmittingStrike ? "pointer" : "not-allowed",
               }}
             >
-              Jump
+              {isSubmittingStrike ? "判定中..." : "← 左斩"}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleStrike("right")}
+              disabled={!gameActive || isSubmittingStrike}
+              style={{
+                ...actionButtonStyle,
+                background:
+                  enemyDirection === "right"
+                    ? "linear-gradient(135deg, #ea580c, #fb923c)"
+                    : "linear-gradient(135deg, #9a3412, #c2410c)",
+                opacity: gameActive && !isSubmittingStrike ? 1 : 0.45,
+                cursor: gameActive && !isSubmittingStrike ? "pointer" : "not-allowed",
+              }}
+            >
+              {isSubmittingStrike ? "判定中..." : "右斩 →"}
             </button>
           </div>
 
-          <div style={hintRowStyle}>
-            <span>Controls: `Space` / `W` / `Arrow Up`</span>
-            <span>Distance {Math.floor(distance)} m</span>
-            <span>Cleared {obstaclesCleared}</span>
-            <span>Speed x{speed.toFixed(1)}</span>
-          </div>
+          <div style={messageBoxStyle}>{bossMessage}</div>
         </div>
 
-        <div style={sidePanelStyle}>
-          <div style={summaryCardStyle}>
-            <div style={summaryTitleStyle}>Mission Status</div>
-            <p style={summaryTextStyle}>{statusMessage}</p>
-
-            <div style={summaryGridStyle}>
-              <SummaryStat label="Last Score" value={serverScore} />
-              <SummaryStat label="Last Distance" value={`${serverDistance} m`} />
-              <SummaryStat label="Obstacles" value={serverObstacles} />
-              <SummaryStat label="Run Time" value={`${(serverDuration / 1000).toFixed(1)} s`} />
-            </div>
+        <div style={sideGridStyle}>
+          <div style={sideCardStyle}>
+            <div style={cardEyebrowStyle}>今日奖励</div>
+            <div style={rewardValueStyle}>+50</div>
+            <div style={rewardLabelStyle}>米尔积分</div>
+            <div style={metaTextStyle}>当前账户积分: {mirPoints.toLocaleString()}</div>
+            <div style={metaTextStyle}>最佳连斩: {bestCombo}</div>
 
             <button
               type="button"
               onClick={claimDailyReward}
-              disabled={!missionCleared || rewardClaimedToday || isClaimingReward}
+              disabled={!missionCleared || dailyRewardClaimed || isClaimingReward}
               style={{
-                ...claimButtonStyle,
-                opacity: missionCleared && !rewardClaimedToday && !isClaimingReward ? 1 : 0.45,
+                ...actionButtonStyle,
+                width: "100%",
+                marginTop: "18px",
+                background:
+                  missionCleared && !dailyRewardClaimed && !isClaimingReward
+                    ? "linear-gradient(135deg, #ca8a04, #f59e0b)"
+                    : "linear-gradient(135deg, #475569, #64748b)",
                 cursor:
-                  missionCleared && !rewardClaimedToday && !isClaimingReward ? "pointer" : "not-allowed",
+                  missionCleared && !dailyRewardClaimed && !isClaimingReward ? "pointer" : "not-allowed",
+                opacity: missionCleared && !dailyRewardClaimed && !isClaimingReward ? 1 : 0.6,
               }}
             >
-              {rewardClaimedToday ? "Reward Claimed" : isClaimingReward ? "Claiming..." : "Claim 50 MIR"}
+              {dailyRewardClaimed ? "今日已领取" : isClaimingReward ? "发放中..." : "领取奖励"}
             </button>
+          </div>
 
-            <div style={footnoteStyle}>
-              {rewardClaimedToday
-                ? `Reward locked for today${rewardClaimedDate ? ` (${rewardClaimedDate})` : ""}.`
-                : `Today's reward unlocks at ${requiredScore} points.`}
+          <div style={sideCardStyle}>
+            <h3 style={sideCardTitleStyle}>战报记录</h3>
+            <div style={battleLogStyle}>
+              {attempts.length === 0 ? (
+                <div style={emptyTextStyle}>挑战开始后，这里会记录每一波怪物的方向、反应时间与判定结果。</div>
+              ) : (
+                attempts.map((attempt) => (
+                  <div
+                    key={`${attempt.wave}-${attempt.direction}-${attempt.reactionMs}-${attempt.label}`}
+                    style={{
+                      ...battleRowStyle,
+                      background: attempt.success ? "rgba(250,204,21,0.08)" : "rgba(255,255,255,0.03)",
+                    }}
+                  >
+                    <div style={{ color: "#c4b5fd" }}>第 {attempt.wave} 波</div>
+                    <div style={{ color: "#e2e8f0" }}>
+                      {attempt.direction === "left" ? "左侧来袭" : "右侧来袭"} · {attempt.reactionMs}ms · {attempt.label}
+                    </div>
+                    <div style={{ color: attempt.success ? "#fde68a" : "#cbd5e1", fontWeight: 700 }}>
+                      {attempt.success ? "成功" : "失败"}
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
           </div>
 
-          <div style={summaryCardStyle}>
-            <div style={summaryTitleStyle}>Recent Runs</div>
-            {runs.length === 0 ? (
-              <p style={summaryTextStyle}>No runs recorded yet. Start one and we will log the highlights here.</p>
-            ) : (
-              <div style={runListStyle}>
-                {runs.map((run, index) => (
-                  <div key={`${run.completedAt}-${index}`} style={runRowStyle}>
-                    <div>
-                      <div style={runScoreStyle}>{run.score} pts</div>
-                      <div style={runMetaStyle}>
-                        {run.distance} m · {run.obstaclesCleared} clears
-                      </div>
-                    </div>
-                    <div style={runTimeStyle}>{(run.durationMs / 1000).toFixed(1)} s</div>
-                  </div>
-                ))}
-              </div>
-            )}
+          <div style={sideCardStyle}>
+            <h3 style={sideCardTitleStyle}>规则说明</h3>
+            <div style={rulesStyle}>
+              <div>1. 每日挑战包含 {totalWaves} 波怪物突进，每波只有一次正确挥刀机会。</div>
+              <div>2. 怪物从左侧出现就按左斩，从右侧出现就按右斩，超时或方向错误都算失败。</div>
+              <div>3. {totalWaves} 波内成功 {requiredSuccesses} 次即可达成当日目标并领取 50 米尔积分。</div>
+              <div>4. 支持键盘 `A / D` 与方向键，适合桌面端快速连续输入。</div>
+            </div>
           </div>
         </div>
       </div>
@@ -606,318 +501,280 @@ export default function BossSlashTrial({ initialPoints, onPointsChange }: BossSl
   );
 }
 
-function SummaryStat({ label, value }: { label: string; value: string | number }) {
+function StatCard({ label, value, accent }: { label: string; value: string; accent: string }) {
   return (
-    <div style={summaryStatCardStyle}>
-      <div style={summaryStatLabelStyle}>{label}</div>
-      <div style={summaryStatValueStyle}>{value}</div>
+    <div style={statCardStyle}>
+      <div style={statLabelStyle}>{label}</div>
+      <div style={{ ...statValueStyle, color: accent }}>{value}</div>
     </div>
   );
 }
 
-const shellStyle: React.CSSProperties = {
-  display: "grid",
-  gap: 24,
-  marginTop: 24,
-  padding: 28,
-  borderRadius: 28,
-  background: "linear-gradient(145deg, rgba(17,24,39,0.96), rgba(51,26,19,0.94))",
-  border: "1px solid rgba(255,255,255,0.08)",
-  boxShadow: "0 24px 80px rgba(8,10,18,0.42)",
-  color: "#f6efe1",
+const sectionStyle: React.CSSProperties = {
+  borderRadius: "28px",
+  padding: "28px",
+  background: "rgba(10,14,24,0.8)",
+  border: "1px solid rgba(148,163,184,0.16)",
+  boxShadow: "0 24px 60px rgba(0,0,0,0.24)",
+  backdropFilter: "blur(16px)",
 };
 
-const headerRowStyle: React.CSSProperties = {
+const sectionHeaderStyle: React.CSSProperties = {
   display: "flex",
   justifyContent: "space-between",
-  gap: 24,
+  gap: "20px",
   alignItems: "flex-start",
+  marginBottom: "20px",
   flexWrap: "wrap",
 };
 
 const eyebrowStyle: React.CSSProperties = {
-  margin: 0,
-  fontSize: 12,
-  letterSpacing: "0.24em",
+  display: "inline-flex",
+  padding: "7px 12px",
+  borderRadius: "999px",
+  background: "rgba(244,114,182,0.12)",
+  border: "1px solid rgba(244,114,182,0.22)",
+  color: "#f9a8d4",
+  fontSize: "12px",
+  letterSpacing: "0.1em",
   textTransform: "uppercase",
-  color: "#f6b75f",
 };
 
 const titleStyle: React.CSSProperties = {
-  margin: "8px 0 10px",
-  fontSize: 34,
-  lineHeight: 1,
+  margin: "16px 0 10px",
+  fontSize: "clamp(30px, 4vw, 42px)",
+  lineHeight: 1.06,
+  letterSpacing: "-0.03em",
+  fontWeight: 800,
+  background: "linear-gradient(90deg, #ffffff, #f5d0fe 55%, #c084fc)",
+  WebkitBackgroundClip: "text",
+  color: "transparent",
 };
 
 const subtitleStyle: React.CSSProperties = {
   margin: 0,
-  maxWidth: 620,
-  color: "rgba(246,239,225,0.76)",
-  lineHeight: 1.7,
+  color: "#cbd5e1",
+  fontSize: "15px",
+  lineHeight: 1.8,
+  maxWidth: "700px",
 };
 
-const pointsBadgeStyle: React.CSSProperties = {
-  minWidth: 164,
-  padding: "16px 18px",
-  borderRadius: 18,
-  background: "rgba(255,255,255,0.06)",
-  display: "grid",
-  gap: 8,
+const headerMetaStyle: React.CSSProperties = {
+  minWidth: "180px",
+  borderRadius: "22px",
+  padding: "18px 20px",
+  background: "linear-gradient(180deg, rgba(124,58,237,0.18), rgba(14,22,38,0.68))",
+  border: "1px solid rgba(196,181,253,0.22)",
 };
 
-const mainGridStyle: React.CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "minmax(0, 1.65fr) minmax(300px, 0.9fr)",
-  gap: 22,
+const headerMetaValueStyle: React.CSSProperties = {
+  fontSize: "38px",
+  fontWeight: 900,
+  color: "#fde68a",
 };
 
-const arenaCardStyle: React.CSSProperties = {
-  padding: 22,
-  borderRadius: 24,
-  background: "rgba(255,255,255,0.04)",
-  display: "grid",
-  gap: 16,
+const headerMetaLabelStyle: React.CSSProperties = {
+  marginTop: "6px",
+  color: "#cbd5e1",
+  fontSize: "13px",
+  lineHeight: 1.5,
 };
 
-const arenaTopBarStyle: React.CSSProperties = {
+const contentGridStyle: React.CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
-  gap: 12,
+  gridTemplateColumns: "minmax(320px, 1.05fr) minmax(300px, 0.95fr)",
+  gap: "24px",
+};
+
+const primaryCardStyle: React.CSSProperties = {
+  borderRadius: "24px",
+  padding: "22px",
+  background: "linear-gradient(180deg, rgba(18,18,34,0.9), rgba(10,12,22,0.92))",
+  border: "1px solid rgba(192,132,252,0.14)",
+  display: "grid",
+  gap: "18px",
+};
+
+const statsGridStyle: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
+  gap: "12px",
+};
+
+const statCardStyle: React.CSSProperties = {
+  borderRadius: "18px",
+  padding: "16px",
+  background: "rgba(255,255,255,0.03)",
+  border: "1px solid rgba(255,255,255,0.08)",
 };
 
 const statLabelStyle: React.CSSProperties = {
-  fontSize: 12,
-  textTransform: "uppercase",
-  letterSpacing: "0.18em",
-  color: "rgba(246,239,225,0.62)",
+  color: "#94a3b8",
+  fontSize: "12px",
+  letterSpacing: "0.08em",
 };
 
 const statValueStyle: React.CSSProperties = {
-  marginTop: 8,
-  fontSize: 28,
-  fontWeight: 700,
+  marginTop: "8px",
+  fontSize: "32px",
+  fontWeight: 800,
 };
 
-const progressRailStyle: React.CSSProperties = {
-  height: 10,
-  borderRadius: 999,
-  overflow: "hidden",
-  background: "rgba(255,255,255,0.08)",
-  transformOrigin: "left center",
-};
-
-const progressFillStyle: React.CSSProperties = {
-  height: "100%",
-  width: "100%",
-  borderRadius: 999,
-  transformOrigin: "left center",
-  background: "linear-gradient(90deg, #f59e0b, #f97316)",
-};
-
-const trackShellStyle: React.CSSProperties = {
+const arenaStyle: React.CSSProperties = {
   position: "relative",
-  width: "100%",
-  minHeight: TRACK_HEIGHT,
-  borderRadius: 22,
+  height: "260px",
+  borderRadius: "24px",
   overflow: "hidden",
-  background: "linear-gradient(180deg, #25334b 0%, #111827 75%)",
+  border: "1px solid rgba(255,255,255,0.08)",
+  background: "radial-gradient(circle at center, rgba(91,33,182,0.2) 0%, rgba(17,24,39,0.82) 58%, rgba(10,10,10,0.95) 100%)",
 };
 
-const sunGlowStyle: React.CSSProperties = {
+const arenaCenterLineStyle: React.CSSProperties = {
   position: "absolute",
-  top: 26,
-  right: 48,
-  width: 110,
-  height: 110,
-  borderRadius: "50%",
-  background: "radial-gradient(circle, rgba(255,210,124,0.75), rgba(255,210,124,0.06) 68%, transparent 72%)",
-};
-
-const trackRuinLayerStyle: React.CSSProperties = {
-  position: "absolute",
-  inset: "26px 0 44px",
-  background:
-    "linear-gradient(90deg, transparent 0 6%, rgba(255,255,255,0.08) 6% 7%, transparent 7% 19%, rgba(255,255,255,0.08) 19% 20%, transparent 20% 34%, rgba(255,255,255,0.08) 34% 35%, transparent 35% 50%, rgba(255,255,255,0.08) 50% 51%, transparent 51% 100%)",
-  opacity: 0.18,
-};
-
-const obstacleStyle: React.CSSProperties = {
-  position: "absolute",
-  bottom: GROUND_HEIGHT,
-  borderRadius: "12px 12px 4px 4px",
-  background: "linear-gradient(180deg, #b45309 0%, #7c2d12 100%)",
-  boxShadow: "0 6px 18px rgba(0,0,0,0.28)",
-};
-
-const playerStyle: React.CSSProperties = {
-  position: "absolute",
-  left: PLAYER_LEFT,
-  width: PLAYER_WIDTH,
-  height: PLAYER_HEIGHT,
-  borderRadius: "16px 16px 10px 10px",
-  background: "linear-gradient(180deg, #f8fafc 0%, #94a3b8 100%)",
-  boxShadow: "0 8px 18px rgba(0,0,0,0.28)",
-  transition: "transform 120ms ease",
-};
-
-const playerCapeStyle: React.CSSProperties = {
-  position: "absolute",
-  top: 12,
-  right: -16,
-  width: 24,
-  height: 30,
-  borderRadius: "6px 14px 18px 6px",
-  background: "linear-gradient(180deg, #f97316 0%, #7c2d12 100%)",
-};
-
-const playerBladeStyle: React.CSSProperties = {
-  position: "absolute",
-  left: 14,
-  top: 2,
-  width: 10,
-  height: 34,
-  borderRadius: 999,
-  background: "linear-gradient(180deg, #fde68a 0%, #f59e0b 100%)",
-  transform: "rotate(24deg)",
-};
-
-const groundStyle: React.CSSProperties = {
-  position: "absolute",
-  left: 0,
-  right: 0,
+  left: "50%",
+  top: 0,
   bottom: 0,
-  height: GROUND_HEIGHT,
-  background:
-    "linear-gradient(180deg, rgba(66,32,18,0.95) 0%, rgba(28,16,11,1) 100%), repeating-linear-gradient(90deg, rgba(255,255,255,0.06) 0 10px, transparent 10px 28px)",
-  borderTop: "1px solid rgba(255,255,255,0.08)",
+  width: "2px",
+  background: "linear-gradient(180deg, rgba(255,255,255,0), rgba(255,255,255,0.25), rgba(255,255,255,0))",
+  transform: "translateX(-50%)",
 };
 
-const controlRowStyle: React.CSSProperties = {
-  display: "flex",
-  gap: 12,
-  flexWrap: "wrap",
+const arenaTopLeftLabelStyle: React.CSSProperties = {
+  position: "absolute",
+  top: "20px",
+  left: "24px",
+  color: "#e9d5ff",
+  fontSize: "12px",
+  letterSpacing: "0.12em",
+  textTransform: "uppercase",
 };
 
-const primaryButtonStyle: React.CSSProperties = {
-  minWidth: 160,
-  padding: "14px 18px",
-  borderRadius: 14,
-  border: "none",
-  background: "linear-gradient(135deg, #f59e0b, #ea580c)",
-  color: "#1f1305",
-  fontWeight: 700,
+const arenaTopRightLabelStyle: React.CSSProperties = {
+  position: "absolute",
+  top: "20px",
+  right: "24px",
+  color: "#fde68a",
+  fontSize: "12px",
+  letterSpacing: "0.12em",
+  textTransform: "uppercase",
 };
 
-const secondaryButtonStyle: React.CSSProperties = {
-  minWidth: 120,
-  padding: "14px 18px",
-  borderRadius: 14,
+const arenaCoreStyle: React.CSSProperties = {
+  position: "absolute",
+  left: "50%",
+  bottom: "24px",
+  transform: "translateX(-50%)",
+  width: "92px",
+  height: "92px",
+  borderRadius: "999px",
+  border: "1px solid rgba(255,255,255,0.14)",
+  background: "radial-gradient(circle, rgba(196,181,253,0.2), rgba(76,29,149,0.28))",
+  boxShadow: "0 0 40px rgba(168,85,247,0.18)",
+};
+
+const enemyStyle: React.CSSProperties = {
+  position: "absolute",
+  top: "50%",
+  transform: "translateY(-50%)",
+  width: "84px",
+  height: "84px",
+  borderRadius: "24px",
   border: "1px solid rgba(255,255,255,0.12)",
-  background: "rgba(255,255,255,0.06)",
-  color: "#f8fafc",
-  fontWeight: 700,
-};
-
-const hintRowStyle: React.CSSProperties = {
   display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  fontSize: "34px",
+};
+
+const controlsStyle: React.CSSProperties = {
+  display: "flex",
+  gap: "12px",
   flexWrap: "wrap",
-  gap: 14,
-  color: "rgba(246,239,225,0.7)",
-  fontSize: 13,
 };
 
-const sidePanelStyle: React.CSSProperties = {
-  display: "grid",
-  gap: 16,
-};
-
-const summaryCardStyle: React.CSSProperties = {
-  padding: 20,
-  borderRadius: 22,
-  background: "rgba(255,255,255,0.04)",
-  display: "grid",
-  gap: 16,
-};
-
-const summaryTitleStyle: React.CSSProperties = {
-  fontSize: 18,
+const actionButtonStyle: React.CSSProperties = {
+  border: "none",
+  borderRadius: "14px",
+  padding: "14px 20px",
+  color: "white",
+  fontSize: "15px",
   fontWeight: 700,
 };
 
-const summaryTextStyle: React.CSSProperties = {
-  margin: 0,
-  color: "rgba(246,239,225,0.74)",
+const messageBoxStyle: React.CSSProperties = {
+  borderRadius: "18px",
+  padding: "16px 18px",
+  background: "rgba(255,255,255,0.03)",
+  border: "1px solid rgba(255,255,255,0.06)",
+  color: "#e7e5e4",
   lineHeight: 1.7,
 };
 
-const summaryGridStyle: React.CSSProperties = {
+const sideGridStyle: React.CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-  gap: 10,
+  gap: "20px",
 };
 
-const summaryStatCardStyle: React.CSSProperties = {
-  padding: "12px 14px",
-  borderRadius: 16,
-  background: "rgba(255,255,255,0.05)",
+const sideCardStyle: React.CSSProperties = {
+  borderRadius: "24px",
+  padding: "22px",
+  border: "1px solid rgba(255,255,255,0.08)",
+  background: "rgba(255,255,255,0.03)",
 };
 
-const summaryStatLabelStyle: React.CSSProperties = {
-  fontSize: 11,
-  textTransform: "uppercase",
-  letterSpacing: "0.16em",
-  color: "rgba(246,239,225,0.55)",
+const cardEyebrowStyle: React.CSSProperties = {
+  color: "#f9a8d4",
+  fontSize: "12px",
+  letterSpacing: "0.08em",
 };
 
-const summaryStatValueStyle: React.CSSProperties = {
-  marginTop: 8,
-  fontSize: 22,
-  fontWeight: 700,
+const rewardValueStyle: React.CSSProperties = {
+  marginTop: "8px",
+  fontSize: "42px",
+  fontWeight: 900,
+  color: "#fde68a",
 };
 
-const claimButtonStyle: React.CSSProperties = {
-  padding: "14px 18px",
-  borderRadius: 14,
-  border: "none",
-  background: "linear-gradient(135deg, #fb7185, #e11d48)",
-  color: "#fff1f2",
-  fontWeight: 700,
+const rewardLabelStyle: React.CSSProperties = {
+  color: "#f8fafc",
+  marginTop: "4px",
 };
 
-const footnoteStyle: React.CSSProperties = {
-  color: "rgba(246,239,225,0.64)",
-  fontSize: 13,
-  lineHeight: 1.6,
+const metaTextStyle: React.CSSProperties = {
+  marginTop: "12px",
+  color: "#cbd5e1",
+  fontSize: "14px",
 };
 
-const runListStyle: React.CSSProperties = {
+const sideCardTitleStyle: React.CSSProperties = {
+  marginTop: 0,
+  marginBottom: "16px",
+  fontSize: "22px",
+};
+
+const battleLogStyle: React.CSSProperties = {
   display: "grid",
-  gap: 10,
+  gap: "12px",
 };
 
-const runRowStyle: React.CSSProperties = {
-  display: "flex",
-  justifyContent: "space-between",
+const emptyTextStyle: React.CSSProperties = {
+  color: "#94a3b8",
+  lineHeight: 1.7,
+};
+
+const battleRowStyle: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "90px 1fr auto",
+  gap: "12px",
   alignItems: "center",
-  gap: 10,
-  padding: "12px 14px",
-  borderRadius: 16,
-  background: "rgba(255,255,255,0.05)",
+  padding: "16px",
+  borderRadius: "18px",
+  border: "1px solid rgba(255,255,255,0.08)",
 };
 
-const runScoreStyle: React.CSSProperties = {
-  fontSize: 18,
-  fontWeight: 700,
-};
-
-const runMetaStyle: React.CSSProperties = {
-  marginTop: 4,
-  color: "rgba(246,239,225,0.62)",
-  fontSize: 13,
-};
-
-const runTimeStyle: React.CSSProperties = {
-  color: "#f6b75f",
-  fontWeight: 700,
-  whiteSpace: "nowrap",
+const rulesStyle: React.CSSProperties = {
+  display: "grid",
+  gap: "10px",
+  color: "#d6d3d1",
+  lineHeight: 1.7,
 };

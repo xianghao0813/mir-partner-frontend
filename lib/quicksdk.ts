@@ -1,16 +1,14 @@
 import crypto from "node:crypto";
 
-const QUICKSDK_DEFAULT_BASE_URL = "http://custom-sdkapi.gamewemade.com";
+const QUICKSDK_BASE_URL = "https://sdkapi.gamewemade.com";
 const QUICKSDK_DEFAULT_CHANNEL_CODE = "website";
 
 type QuickSdkConfig = {
-  baseUrl: string;
   openId: string;
   openKey: string;
   productCode: string;
   channelCode: string;
   localAuthSecret: string;
-  publicBaseUrl: string;
 };
 
 export type QuickSdkCheckTokenResponse = {
@@ -28,15 +26,12 @@ export type QuickSdkCheckTokenResponse = {
 };
 
 export function getQuickSdkConfig(): QuickSdkConfig {
-  const baseUrl =
-    process.env.QUICKSDK_BASE_URL?.trim().replace(/\/+$/, "") ?? QUICKSDK_DEFAULT_BASE_URL;
   const openId = process.env.QUICKSDK_OPEN_ID?.trim() ?? "";
   const openKey = process.env.QUICKSDK_OPEN_KEY?.trim() ?? "";
   const productCode = process.env.QUICKSDK_PRODUCT_CODE?.trim() ?? "";
   const channelCode =
     process.env.QUICKSDK_CHANNEL_CODE?.trim() ?? QUICKSDK_DEFAULT_CHANNEL_CODE;
   const localAuthSecret = process.env.QUICKSDK_LOCAL_AUTH_SECRET?.trim() ?? "";
-  const publicBaseUrl = process.env.QUICKSDK_PUBLIC_BASE_URL?.trim().replace(/\/+$/, "") ?? "";
 
   if (!openId || !openKey || !productCode || !localAuthSecret) {
     throw new Error(
@@ -45,19 +40,12 @@ export function getQuickSdkConfig(): QuickSdkConfig {
   }
 
   return {
-    baseUrl,
     openId,
     openKey,
     productCode,
     channelCode,
     localAuthSecret,
-    publicBaseUrl,
   };
-}
-
-export function getQuickSdkPublicBaseUrl(requestOrigin: string) {
-  const { publicBaseUrl } = getQuickSdkConfig();
-  return publicBaseUrl || requestOrigin;
 }
 
 export async function createQuickSdkOauthUrl({
@@ -76,7 +64,7 @@ export async function createQuickSdkOauthUrl({
     cancalUrl: cancelUrl,
   });
 
-  const response = await postForm(`${config.baseUrl}/webOpen/oauth`, payload);
+  const response = await postForm(`${QUICKSDK_BASE_URL}/webOpen/oauth`, payload);
   const text = await response.text();
   const location = normalizeReturnedUrl(text);
 
@@ -86,10 +74,6 @@ export async function createQuickSdkOauthUrl({
 
   if (!location) {
     throw new Error("QuickSDK oauth request did not return a login URL.");
-  }
-
-  if (!isAbsoluteHttpUrl(location)) {
-    throw new Error(location);
   }
 
   return location;
@@ -111,7 +95,7 @@ export async function verifyQuickSdkToken({
     authToken,
   });
 
-  const response = await postForm(`${config.baseUrl}/webOpen/checkToken`, payload);
+  const response = await postForm(`${QUICKSDK_BASE_URL}/webOpen/checkToken`, payload);
   const text = await response.text();
   const json = parseJson<QuickSdkCheckTokenResponse>(text);
 
@@ -185,16 +169,12 @@ function normalizeReturnedUrl(value: string) {
     return trimmed;
   }
 
-  const json = parseJson<{
-    status?: boolean;
-    message?: string;
-    data?: string | { url?: string; loginUrl?: string };
-  }>(
+  const json = parseJson<{ status?: boolean; message?: string; data?: string | { url?: string } }>(
     trimmed
   );
 
   if (!json) {
-    return trimmed;
+    return "";
   }
 
   if (typeof json.data === "string") {
@@ -205,20 +185,7 @@ function normalizeReturnedUrl(value: string) {
     return json.data.url;
   }
 
-  if (json.data && typeof json.data === "object" && typeof json.data.loginUrl === "string") {
-    return json.data.loginUrl;
-  }
-
   return json.message ?? "";
-}
-
-function isAbsoluteHttpUrl(value: string) {
-  try {
-    const url = new URL(value);
-    return url.protocol === "http:" || url.protocol === "https:";
-  } catch {
-    return false;
-  }
 }
 
 function parseJson<T>(value: string) {

@@ -1,25 +1,27 @@
 import { NextResponse } from "next/server";
-import { fetchAdminPublicApi } from "@/lib/adminPublicApi";
+import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 export async function GET() {
   try {
-    const json = await fetchAdminPublicApi<{
-      banners: Array<{
-        id: number;
-        title: string | null;
-        image_url: string;
-        link_url: string | null;
-        game_slug: string | null;
-        sort_order: number;
-      }>;
-    }>("/api/public/banners");
+    const { data, error } = await supabaseAdmin
+      .from("banners")
+      .select("id, title, image_url, link_url, game_slug, sort_order")
+      .eq("is_active", true)
+      .order("sort_order", { ascending: true });
+
+    if (error) {
+      return NextResponse.json(
+        { message: "배너를 불러오지 못했습니다.", error: error.message },
+        { status: 500 }
+      );
+    }
 
     return NextResponse.json({
-      banners: json.banners ?? [],
+      banners: data ?? [],
     });
-  } catch (error) {
+  } catch {
     return NextResponse.json(
-      { message: error instanceof Error ? error.message : "Unexpected server error" },
+      { message: "서버 오류가 발생했습니다." },
       { status: 500 }
     );
   }
