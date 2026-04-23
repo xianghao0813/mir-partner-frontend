@@ -60,6 +60,29 @@ export function getQuickSdkPublicBaseUrl(requestOrigin: string) {
   return publicBaseUrl || requestOrigin;
 }
 
+export function resolvePublicOrigin(
+  requestUrl: string,
+  requestHeaders?: Headers | Record<string, string | string[] | undefined>
+) {
+  const configuredOrigin = getQuickSdkConfig().publicBaseUrl;
+
+  if (configuredOrigin) {
+    return configuredOrigin;
+  }
+
+  const header = (name: string) => getHeaderValue(requestHeaders, name);
+  const forwardedProto = header("x-forwarded-proto");
+  const forwardedHost = header("x-forwarded-host");
+  const host = forwardedHost || header("host");
+
+  if (host) {
+    const proto = forwardedProto || new URL(requestUrl).protocol.replace(":", "");
+    return `${proto}://${host}`.replace(/\/+$/, "");
+  }
+
+  return new URL(requestUrl).origin;
+}
+
 export async function createQuickSdkOauthUrl({
   successUrl,
   cancelUrl,
@@ -227,4 +250,31 @@ function parseJson<T>(value: string) {
   } catch {
     return null;
   }
+}
+
+function getHeaderValue(
+  headers: Headers | Record<string, string | string[] | undefined> | undefined,
+  name: string
+) {
+  if (!headers) {
+    return "";
+  }
+
+  if (headers instanceof Headers) {
+    return headers.get(name)?.split(",")[0]?.trim() ?? "";
+  }
+
+  const matchedKey = Object.keys(headers).find((key) => key.toLowerCase() === name.toLowerCase());
+
+  if (!matchedKey) {
+    return "";
+  }
+
+  const value = headers[matchedKey];
+
+  if (Array.isArray(value)) {
+    return value[0]?.trim() ?? "";
+  }
+
+  return value?.split(",")[0]?.trim() ?? "";
 }

@@ -4,18 +4,20 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import {
   getQuickSdkSyntheticEmail,
   getQuickSdkSyntheticPassword,
+  resolvePublicOrigin,
   verifyQuickSdkToken,
 } from "@/lib/quicksdk";
 
 export async function GET(request: Request) {
   const requestUrl = new URL(request.url);
+  const publicOrigin = resolvePublicOrigin(request.url, request.headers);
   const uid = requestUrl.searchParams.get("uid")?.trim() ?? "";
   const username = requestUrl.searchParams.get("username")?.trim() ?? "";
   const authToken = requestUrl.searchParams.get("authToken")?.trim() ?? "";
   const timeLeft = requestUrl.searchParams.get("timeLeft")?.trim() ?? "";
 
   if (!uid || !authToken) {
-    return redirectWithError(requestUrl, "QuickSDK callback is missing uid or authToken.");
+    return redirectWithError(publicOrigin, "QuickSDK callback is missing uid or authToken.");
   }
 
   try {
@@ -43,10 +45,10 @@ export async function GET(request: Request) {
       throw error;
     }
 
-    return NextResponse.redirect(new URL("/profile", request.url));
+    return NextResponse.redirect(new URL("/profile", publicOrigin));
   } catch (error) {
     return redirectWithError(
-      requestUrl,
+      publicOrigin,
       error instanceof Error ? error.message : "QuickSDK login failed."
     );
   }
@@ -114,8 +116,8 @@ async function findUserByEmail(email: string) {
   return data.users.find((item) => item.email?.toLowerCase() === email.toLowerCase()) ?? null;
 }
 
-function redirectWithError(requestUrl: URL, message: string) {
-  const errorUrl = new URL("/login", requestUrl.origin);
+function redirectWithError(publicOrigin: string, message: string) {
+  const errorUrl = new URL("/login", publicOrigin);
   errorUrl.searchParams.set("error", message);
   return NextResponse.redirect(errorUrl);
 }

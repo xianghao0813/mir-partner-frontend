@@ -1,10 +1,9 @@
 import { NextResponse } from "next/server";
-import { createQuickSdkOauthUrl, getQuickSdkPublicBaseUrl } from "@/lib/quicksdk";
+import { createQuickSdkOauthUrl, resolvePublicOrigin } from "@/lib/quicksdk";
 
 export async function GET(request: Request) {
   try {
-    const currentUrl = new URL(request.url);
-    const publicBaseUrl = getQuickSdkPublicBaseUrl(currentUrl.origin);
+    const publicBaseUrl = resolvePublicOrigin(request.url, request.headers);
     const successUrl = `${publicBaseUrl}/auth/sdk/callback`;
     const cancelUrl = `${publicBaseUrl}/login?cancelled=1`;
     const loginUrl = await createQuickSdkOauthUrl({
@@ -14,12 +13,11 @@ export async function GET(request: Request) {
 
     return NextResponse.redirect(loginUrl);
   } catch (error) {
-    const currentUrl = new URL(request.url);
-    currentUrl.pathname = "/login";
-    currentUrl.searchParams.set(
+    const errorUrl = new URL("/login", resolvePublicOrigin(request.url, request.headers));
+    errorUrl.searchParams.set(
       "error",
       error instanceof Error ? error.message : "QuickSDK login is not configured."
     );
-    return NextResponse.redirect(currentUrl);
+    return NextResponse.redirect(errorUrl);
   }
 }
