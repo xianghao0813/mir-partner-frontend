@@ -2,6 +2,7 @@ import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { awardMirPoints } from "@/lib/mirPoints";
 import {
   BOSS_LAST_HIT_COOKIE,
   BOSS_LAST_HIT_REWARD_POINTS,
@@ -44,8 +45,12 @@ export async function POST() {
     );
   }
 
-  const currentPoints = readMirPoints(user.user_metadata);
-  const nextPoints = currentPoints + BOSS_LAST_HIT_REWARD_POINTS;
+  const pointAward = awardMirPoints({
+    metadata: user.user_metadata,
+    points: BOSS_LAST_HIT_REWARD_POINTS,
+    source: "boss_last_hit",
+  });
+  const nextPoints = pointAward.afterPoints;
   const receipt = createBossLastHitRewardReceipt({
     userId: user.id,
     claimedDate: today,
@@ -54,8 +59,7 @@ export async function POST() {
 
   const { error } = await supabaseAdmin.auth.admin.updateUserById(user.id, {
     user_metadata: {
-      ...user.user_metadata,
-      mir_points: nextPoints,
+      ...pointAward.metadata,
       boss_last_hit_reward_date: today,
       boss_last_hit_reward_receipt: receipt,
     },

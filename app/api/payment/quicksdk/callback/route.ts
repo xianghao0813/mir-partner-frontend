@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { changeQuickSdkPlatformCoins } from "@/lib/quicksdk";
+import { awardMirPoints } from "@/lib/mirPoints";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { appendWalletTransaction, readCloudCoins, readWalletTransactions } from "@/lib/wallet";
 
@@ -63,18 +64,24 @@ export async function POST(request: NextRequest) {
     type: "recharge" as const,
     amount: paidAmount || coins,
     coins,
-    desc: "平台币充值",
+    desc: "云币充值",
     date: new Date().toISOString().slice(0, 10),
     payMethod,
     status: "success" as const,
   };
+  const awardedMirPoints = Math.floor((paidAmount || coins) * 100);
+  const pointAward = awardMirPoints({
+    metadata: user.user_metadata,
+    points: awardedMirPoints,
+    source: "wallet_recharge",
+  });
 
   const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(userId, {
     user_metadata: {
-      ...user.user_metadata,
+      ...pointAward.metadata,
       cloud_coins: nextCoins,
       wallet_last_order_no: cpOrderNo,
-      wallet_transactions: appendWalletTransaction(user.user_metadata, transaction),
+      wallet_transactions: appendWalletTransaction(pointAward.metadata, transaction),
     },
   });
 

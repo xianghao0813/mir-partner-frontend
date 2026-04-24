@@ -257,7 +257,7 @@ export default function WalletPage() {
 
             <div style={historyListStyle}>
               {(wallet?.transactions ?? []).length === 0 ? (
-                <div style={emptyHistoryStyle}>暂无平台币使用明细。</div>
+                <div style={emptyHistoryStyle}>暂无云币使用明细。</div>
               ) : (
                 (wallet?.transactions ?? []).map((item) => (
                   <article key={item.id} style={historyItemStyle}>

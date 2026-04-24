@@ -8,23 +8,115 @@ type ProfileContentProps = {
   profile: PartnerProfileSummary;
 };
 
+const profileTierList = [
+  { id: 1, label: "米尔新星", minPoints: 0, accent: "#94a3b8" },
+  { id: 2, label: "米尔一星", minPoints: 100000, accent: "#60a5fa" },
+  { id: 3, label: "米尔二星", minPoints: 500000, accent: "#22c55e" },
+  { id: 4, label: "米尔三星", minPoints: 1000000, accent: "#14b8a6" },
+  { id: 5, label: "米尔四星", minPoints: 5000000, accent: "#f59e0b" },
+  { id: 6, label: "米尔五星", minPoints: 10000000, accent: "#fb7185" },
+  { id: 7, label: "米尔六星", minPoints: 30000000, accent: "#c084fc" },
+  { id: 8, label: "米尔至尊", minPoints: 50000000, accent: "#facc15" },
+];
+
 export default function ProfileContent({ profile }: ProfileContentProps) {
   const [currentPoints, setCurrentPoints] = useState(profile.points);
+  const [currentMonthlyPoints, setCurrentMonthlyPoints] = useState(profile.monthlyPoints);
+  const [activeTierIndex, setActiveTierIndex] = useState(
+    Math.max(0, profileTierList.findIndex((tier) => tier.id === profile.currentTier.id))
+  );
+  const currentTier = getTierForPoints(currentPoints);
+  const nextTier = getNextTier(currentTier.id);
+  const pointsToNextTier = nextTier ? Math.max(nextTier.minPoints - currentPoints, 0) : 0;
+  const progressPercent = nextTier
+    ? Math.min(
+        100,
+        Math.max(
+          0,
+          Math.round(
+            ((currentPoints - currentTier.minPoints) / (nextTier.minPoints - currentTier.minPoints)) * 100
+          )
+        )
+      )
+    : 100;
 
   return (
     <main className="hide-scrollbar" style={pageStyle}>
-      <div className="auth-bg" />
-      <div className="auth-overlay" />
+      <div className="auth-bg" style={{ position: "fixed" }} />
+      <div className="auth-overlay" style={{ position: "fixed" }} />
 
       <div style={shellStyle}>
         <section style={cardStyle}>
           <div style={eyebrowStyle}>MIR Partner</div>
           <h1 style={titleStyle}>个人资料</h1>
-          <p style={subtitleStyle}>这里只保留当前账号的核心识别信息。</p>
+          <p style={subtitleStyle}>查看当前账号的合伙人身份、星级和 MIR 积分进度。</p>
 
           <div style={infoGridStyle}>
             <InfoCard label="UID" value={profile.uid || "-"} />
-            <InfoCard label="合伙人编码" value={profile.partnerCode} accent="#fde68a" />
+            <InfoCard label="合伙人编号" value={profile.partnerCode} accent="#fde68a" />
+            <InfoCard label="合伙人星级" value={currentTier.label} accent={currentTier.accent} />
+            <InfoCard label="当前累计积分" value={currentPoints.toLocaleString()} accent="#c4b5fd" />
+            <InfoCard label="本月获得积分" value={currentMonthlyPoints.toLocaleString()} accent="#86efac" />
+            <InfoCard
+              label="下一级还需"
+              value={nextTier ? `${pointsToNextTier.toLocaleString()} 分` : "已达最高星级"}
+              accent="#facc15"
+            />
+          </div>
+
+          <div style={tierProgressStyle}>
+            <div style={tierProgressHeaderStyle}>
+              <span>{currentTier.label}</span>
+              <span>{nextTier ? nextTier.label : "最高星级"}</span>
+            </div>
+            <div style={progressRailStyle}>
+              <div style={{ ...progressFillStyle, width: `${progressPercent}%` }} />
+            </div>
+          </div>
+        </section>
+
+        <section style={cardStyle}>
+          <div style={sectionHeaderStyle}>
+            <div>
+              <div style={eyebrowStyle}>Partner Tiers</div>
+              <h2 style={sectionTitleStyle}>合伙人星级权益</h2>
+            </div>
+            <div style={pointsBadgeStyle}>{profileTierList[activeTierIndex].label}</div>
+          </div>
+
+          <div style={tierCarouselStyle}>
+            {profileTierList.map((tier, index) => {
+              const offset = index - activeTierIndex;
+              const isActive = index === activeTierIndex;
+              const isVisible = Math.abs(offset) <= 2;
+
+              if (!isVisible) {
+                return null;
+              }
+
+              return (
+                <button
+                  key={tier.id}
+                  type="button"
+                  onClick={() => setActiveTierIndex(index)}
+                  style={tierCardButtonStyle(offset, isActive)}
+                  aria-label={`${tier.label} 星级权益`}
+                >
+                  <article style={tierCardStyle(isActive, tier.accent)}>
+                    <div style={{ ...tierCardBadgeStyle, color: tier.accent }}>{tier.label}</div>
+                    <div style={tierCardPointsStyle}>{tier.minPoints.toLocaleString()} 分</div>
+                    <div style={tierCardTextStyle}>升级所需累计积分</div>
+                    <div style={tierBenefitListStyle}>
+                      {getTierBenefits(tier.label).map((benefit) => (
+                        <div key={benefit} style={tierBenefitItemStyle}>
+                          {benefit}
+                        </div>
+                      ))}
+                    </div>
+                  </article>
+                </button>
+              );
+            })}
           </div>
         </section>
 
@@ -34,13 +126,18 @@ export default function ProfileContent({ profile }: ProfileContentProps) {
               <div style={eyebrowStyle}>Mini Game</div>
               <h2 style={sectionTitleStyle}>Boss Last Hit</h2>
             </div>
-            <div style={pointsBadgeStyle}>MIR Points: {currentPoints}</div>
+            <div style={pointsBadgeStyle}>MIR Points: {currentPoints.toLocaleString()}</div>
           </div>
 
           <BossSlashTrial
             initialPoints={currentPoints}
             onPointsChange={(points) => {
-              setCurrentPoints(points);
+              setCurrentPoints((previousPoints) => {
+                if (points > previousPoints) {
+                  setCurrentMonthlyPoints((previousMonthlyPoints) => previousMonthlyPoints + points - previousPoints);
+                }
+                return points;
+              });
             }}
           />
         </section>
@@ -64,6 +161,25 @@ function InfoCard({
       <div style={{ ...infoValueStyle, color: accent }}>{value}</div>
     </article>
   );
+}
+
+function getTierForPoints(points: number) {
+  return [...profileTierList]
+    .reverse()
+    .find((tier) => points >= tier.minPoints) ?? profileTierList[0];
+}
+
+function getNextTier(currentTierId: number) {
+  return profileTierList.find((tier) => tier.id === currentTierId + 1) ?? null;
+}
+
+function getTierBenefits(tierLabel: string) {
+  return [
+    `${tierLabel} 专属身份标识`,
+    "月度活动优先参与资格",
+    "云币任务奖励加成（待定）",
+    "合伙人数据看板权限（待定）",
+  ];
 }
 
 const pageStyle: React.CSSProperties = {
@@ -123,6 +239,34 @@ const infoGridStyle: React.CSSProperties = {
   gap: "14px",
 };
 
+const tierProgressStyle: React.CSSProperties = {
+  marginTop: "18px",
+  display: "grid",
+  gap: "10px",
+};
+
+const tierProgressHeaderStyle: React.CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  gap: "12px",
+  color: "#d8b4fe",
+  fontSize: "13px",
+  fontWeight: 700,
+};
+
+const progressRailStyle: React.CSSProperties = {
+  height: "10px",
+  borderRadius: "999px",
+  background: "rgba(255,255,255,0.08)",
+  overflow: "hidden",
+};
+
+const progressFillStyle: React.CSSProperties = {
+  height: "100%",
+  borderRadius: "999px",
+  background: "linear-gradient(90deg, #7c3aed, #facc15)",
+};
+
 const infoCardStyle: React.CSSProperties = {
   padding: "18px",
   borderRadius: "16px",
@@ -166,4 +310,80 @@ const pointsBadgeStyle: React.CSSProperties = {
   color: "#f5d0fe",
   fontSize: "14px",
   fontWeight: 700,
+};
+
+const tierCarouselStyle: React.CSSProperties = {
+  position: "relative",
+  height: "360px",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  overflow: "hidden",
+};
+
+const tierCardButtonStyle = (offset: number, isActive: boolean): React.CSSProperties => ({
+  position: "absolute",
+  width: "min(360px, 82vw)",
+  height: "300px",
+  border: "none",
+  padding: 0,
+  background: "transparent",
+  cursor: "pointer",
+  transform: `translateX(${offset * 42}%) scale(${isActive ? 1 : 0.86}) rotate(${offset * -3}deg)`,
+  opacity: isActive ? 1 : 0.58,
+  zIndex: 20 - Math.abs(offset),
+  transition:
+    "transform 260ms ease, opacity 260ms ease, filter 260ms ease, z-index 260ms ease",
+  filter: isActive ? "none" : "blur(0.2px)",
+});
+
+const tierCardStyle = (isActive: boolean, accent: string): React.CSSProperties => ({
+  width: "100%",
+  height: "100%",
+  boxSizing: "border-box",
+  borderRadius: "24px",
+  padding: "24px",
+  textAlign: "left",
+  color: "white",
+  background: isActive
+    ? `linear-gradient(145deg, rgba(24,24,36,0.98), rgba(18,18,28,0.96)), radial-gradient(circle at top, ${accent}40, transparent 58%)`
+    : "linear-gradient(145deg, rgba(20,20,30,0.9), rgba(12,12,18,0.9))",
+  border: `1px solid ${isActive ? accent : "rgba(255,255,255,0.12)"}`,
+  boxShadow: isActive
+    ? `0 24px 60px rgba(0,0,0,0.42), 0 0 26px ${accent}33`
+    : "0 16px 36px rgba(0,0,0,0.32)",
+  display: "grid",
+  alignContent: "start",
+  gap: "12px",
+});
+
+const tierCardBadgeStyle: React.CSSProperties = {
+  fontSize: "28px",
+  fontWeight: 800,
+};
+
+const tierCardPointsStyle: React.CSSProperties = {
+  fontSize: "34px",
+  fontWeight: 800,
+  color: "#f8fafc",
+};
+
+const tierCardTextStyle: React.CSSProperties = {
+  color: "#9ca3af",
+  fontSize: "13px",
+};
+
+const tierBenefitListStyle: React.CSSProperties = {
+  display: "grid",
+  gap: "8px",
+  marginTop: "6px",
+};
+
+const tierBenefitItemStyle: React.CSSProperties = {
+  padding: "10px 12px",
+  borderRadius: "12px",
+  background: "rgba(255,255,255,0.05)",
+  border: "1px solid rgba(255,255,255,0.07)",
+  color: "#d1d5db",
+  fontSize: "13px",
 };
