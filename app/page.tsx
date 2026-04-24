@@ -116,7 +116,10 @@ export default function Home() {
           scrollSnapType: "y mandatory",
           scrollBehavior: "smooth",
           background:
-            "linear-gradient(180deg, rgba(5,6,12,0.16) 0%, rgba(5,6,12,0.78) 62%, rgba(5,6,12,0.98) 100%)",
+            "linear-gradient(180deg, rgba(5,6,12,0.18) 0%, rgba(5,6,12,0.7) 62%, rgba(5,6,12,0.96) 100%), url('/home-cinematic-bg.png')",
+          backgroundSize: "cover",
+          backgroundPosition: "center",
+          backgroundAttachment: "fixed",
           color: "white",
           margin: "-40px",
           width: "calc(100% + 80px)",

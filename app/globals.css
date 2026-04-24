@@ -237,6 +237,7 @@ a {
     margin: -18px !important;
     width: calc(100% + 36px) !important;
     scroll-snap-type: none !important;
+    background-attachment: scroll !important;
   }
 
   .home-hero-section,

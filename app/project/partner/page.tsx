@@ -95,83 +95,92 @@ const sections: Section[] = [
 
 export default function PartnerPage() {
   const containerRef = useRef<HTMLDivElement>(null);
+  const currentIndexRef = useRef(0);
+  const isAnimatingRef = useRef(false);
   const [currentIndex, setCurrentIndex] = useState(0);
+
+  function getSectionTop(index: number) {
+    const el = containerRef.current;
+    const section = el?.querySelector<HTMLElement>(`[data-section-index="${index}"]`);
+    return section?.offsetTop ?? (el ? index * el.clientHeight : 0);
+  }
+
+  function scrollToSection(index: number, behavior: ScrollBehavior = "smooth") {
+    const el = containerRef.current;
+    if (!el) return;
+
+    currentIndexRef.current = index;
+    setCurrentIndex(index);
+    el.scrollTo({
+      top: getSectionTop(index),
+      behavior,
+    });
+  }
 
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
 
-    let isAnimating = false;
-
     const handleWheel = (e: WheelEvent) => {
       e.preventDefault();
 
-      if (isAnimating) return;
+      if (isAnimatingRef.current || Math.abs(e.deltaY) < 8) return;
 
       const direction = e.deltaY > 0 ? 1 : -1;
       const nextIndex = Math.min(
         sections.length - 1,
-        Math.max(0, currentIndex + direction)
+        Math.max(0, currentIndexRef.current + direction)
       );
 
-      if (nextIndex === currentIndex) return;
+      if (nextIndex === currentIndexRef.current) return;
 
-      isAnimating = true;
-      setCurrentIndex(nextIndex);
-
-      el.scrollTo({
-        top: nextIndex * el.clientHeight,
-        behavior: "smooth",
-      });
+      isAnimatingRef.current = true;
+      scrollToSection(nextIndex);
 
       setTimeout(() => {
-        isAnimating = false;
-      }, 750);
+        isAnimatingRef.current = false;
+        scrollToSection(currentIndexRef.current, "auto");
+      }, 850);
     };
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (isAnimating) return;
+      if (isAnimatingRef.current) return;
       if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
 
       const direction = e.key === "ArrowDown" ? 1 : -1;
       const nextIndex = Math.min(
         sections.length - 1,
-        Math.max(0, currentIndex + direction)
+        Math.max(0, currentIndexRef.current + direction)
       );
 
-      if (nextIndex === currentIndex) return;
+      if (nextIndex === currentIndexRef.current) return;
 
-      isAnimating = true;
-      setCurrentIndex(nextIndex);
-
-      el.scrollTo({
-        top: nextIndex * el.clientHeight,
-        behavior: "smooth",
-      });
+      isAnimatingRef.current = true;
+      scrollToSection(nextIndex);
 
       setTimeout(() => {
-        isAnimating = false;
-      }, 750);
+        isAnimatingRef.current = false;
+        scrollToSection(currentIndexRef.current, "auto");
+      }, 850);
+    };
+
+    const handleResize = () => {
+      scrollToSection(currentIndexRef.current, "auto");
     };
 
     el.addEventListener("wheel", handleWheel, { passive: false });
     window.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("resize", handleResize);
 
     return () => {
       el.removeEventListener("wheel", handleWheel);
       window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("resize", handleResize);
     };
-  }, [currentIndex]);
+  }, []);
 
   function goToSection(index: number) {
-    const el = containerRef.current;
-    if (!el) return;
-
-    setCurrentIndex(index);
-    el.scrollTo({
-      top: index * el.clientHeight,
-      behavior: "smooth",
-    });
+    scrollToSection(index);
   }
 
   return (
@@ -182,6 +191,7 @@ export default function PartnerPage() {
         height: "calc(100vh - 81px)",
         overflowY: "auto",
         scrollBehavior: "smooth",
+        scrollSnapType: "y mandatory",
         margin: "-40px",
         width: "calc(100% + 80px)",
         position: "relative",
@@ -236,8 +246,10 @@ export default function PartnerPage() {
       {sections.map((section, index) => (
         <section
           key={section.id}
+          data-section-index={index}
           style={{
             height: "calc(100vh - 81px)",
+            scrollSnapAlign: "start",
             position: "relative",
             zIndex: 1,
             display: "flex",
