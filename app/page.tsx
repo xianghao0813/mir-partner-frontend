@@ -151,6 +151,7 @@ export default function Home() {
         </section>
 
         <section className="home-showcase-section" style={showcaseSectionStyle}>
+          <div className="home-showcase-light" />
           <div style={showcaseOverlayStyle} />
 
           <div className="home-showcase-background" style={showcaseBackgroundStyle}>
@@ -521,8 +522,10 @@ const showcaseSectionStyle: React.CSSProperties = {
 const showcaseOverlayStyle: React.CSSProperties = {
   position: "absolute",
   inset: 0,
-  background: "linear-gradient(180deg, rgba(4,4,8,0.32) 0%, rgba(4,4,8,0.72) 38%, rgba(4,4,8,0.9) 100%)",
+  background:
+    "linear-gradient(180deg, rgba(4,4,8,0.18) 0%, rgba(4,4,8,0.46) 42%, rgba(4,4,8,0.76) 100%)",
   zIndex: 1,
+  pointerEvents: "none",
 };
 
 const showcaseBackgroundStyle: React.CSSProperties = {
@@ -531,8 +534,9 @@ const showcaseBackgroundStyle: React.CSSProperties = {
   display: "grid",
   gap: "24px",
   transform: "perspective(1800px) rotateX(9deg) rotateY(-5deg)",
-  opacity: 0.52,
-  zIndex: 0,
+  opacity: 0.78,
+  zIndex: 1,
+  mixBlendMode: "screen",
 };
 
 const showcaseTrackStyle: React.CSSProperties = {
@@ -552,7 +556,7 @@ const showcaseTrackReverseStyle: React.CSSProperties = {
 
 const showcasePanelStyle: React.CSSProperties = {
   position: "relative",
-  zIndex: 2,
+  zIndex: 3,
   textAlign: "center",
   maxWidth: "940px",
   padding: "42px 36px",
