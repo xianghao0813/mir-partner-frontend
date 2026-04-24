@@ -1,580 +1,740 @@
 "use client";
 
-import { useRef, useState } from "react";
+import type { CSSProperties } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
-const coinTiers = [
-  {
-    id: 1,
-    coins: 100,
-    price: "¥100",
-    image: "/cloud-coins/tier-1.png",
-    label: "入门",
-    bonus: "",
-  },
-  {
-    id: 2,
-    coins: 300,
-    price: "¥300",
-    image: "/cloud-coins/tier-2.png",
-    label: "推荐",
-    bonus: "+20 云币",
-  },
-  {
-    id: 3,
-    coins: 500,
-    price: "¥500",
-    image: "/cloud-coins/tier-3.png",
-    label: "热卖",
-    bonus: "+50 云币",
-  },
-  {
-    id: 4,
-    coins: 1000,
-    price: "¥1,000",
-    image: "/cloud-coins/tier-4.png",
-    label: "BEST",
-    bonus: "+120 云币",
-  },
-  {
-    id: 5,
-    coins: 5000,
-    price: "¥5,000",
-    image: "/cloud-coins/tier-5.png",
-    label: "超值",
-    bonus: "+800 云币",
-  },
-  {
-    id: 6,
-    coins: 10000,
-    price: "¥10,000",
-    image: "/cloud-coins/tier-6.png",
-    label: "豪华",
-    bonus: "+1800 云币",
-  },
-  {
-    id: 7,
-    coins: 20000,
-    price: "¥20,000",
-    image: "/cloud-coins/tier-7.png",
-    label: "尊享",
-    bonus: "+4200 云币",
-  },
-  {
-    id: 8,
-    coins: 30000,
-    price: "¥30,000",
-    image: "/cloud-coins/tier-8.png",
-    label: "至尊",
-    bonus: "+7000 云币",
-  },
-];
+type CoinTier = {
+  id: number;
+  coins: number;
+  priceLabel: string;
+  label: string;
+  bonus: string;
+  image: string;
+};
 
-const usageHistory = [
-  { id: 1, date: "2026-04-01", type: "消费", amount: "-120 云币", desc: "云币消耗" },
-  { id: 2, date: "2026-04-03", type: "充值", amount: "+500 云币", desc: "云币充值" },
-  { id: 3, date: "2026-04-06", type: "消费", amount: "-80 云币", desc: "云币消耗" },
-  { id: 4, date: "2026-04-08", type: "充值", amount: "+1000 云币", desc: "云币充值" },
+type PayMethod = "wechat" | "alipay";
+
+type WalletTransaction = {
+  id: string;
+  type: "recharge" | "consume";
+  amount: number;
+  coins: number;
+  desc: string;
+  date: string;
+  payMethod?: "wechat" | "alipay" | "";
+  status?: "pending" | "success" | "failed";
+};
+
+type WalletSummary = {
+  account: string;
+  nickname: string;
+  status: string;
+  cloudCoins: number;
+  transactions: WalletTransaction[];
+};
+
+const coinTiers: CoinTier[] = [
+  { id: 1, coins: 100, priceLabel: "¥100", label: "入门", bonus: "", image: "/cloud-coins/tier-1.png" },
+  { id: 2, coins: 300, priceLabel: "¥300", label: "推荐", bonus: "+20 云币", image: "/cloud-coins/tier-2.png" },
+  { id: 3, coins: 500, priceLabel: "¥500", label: "热卖", bonus: "+50 云币", image: "/cloud-coins/tier-3.png" },
+  { id: 4, coins: 1000, priceLabel: "¥1,000", label: "BEST", bonus: "+120 云币", image: "/cloud-coins/tier-4.png" },
+  { id: 5, coins: 5000, priceLabel: "¥5,000", label: "超值", bonus: "+800 云币", image: "/cloud-coins/tier-5.png" },
+  { id: 6, coins: 10000, priceLabel: "¥10,000", label: "豪华", bonus: "+1800 云币", image: "/cloud-coins/tier-6.png" },
+  { id: 7, coins: 20000, priceLabel: "¥20,000", label: "尊享", bonus: "+4200 云币", image: "/cloud-coins/tier-7.png" },
+  { id: 8, coins: 30000, priceLabel: "¥30,000", label: "至尊", bonus: "+7000 云币", image: "/cloud-coins/tier-8.png" },
 ];
 
 export default function WalletPage() {
-  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
-  const secondSectionRef = useRef<HTMLDivElement | null>(null);
+  const rechargeRef = useRef<HTMLDivElement | null>(null);
+  const [wallet, setWallet] = useState<WalletSummary | null>(null);
+  const [selectedTier, setSelectedTier] = useState<CoinTier | null>(null);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [submittingTierId, setSubmittingTierId] = useState<number | null>(null);
+  const [message, setMessage] = useState("");
 
-  const handleMoveToRecharge = () => {
-    secondSectionRef.current?.scrollIntoView({
-      behavior: "smooth",
-      block: "start",
-    });
-  };
+  useEffect(() => {
+    void loadWallet();
+  }, []);
+
+  useEffect(() => {
+    const paymentState = new URLSearchParams(window.location.search).get("payment");
+    if (paymentState === "success") {
+      setMessage("支付已完成，请等待服务器到账通知。");
+      void loadWallet();
+    } else if (paymentState === "cancel") {
+      setMessage("你已取消本次支付。");
+    }
+  }, []);
+
+  const accountInfo = useMemo(
+    () => [
+      { label: "账号", value: wallet?.account ?? "当前登录账号" },
+      { label: "昵称", value: wallet?.nickname ?? "MIR Partner 玩家" },
+      { label: "状态", value: wallet?.status ?? "正常" },
+    ],
+    [wallet]
+  );
+
+  async function loadWallet() {
+    try {
+      const response = await fetch("/api/payment/quicksdk/wallet", {
+        cache: "no-store",
+      });
+      const payload = (await response.json().catch(() => null)) as WalletSummary | { message?: string } | null;
+
+      if (!response.ok || !isWalletSummary(payload)) {
+        setMessage(
+          payload && typeof payload === "object" && "message" in payload
+            ? payload.message ?? "钱包数据加载失败。"
+            : "钱包数据加载失败。"
+        );
+        return;
+      }
+
+      setWallet(payload);
+    } catch {
+      setMessage("钱包数据加载失败。");
+    }
+  }
+
+  function moveToRecharge() {
+    rechargeRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  async function startPayment(payMethod: PayMethod, tierArg?: CoinTier) {
+    const tier = tierArg ?? selectedTier;
+    if (!tier) {
+      setMessage("请先选择充值档位。");
+      moveToRecharge();
+      return;
+    }
+
+    const popup = window.open("", "quicksdk-payment", buildPopupFeatures());
+    if (!popup) {
+      setMessage("浏览器拦截了支付弹窗，请允许弹窗后重试。");
+      return;
+    }
+
+    popup.document.write("<title>正在打开支付页面...</title><body style='margin:0;background:#07070a;color:#fff;font-family:Microsoft YaHei,sans-serif;display:grid;place-items:center;height:100vh;'>正在打开支付页面...</body>");
+
+    setSubmittingTierId(tier.id);
+    setSelectedTier(tier);
+    setMessage("正在生成支付链接...");
+
+    try {
+      const response = await fetch("/api/payment/quicksdk/order", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          packageId: tier.id,
+          payMethod,
+        }),
+      });
+
+      const payload = (await response.json().catch(() => null)) as
+        | {
+            message?: string;
+            payUrl?: string;
+          }
+        | null;
+
+      if (!response.ok || !payload?.payUrl) {
+        popup.close();
+        setMessage(payload?.message || "创建支付链接失败。");
+        return;
+      }
+
+      setMessage("支付弹窗已打开。");
+      popup.location.replace(payload.payUrl);
+    } catch {
+      popup.close();
+      setMessage("创建支付链接失败。");
+    } finally {
+      setSubmittingTierId(null);
+    }
+  }
 
   return (
-    <main
-      className="hide-scrollbar"
-      style={{
-        height: "calc(100vh - 81px)",
-        overflowY: "auto",
-        scrollSnapType: "y mandatory",
-        scrollBehavior: "smooth",
-        background:
-          "linear-gradient(180deg, #07070a 0%, #0d0b14 55%, #07070a 100%)",
-        color: "white",
-        margin: "-40px",
-        width: "calc(100% + 80px)",
-        userSelect: "none",
-        caretColor: "transparent",
-      }}
-    >
-      {/* 첫 번째 섹터 */}
-      <section
-        style={{
-          height: "calc(100vh - 81px)",
-          scrollSnapAlign: "start",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          padding: "40px",
-          position: "relative",
-          overflow: "hidden",
-        }}
-      >
-        <div
-          style={{
-            position: "absolute",
-            width: "520px",
-            height: "520px",
-            background:
-              "radial-gradient(circle, rgba(124,58,237,0.28) 0%, rgba(124,58,237,0.08) 35%, rgba(0,0,0,0) 72%)",
-            filter: "blur(30px)",
-            top: "50%",
-            left: "50%",
-            transform: "translate(-50%, -50%)",
-            pointerEvents: "none",
-          }}
-        />
+    <main className="hide-scrollbar" style={pageStyle}>
+      <div className="auth-bg" />
+      <div className="auth-overlay" />
 
-        <div
-          style={{
-            width: "100%",
-            maxWidth: "980px",
-            padding: "40px",
-            borderRadius: "28px",
-            background: "rgba(16,16,24,0.75)",
-            border: "1px solid rgba(168,85,247,0.22)",
-            boxShadow: "0 20px 40px rgba(0,0,0,0.35)",
-            backdropFilter: "blur(14px)",
-            position: "relative",
-            zIndex: 2,
-          }}
-        >
-          <div style={{ textAlign: "center", marginBottom: "36px" }}>
-            <h1
-              style={{
-                fontSize: "42px",
-                marginBottom: "12px",
-                background: "linear-gradient(90deg, #a855f7, #6366f1)",
-                WebkitBackgroundClip: "text",
-                color: "transparent",
-              }}
-            >
-              个人钱包
-            </h1>
-            <p style={{ color: "#aaa", fontSize: "18px", margin: 0 }}>
-              查看账户信息、云币余额，并快速进行充值。
-            </p>
-            <div
-              style={{
-                width: "80px",
-                height: "3px",
-                background: "#a855f7",
-                margin: "20px auto 0",
-                borderRadius: "10px",
-              }}
-            />
-          </div>
-
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "1.2fr 1fr",
-              gap: "24px",
-            }}
-          >
-            <div
-              style={{
-                background: "rgba(255,255,255,0.03)",
-                border: "1px solid rgba(255,255,255,0.08)",
-                borderRadius: "20px",
-                padding: "28px",
-              }}
-            >
-              <h2 style={{ marginTop: 0, marginBottom: "18px", fontSize: "26px" }}>
-                账户信息
-              </h2>
-
-              <div style={{ display: "grid", gap: "14px", color: "#ddd" }}>
-                <div>
-                  <strong style={{ color: "#fff" }}>账号：</strong> user_demo_001
-                </div>
-                <div>
-                  <strong style={{ color: "#fff" }}>昵称：</strong> 米尔玩家
-                </div>
-                <div>
-                  <strong style={{ color: "#fff" }}>邮箱：</strong> demo@email.com
-                </div>
-                <div>
-                  <strong style={{ color: "#fff" }}>状态：</strong> 正常
-                </div>
-              </div>
+      <div style={shellStyle}>
+        <section style={heroCardStyle}>
+          <div style={heroHeaderStyle}>
+            <div>
+              <div style={eyebrowStyle}>MIR Partner</div>
+              <h1 style={titleStyle}>钱包</h1>
+              <p style={subtitleStyle}>
+                查看账户状态、云币余额与充值记录。充值将跳转到 QuickSDK 外部支付页面继续完成。
+              </p>
             </div>
 
-            <div
-              style={{
-                background:
-                  "linear-gradient(180deg, rgba(124,58,237,0.18) 0%, rgba(30,30,40,0.65) 100%)",
-                border: "1px solid rgba(168,85,247,0.28)",
-                borderRadius: "20px",
-                padding: "28px",
-                display: "flex",
-                flexDirection: "column",
-                justifyContent: "space-between",
-              }}
-            >
-              <div>
-                <div style={{ color: "#c4b5fd", fontSize: "15px", marginBottom: "10px" }}>
-                  当前持有
-                </div>
-                <div
-                  style={{
-                    fontSize: "44px",
-                    fontWeight: 800,
-                    marginBottom: "10px",
-                  }}
-                >
-                  2,580 云币
-                </div>
-                <p style={{ color: "#b8b8b8", lineHeight: 1.6, marginTop: 0 }}>
-                  云币可用于指定游戏及相关功能中进行服务、内容兑换。
-                </p>
-              </div>
-
-              <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
-                <button
-                  onClick={() => setIsHistoryOpen(true)}
-                  style={{
-                    backgroundColor: "#23232d",
-                    color: "white",
-                    border: "1px solid #3a3a48",
-                    padding: "12px 18px",
-                    borderRadius: "10px",
-                    cursor: "pointer",
-                    fontSize: "15px",
-                  }}
-                >
-                  使用明细
-                </button>
-
-                <button
-                  onClick={handleMoveToRecharge}
-                  style={{
-                    backgroundColor: "#7c3aed",
-                    color: "white",
-                    border: "none",
-                    padding: "12px 18px",
-                    borderRadius: "10px",
-                    cursor: "pointer",
-                    fontSize: "15px",
-                    boxShadow: "0 0 18px rgba(124,58,237,0.35)",
-                  }}
-                >
-                  充值
-                </button>
-              </div>
+            <div style={balanceBadgeStyle}>
+              <div style={balanceLabelStyle}>当前持有</div>
+              <div style={balanceValueStyle}>{(wallet?.cloudCoins ?? 0).toLocaleString()} 云币</div>
             </div>
           </div>
-        </div>
-      </section>
 
-      {/* 두 번째 섹터 */}
-      <section
-        ref={secondSectionRef}
-        style={{
-          minHeight: "calc(100vh - 81px)",
-          scrollSnapAlign: "start",
-          padding: "50px 40px 60px",
-          display: "flex",
-          flexDirection: "column",
-          justifyContent: "center",
-        }}
-      >
-        <div style={{ textAlign: "center", marginBottom: "34px" }}>
-          <h2
-            style={{
-              fontSize: "40px",
-              marginBottom: "12px",
-              background: "linear-gradient(90deg, #a855f7, #6366f1)",
-              WebkitBackgroundClip: "text",
-              color: "transparent",
-            }}
-          >
-            云币充值
-          </h2>
-          <p style={{ color: "#aaa", fontSize: "18px", margin: 0 }}>
-            请选择适合你的云币档位进行充值。
-          </p>
-          <div
-            style={{
-              width: "80px",
-              height: "3px",
-              background: "#a855f7",
-              margin: "20px auto 0",
-              borderRadius: "10px",
-            }}
-          />
-        </div>
+          <div style={infoGridStyle}>
+            {accountInfo.map((item) => (
+              <article key={item.label} style={infoCardStyle}>
+                <div style={infoLabelStyle}>{item.label}</div>
+                <div style={infoValueStyle}>{item.value}</div>
+              </article>
+            ))}
+          </div>
 
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(4, 1fr)",
-            gap: "28px",
-            maxWidth: "1200px",
-            margin: "0 auto",
-            width: "100%",
-          }}
-        >
-        {coinTiers.map((tier) => (
-          <div
-            key={tier.id}
-            style={{
-              position: "relative",
-              background:
-                tier.id >= 7
-                  ? "linear-gradient(180deg, rgba(40,32,18,0.95) 0%, rgba(18,16,12,1) 100%)"
-                  : "linear-gradient(180deg, rgba(24,24,28,1) 0%, rgba(12,12,16,1) 100%)",
-              border:
-                tier.id >= 7
-                  ? "1px solid rgba(255,215,120,0.35)"
-                  : "1px solid rgba(124,58,237,0.22)",
-              borderRadius: "22px",
-              padding: "20px 16px 18px",
-              boxShadow:
-                tier.id >= 7
-                  ? "0 14px 30px rgba(0,0,0,0.38), 0 0 22px rgba(255,215,120,0.10)"
-                  : "0 10px 24px rgba(0,0,0,0.35)",
-              textAlign: "center",
-              overflow: "hidden",
-            }}
-          >
-            {/* 배경 글로우 */}
-            <div
-              style={{
-                position: "absolute",
-                top: "-30px",
-                right: "-30px",
-                width: "140px",
-                height: "140px",
-                borderRadius: "999px",
-                background:
-                  tier.id >= 7
-                    ? "rgba(255,215,120,0.10)"
-                    : "rgba(124,58,237,0.10)",
-                filter: "blur(26px)",
-                pointerEvents: "none",
-              }}
-            />
-
-            {/* 라벨 */}
-            <div
-              style={{
-                position: "absolute",
-                top: "14px",
-                left: "14px",
-                padding: "6px 10px",
-                borderRadius: "999px",
-                fontSize: "12px",
-                fontWeight: 700,
-                letterSpacing: "0.04em",
-                color: tier.id >= 7 ? "#2b2110" : "white",
-                background:
-                  tier.id >= 7
-                    ? "linear-gradient(90deg, #fcd34d, #fde68a)"
-                    : "linear-gradient(90deg, #7c3aed, #a855f7)",
-                boxShadow:
-                  tier.id >= 7
-                    ? "0 0 12px rgba(252,211,77,0.25)"
-                    : "0 0 12px rgba(168,85,247,0.18)",
-              }}
-            >
-              {tier.label}
-            </div>
-
-            {/* 이미지 */}
-            <div
-              style={{
-                width: "90px",
-                height: "90px",
-                margin: "6px auto 10px",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              <img
-                src={tier.image}
-                alt={`${tier.coins} 云币`}
-                style={{
-                  width: "100%",
-                  height: "100%",
-                  objectFit: "contain",
-                  display: "block",
-                  filter:
-                    tier.id >= 7
-                      ? "drop-shadow(0 10px 18px rgba(255,215,120,0.22))"
-                      : "drop-shadow(0 8px 16px rgba(255,215,100,0.16))",
-                }}
-              />
-            </div>
-
-            {/* 수량 */}
-            <div
-              style={{
-                fontSize: "24px",
-                fontWeight: 800,
-                color: tier.id >= 7 ? "#fde68a" : "#f8fafc",
-                marginBottom: "4px",
-                lineHeight: 1.1,
-              }}
-            >
-              {tier.coins.toLocaleString()}
-            </div>
-
-            <div
-              style={{
-                fontSize: "15px",
-                color: "#cfcfcf",
-                marginBottom: "6px",
-              }}
-            >
-              云币
-            </div>
-
-            {/* 보너스 */}
-            <div
-              style={{
-                minHeight: "24px",
-                fontSize: "14px",
-                fontWeight: 700,
-                color: tier.bonus ? "#86efac" : "#777",
-                marginBottom: "8px",
-              }}
-            >
-              {tier.bonus ? `赠送 ${tier.bonus}` : "无额外赠送"}
-            </div>
-
-            {/* 가격 */}
-            <div
-              style={{
-                fontSize: "20px",
-                fontWeight: 800,
-                color: "white",
-                marginBottom: "10px",
-              }}
-            >
-              {tier.price}
-            </div>
-
-            {/* 버튼 */}
-            <button
-              style={{
-                width: "100%",
-                background:
-                  tier.id >= 7
-                    ? "linear-gradient(90deg, #f59e0b, #fcd34d)"
-                    : "linear-gradient(90deg, #7c3aed, #a855f7)",
-                color: tier.id >= 7 ? "#20170a" : "white",
-                border: "none",
-                padding: "10px 14px",
-                borderRadius: "12px",
-                cursor: "pointer",
-                fontSize: "15px",
-                fontWeight: 800,
-                boxShadow:
-                  tier.id >= 7
-                    ? "0 0 18px rgba(245,158,11,0.18)"
-                    : "0 0 18px rgba(124,58,237,0.22)",
-              }}
-            >
-              立即充值
+          <div style={heroActionRowStyle}>
+            <button type="button" onClick={() => setHistoryOpen(true)} style={secondaryButtonStyle}>
+              使用明细
+            </button>
+            <button type="button" onClick={moveToRecharge} style={primaryButtonStyle}>
+              充值
             </button>
           </div>
-        ))}
-        </div>
-      </section>
 
-      {/* 사용명세 팝업 */}
-      {isHistoryOpen && (
-        <div
-          onClick={() => setIsHistoryOpen(false)}
-          style={{
-            position: "fixed",
-            top: 0,
-            left: 0,
-            width: "100%",
-            height: "100%",
-            backgroundColor: "rgba(0,0,0,0.65)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 2000,
-          }}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              width: "min(760px, 92vw)",
-              backgroundColor: "#14141a",
-              border: "1px solid #333",
-              borderRadius: "20px",
-              padding: "28px",
-              boxShadow: "0 0 24px rgba(124,58,237,0.22)",
-            }}
-          >
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                marginBottom: "20px",
-              }}
-            >
-              <h2 style={{ margin: 0 }}>云币使用明细</h2>
-              <button
-                onClick={() => setIsHistoryOpen(false)}
-                style={{
-                  background: "none",
-                  border: "none",
-                  color: "#bbb",
-                  fontSize: "22px",
-                  cursor: "pointer",
-                }}
-              >
-                ×
+          {message ? <div style={messageStyle}>{message}</div> : null}
+        </section>
+
+        <section ref={rechargeRef} style={rechargeCardStyle}>
+          <div style={sectionHeaderStyle}>
+            <div>
+              <div style={eyebrowStyle}>QuickSDK</div>
+              <h2 style={sectionTitleStyle}>云币充值</h2>
+              <p style={sectionTextStyle}>点击整张卡片即可直接前往充值，不再显示单独的支付方式区域。</p>
+            </div>
+
+            <div style={selectedBadgeStyle}>{selectedTier ? `${selectedTier.coins.toLocaleString()} 云币 / ${selectedTier.priceLabel}` : "点击卡片立即充值"}</div>
+          </div>
+
+          <div style={tierGridStyle}>
+            {coinTiers.map((tier) => {
+              const active = selectedTier?.id === tier.id;
+              return (
+                <button
+                  key={tier.id}
+                  type="button"
+                  onClick={() => void startPayment("wechat", tier)}
+                  style={tierCardButtonStyle}
+                  className="wallet-tier-button"
+                >
+                <article style={tierCardStyle(active)} className="wallet-tier-card">
+                  <div className="wallet-tier-glow" />
+                  <div style={tierTopStyle}>
+                    <div style={tierTagStyle(active)}>{tier.label}</div>
+                  </div>
+
+                  <div style={tierImageWrapStyle}>
+                    <img src={tier.image} alt={`${tier.coins} 云币`} style={tierImageStyle} />
+                  </div>
+
+                  <div style={tierCoinsStyle}>{tier.coins.toLocaleString()} 云币</div>
+                  <div style={tierPriceCenterStyle}>{tier.priceLabel}</div>
+                  <div style={tierBonusStyle}>{tier.bonus || "标准档位"}</div>
+
+                  {submittingTierId === tier.id ? <div style={tierLoadingStyle}>跳转中...</div> : null}
+                </article>
+                </button>
+              );
+            })}
+          </div>
+        </section>
+      </div>
+
+      {historyOpen ? (
+        <div style={overlayStyle} onClick={() => setHistoryOpen(false)}>
+          <div style={modalStyle} onClick={(event) => event.stopPropagation()}>
+            <div style={modalHeaderStyle}>
+              <h3 style={modalTitleStyle}>使用明细</h3>
+              <button type="button" onClick={() => setHistoryOpen(false)} style={secondaryButtonStyle}>
+                关闭
               </button>
             </div>
 
-            <div style={{ display: "grid", gap: "12px" }}>
-              {usageHistory.map((item) => (
-                <div
-                  key={item.id}
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "120px 90px 140px 1fr",
-                    gap: "12px",
-                    alignItems: "center",
-                    padding: "14px 16px",
-                    borderRadius: "12px",
-                    backgroundColor: "rgba(255,255,255,0.03)",
-                    border: "1px solid rgba(255,255,255,0.06)",
-                    color: "#ddd",
-                  }}
-                >
-                  <div>{item.date}</div>
-                  <div>{item.type}</div>
-                  <div
-                    style={{
-                      color: item.amount.startsWith("+") ? "#86efac" : "#fca5a5",
-                      fontWeight: 700,
-                    }}
-                  >
-                    {item.amount}
+            <div style={historyListStyle}>
+              {(wallet?.transactions ?? []).map((item) => (
+                <article key={item.id} style={historyItemStyle}>
+                  <div>
+                    <div style={historyDescStyle}>{item.desc}</div>
+                    <div style={historyMetaStyle}>
+                      {item.date}
+                      {item.payMethod ? ` · ${item.payMethod === "wechat" ? "微信" : "支付宝"}` : ""}
+                      {item.status ? ` · ${renderStatus(item.status)}` : ""}
+                    </div>
                   </div>
-                  <div>{item.desc}</div>
-                </div>
+                  <div style={historyValueStyle(item.coins >= 0)}>
+                    {item.coins >= 0 ? "+" : ""}
+                    {item.coins}
+                  </div>
+                </article>
               ))}
             </div>
           </div>
         </div>
-      )}
+      ) : null}
     </main>
   );
 }
+
+function renderStatus(status: WalletTransaction["status"]) {
+  switch (status) {
+    case "success":
+      return "成功";
+    case "failed":
+      return "失败";
+    case "pending":
+      return "处理中";
+    default:
+      return "未知";
+  }
+}
+
+function isWalletSummary(value: unknown): value is WalletSummary {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const candidate = value as Record<string, unknown>;
+  return (
+    typeof candidate.account === "string" &&
+    typeof candidate.nickname === "string" &&
+    typeof candidate.status === "string" &&
+    typeof candidate.cloudCoins === "number" &&
+    Array.isArray(candidate.transactions)
+  );
+}
+
+function buildPopupFeatures() {
+  const width = 520;
+  const height = 760;
+  const left = Math.max(0, window.screenX + Math.round((window.outerWidth - width) / 2));
+  const top = Math.max(0, window.screenY + Math.round((window.outerHeight - height) / 2));
+  return `popup=yes,width=${width},height=${height},left=${left},top=${top},resizable=yes,scrollbars=yes`;
+}
+
+const pageStyle: CSSProperties = {
+  height: "calc(100vh - 81px)",
+  position: "relative",
+  margin: "-40px",
+  width: "calc(100% + 80px)",
+  overflowX: "hidden",
+  overflowY: "auto",
+  backgroundColor: "#07070a",
+  boxSizing: "border-box",
+  padding: "72px 24px 120px",
+};
+
+const shellStyle: CSSProperties = {
+  position: "relative",
+  zIndex: 1,
+  maxWidth: "1120px",
+  margin: "0 auto",
+  display: "grid",
+  gap: "20px",
+};
+
+const baseCardStyle: CSSProperties = {
+  borderRadius: "24px",
+  background: "rgba(16,16,24,0.82)",
+  border: "1px solid rgba(255,255,255,0.08)",
+  boxShadow: "0 20px 40px rgba(0,0,0,0.35)",
+  backdropFilter: "blur(14px)",
+  padding: "28px",
+};
+
+const heroCardStyle: CSSProperties = {
+  ...baseCardStyle,
+  display: "grid",
+  gap: "22px",
+};
+
+const rechargeCardStyle: CSSProperties = {
+  ...baseCardStyle,
+  display: "grid",
+  gap: "22px",
+};
+
+const eyebrowStyle: CSSProperties = {
+  color: "#c4b5fd",
+  fontSize: "12px",
+  letterSpacing: "0.08em",
+  textTransform: "uppercase",
+  marginBottom: "10px",
+};
+
+const titleStyle: CSSProperties = {
+  margin: 0,
+  fontSize: "32px",
+  color: "#fff",
+};
+
+const subtitleStyle: CSSProperties = {
+  marginTop: "8px",
+  marginBottom: 0,
+  color: "#b8b8c5",
+  fontSize: "14px",
+  lineHeight: 1.6,
+};
+
+const heroHeaderStyle: CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "flex-start",
+  gap: "16px",
+  flexWrap: "wrap",
+};
+
+const balanceBadgeStyle: CSSProperties = {
+  minWidth: "240px",
+  padding: "18px 20px",
+  borderRadius: "20px",
+  background: "linear-gradient(135deg, rgba(124,58,237,0.22), rgba(59,130,246,0.16))",
+  border: "1px solid rgba(196,181,253,0.25)",
+};
+
+const balanceLabelStyle: CSSProperties = {
+  color: "#cbd5e1",
+  fontSize: "13px",
+};
+
+const balanceValueStyle: CSSProperties = {
+  marginTop: "8px",
+  fontSize: "30px",
+  fontWeight: 700,
+  color: "#fff",
+};
+
+const infoGridStyle: CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+  gap: "14px",
+};
+
+const infoCardStyle: CSSProperties = {
+  padding: "18px",
+  borderRadius: "16px",
+  background: "rgba(255,255,255,0.04)",
+  border: "1px solid rgba(255,255,255,0.06)",
+  display: "grid",
+  gap: "8px",
+};
+
+const infoLabelStyle: CSSProperties = {
+  color: "#9ca3af",
+  fontSize: "13px",
+};
+
+const infoValueStyle: CSSProperties = {
+  fontSize: "20px",
+  fontWeight: 700,
+  color: "#fff",
+  wordBreak: "break-word",
+};
+
+const heroActionRowStyle: CSSProperties = {
+  display: "flex",
+  gap: "12px",
+  flexWrap: "wrap",
+};
+
+const primaryButtonStyle: CSSProperties = {
+  border: "1px solid rgba(139,92,246,0.4)",
+  background: "linear-gradient(135deg, rgba(139,92,246,0.85), rgba(79,70,229,0.85))",
+  color: "#fff",
+  borderRadius: "999px",
+  padding: "12px 18px",
+  fontSize: "14px",
+  fontWeight: 700,
+  cursor: "pointer",
+};
+
+const secondaryButtonStyle: CSSProperties = {
+  border: "1px solid rgba(255,255,255,0.14)",
+  background: "rgba(255,255,255,0.04)",
+  color: "#fff",
+  borderRadius: "999px",
+  padding: "12px 18px",
+  fontSize: "14px",
+  fontWeight: 700,
+  cursor: "pointer",
+};
+
+const messageStyle: CSSProperties = {
+  padding: "14px 16px",
+  borderRadius: "16px",
+  background: "rgba(59,130,246,0.16)",
+  border: "1px solid rgba(96,165,250,0.24)",
+  color: "#dbeafe",
+  fontSize: "14px",
+};
+
+const sectionHeaderStyle: CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "flex-start",
+  gap: "16px",
+  flexWrap: "wrap",
+};
+
+const sectionTitleStyle: CSSProperties = {
+  margin: 0,
+  fontSize: "28px",
+  color: "#fff",
+};
+
+const sectionTextStyle: CSSProperties = {
+  marginTop: "8px",
+  marginBottom: 0,
+  color: "#b8b8c5",
+  fontSize: "14px",
+  lineHeight: 1.6,
+};
+
+const selectedBadgeStyle: CSSProperties = {
+  padding: "10px 14px",
+  borderRadius: "999px",
+  background: "rgba(255,255,255,0.05)",
+  border: "1px solid rgba(255,255,255,0.08)",
+  color: "#e5e7eb",
+  fontSize: "14px",
+  fontWeight: 700,
+};
+
+const tierGridStyle: CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+  gap: "14px",
+};
+
+const tierCardButtonStyle: CSSProperties = {
+  appearance: "none",
+  border: "none",
+  background: "transparent",
+  padding: 0,
+  margin: 0,
+  textAlign: "left",
+  cursor: "pointer",
+};
+
+const tierCardStyle = (active: boolean): CSSProperties => ({
+  borderRadius: "18px",
+  padding: "18px",
+  background: active ? "rgba(139,92,246,0.16)" : "rgba(255,255,255,0.04)",
+  border: active ? "1px solid rgba(196,181,253,0.42)" : "1px solid rgba(255,255,255,0.06)",
+  display: "grid",
+  gap: "12px",
+});
+
+const tierTopStyle: CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  gap: "8px",
+};
+
+const tierTagStyle = (active: boolean): CSSProperties => ({
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  minHeight: "28px",
+  padding: "0 10px",
+  borderRadius: "999px",
+  background: active ? "rgba(167,139,250,0.22)" : "rgba(255,255,255,0.08)",
+  color: active ? "#f5d0fe" : "#e5e7eb",
+  fontSize: "12px",
+  fontWeight: 700,
+});
+
+const tierPriceStyle: CSSProperties = {
+  color: "#f8fafc",
+  fontWeight: 700,
+};
+
+const tierCoinsStyle: CSSProperties = {
+  color: "#fff",
+  fontSize: "28px",
+  fontWeight: 700,
+  textAlign: "center",
+};
+
+const tierImageWrapStyle: CSSProperties = {
+  height: "146px",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  padding: "8px 0 2px",
+};
+
+const tierImageStyle: CSSProperties = {
+  maxWidth: "100%",
+  maxHeight: "100%",
+  objectFit: "contain",
+  filter: "drop-shadow(0 14px 28px rgba(0,0,0,0.35))",
+};
+
+const tierPriceCenterStyle: CSSProperties = {
+  color: "#f8fafc",
+  fontWeight: 700,
+  fontSize: "16px",
+  textAlign: "center",
+};
+
+const tierBonusStyle: CSSProperties = {
+  color: "#9ca3af",
+  fontSize: "13px",
+  minHeight: "18px",
+  textAlign: "center",
+};
+
+const tierActionsStyle: CSSProperties = {
+  display: "flex",
+  gap: "10px",
+  flexWrap: "wrap",
+};
+
+const tierLoadingStyle: CSSProperties = {
+  marginTop: "4px",
+  color: "#c4b5fd",
+  fontSize: "13px",
+  fontWeight: 700,
+  textAlign: "center",
+};
+
+const tierSelectButtonStyle = (active: boolean): CSSProperties => ({
+  border: "1px solid rgba(255,255,255,0.12)",
+  background: active ? "rgba(255,255,255,0.12)" : "transparent",
+  color: "#fff",
+  borderRadius: "12px",
+  padding: "10px 12px",
+  fontSize: "13px",
+  fontWeight: 700,
+  cursor: "pointer",
+  flex: "1 1 110px",
+});
+
+const tierPayButtonStyle = (color: string): CSSProperties => ({
+  border: "none",
+  background: color,
+  color: "#fff",
+  borderRadius: "12px",
+  padding: "10px 12px",
+  fontSize: "13px",
+  fontWeight: 700,
+  cursor: "pointer",
+  flex: "1 1 110px",
+});
+
+const checkoutPanelStyle: CSSProperties = {
+  borderRadius: "18px",
+  padding: "20px",
+  background: "rgba(255,255,255,0.04)",
+  border: "1px solid rgba(255,255,255,0.06)",
+  display: "grid",
+  gap: "14px",
+};
+
+const checkoutTitleStyle: CSSProperties = {
+  margin: 0,
+  fontSize: "18px",
+  color: "#fff",
+};
+
+const checkoutHintStyle: CSSProperties = {
+  marginTop: "8px",
+  marginBottom: 0,
+  color: "#9ca3af",
+  fontSize: "13px",
+  lineHeight: 1.6,
+};
+
+const checkoutButtonsStyle: CSSProperties = {
+  display: "flex",
+  gap: "12px",
+  flexWrap: "wrap",
+};
+
+const payMethodButtonStyle = (color: string): CSSProperties => ({
+  border: "none",
+  background: color,
+  color: "#fff",
+  borderRadius: "14px",
+  padding: "14px 20px",
+  minWidth: "180px",
+  fontSize: "14px",
+  fontWeight: 700,
+  cursor: "pointer",
+});
+
+const overlayStyle: CSSProperties = {
+  position: "fixed",
+  inset: 0,
+  background: "rgba(0,0,0,0.72)",
+  display: "grid",
+  placeItems: "center",
+  padding: "24px",
+  zIndex: 20,
+};
+
+const modalStyle: CSSProperties = {
+  width: "100%",
+  maxWidth: "760px",
+  maxHeight: "80vh",
+  overflowY: "auto",
+  borderRadius: "24px",
+  background: "#11111a",
+  border: "1px solid rgba(255,255,255,0.08)",
+  boxShadow: "0 20px 40px rgba(0,0,0,0.4)",
+  padding: "24px",
+};
+
+const modalHeaderStyle: CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  gap: "12px",
+  marginBottom: "18px",
+  flexWrap: "wrap",
+};
+
+const modalTitleStyle: CSSProperties = {
+  margin: 0,
+  fontSize: "22px",
+  color: "#fff",
+};
+
+const historyListStyle: CSSProperties = {
+  display: "grid",
+  gap: "12px",
+};
+
+const historyItemStyle: CSSProperties = {
+  padding: "16px",
+  borderRadius: "16px",
+  background: "rgba(255,255,255,0.04)",
+  border: "1px solid rgba(255,255,255,0.06)",
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  gap: "14px",
+};
+
+const historyDescStyle: CSSProperties = {
+  color: "#fff",
+  fontWeight: 700,
+};
+
+const historyMetaStyle: CSSProperties = {
+  marginTop: "6px",
+  color: "#9ca3af",
+  fontSize: "13px",
+};
+
+const historyValueStyle = (positive: boolean): CSSProperties => ({
+  color: positive ? "#86efac" : "#fca5a5",
+  fontWeight: 700,
+  fontSize: "22px",
+  whiteSpace: "nowrap",
+});

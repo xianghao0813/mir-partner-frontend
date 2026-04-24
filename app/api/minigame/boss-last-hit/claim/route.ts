@@ -79,8 +79,7 @@ export async function POST() {
     receipt,
     game: buildBossLastHitPublicState(nextGameState),
   });
-
-  cookieStore.set(BOSS_LAST_HIT_COOKIE, JSON.stringify(nextGameState), {
+  response.cookies.set(BOSS_LAST_HIT_COOKIE, JSON.stringify(nextGameState), {
     httpOnly: true,
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production",

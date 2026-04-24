@@ -62,7 +62,7 @@ export default function BossSlashTrial({ initialPoints, onPointsChange }: BossSl
   const [rewardClaimedDate, setRewardClaimedDate] = useState("");
   const [runs, setRuns] = useState<RunnerRun[]>([]);
   const [statusMessage, setStatusMessage] = useState(
-    "Sprint through the ruins, jump over shattered banners, and hit the target score to claim today's reward."
+    "冲刺穿越遗迹，跳过障碍，达到目标分数后即可领取今日奖励。"
   );
   const [isStartingGame, setIsStartingGame] = useState(false);
   const [isSubmittingRun, setIsSubmittingRun] = useState(false);
@@ -182,17 +182,17 @@ export default function BossSlashTrial({ initialPoints, onPointsChange }: BossSl
       const payload = await response.json();
 
       if (!response.ok) {
-        setStatusMessage(payload.message ?? "Failed to start the runner challenge.");
+          setStatusMessage(payload.message ?? "无法开始挑战。");
         return;
       }
 
       syncGameStateFromApi(payload.game);
       resetLocalRun();
       beginLoop();
-      setStatusMessage("Run live. Press Space, W, or tap Jump to vault over obstacles.");
+      setStatusMessage("挑战开始。按空格、W，或点击跳跃来越过障碍。");
     } catch (error) {
       console.error(error);
-      setStatusMessage("Failed to start the runner challenge.");
+      setStatusMessage("无法开始挑战。");
     } finally {
       setIsStartingGame(false);
     }
@@ -315,8 +315,8 @@ export default function BossSlashTrial({ initialPoints, onPointsChange }: BossSl
       setGameFinished(true);
       setStatusMessage(
         nextScore >= requiredScore
-          ? "Run complete. You hit the target score and can claim the daily reward."
-          : "Run over. You need a little more distance to hit today's target score."
+          ? "挑战完成，已达到目标分数，现在可以领取今日奖励。"
+          : "挑战结束，距离今日目标分数还差一点。"
       );
       void submitRunResult({
         score: nextScore,
@@ -375,14 +375,14 @@ export default function BossSlashTrial({ initialPoints, onPointsChange }: BossSl
       const payload = await response.json();
 
       if (!response.ok) {
-        setStatusMessage(payload.message ?? "Failed to save the run result.");
+        setStatusMessage(payload.message ?? "无法保存本次成绩。");
         return;
       }
 
       syncGameStateFromApi(payload.game);
     } catch (error) {
       console.error(error);
-      setStatusMessage("Failed to save the run result.");
+      setStatusMessage("无法保存本次成绩。");
     } finally {
       setIsSubmittingRun(false);
     }
@@ -401,7 +401,7 @@ export default function BossSlashTrial({ initialPoints, onPointsChange }: BossSl
       const payload = await response.json();
 
       if (!response.ok) {
-        setStatusMessage(payload.message ?? "Failed to claim the reward.");
+        setStatusMessage(payload.message ?? "无法领取奖励。");
         return;
       }
 
@@ -412,10 +412,10 @@ export default function BossSlashTrial({ initialPoints, onPointsChange }: BossSl
       if (payload.game) {
         syncGameStateFromApi(payload.game);
       }
-      setStatusMessage(`Reward claimed. ${payload.awardedPoints ?? 50} MIR points were added.`);
+      setStatusMessage(`奖励已领取，已增加 ${payload.awardedPoints ?? 50} 点 MIR 积分。`);
     } catch (error) {
       console.error(error);
-      setStatusMessage("Failed to claim the reward.");
+      setStatusMessage("无法领取奖励。");
     } finally {
       setIsClaimingReward(false);
     }

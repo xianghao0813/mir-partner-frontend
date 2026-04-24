@@ -27,6 +27,22 @@ export type QuickSdkCheckTokenResponse = {
   };
 };
 
+type QuickSdkApiResponse<TData = unknown> = {
+  status: boolean;
+  message: string;
+  data?: TData;
+};
+
+export type QuickSdkAuthData = {
+  uid: string;
+  username: string;
+  authToken?: string;
+  timeLeft?: number | null;
+  mobile?: string;
+};
+
+type QuickSdkPhoneCodePurpose = "login" | "register" | "bind" | "unbind" | "reset-password";
+
 export function getQuickSdkConfig(): QuickSdkConfig {
   const baseUrl =
     process.env.QUICKSDK_BASE_URL?.trim().replace(/\/+$/, "") ?? QUICKSDK_DEFAULT_BASE_URL;
@@ -91,12 +107,14 @@ export async function createQuickSdkOauthUrl({
   cancelUrl?: string;
 }) {
   const config = getQuickSdkConfig();
+  const encodedSuccessUrl = encodeQuickSdkCallbackUrl(successUrl);
+  const encodedCancelUrl = cancelUrl ? encodeQuickSdkCallbackUrl(cancelUrl) : undefined;
   const payload = buildSignedParams({
     openId: config.openId,
     productCode: config.productCode,
     channelCode: config.channelCode,
-    successUrl,
-    cancalUrl: cancelUrl,
+    successUrl: encodedSuccessUrl,
+    cancalUrl: encodedCancelUrl,
   });
 
   const response = await postForm(`${config.baseUrl}/webOpen/oauth`, payload);
@@ -155,6 +173,151 @@ export async function verifyQuickSdkToken({
   return json;
 }
 
+export async function loginQuickSdkAccount({
+  username,
+  password,
+}: {
+  username: string;
+  password: string;
+}) {
+  const config = getQuickSdkConfig();
+  const payload = buildSignedParams({
+    openId: config.openId,
+    productCode: config.productCode,
+    channelCode: config.channelCode,
+    username,
+    password: md5Hex(password),
+  });
+
+  const result = await postQuickSdkForm("/webOpen/userLogin", payload);
+  return normalizeQuickSdkAuthData(result.data);
+}
+
+export async function sendQuickSdkPhoneCode({
+  phone,
+  purpose,
+  uid,
+}: {
+  phone: string;
+  purpose: QuickSdkPhoneCodePurpose;
+  uid?: string;
+}) {
+  const config = getQuickSdkConfig();
+  const payload = buildSignedParams({
+    openId: config.openId,
+    productCode: config.productCode,
+    channelCode: config.channelCode,
+    phone,
+    sendType: String(getQuickSdkSendType(purpose)),
+    uid,
+  });
+
+  const result = await postQuickSdkForm("/webOpen/sendCodeByPhone", payload);
+  return result.data;
+}
+
+export async function registerQuickSdkAccount({
+  username,
+  password,
+  phone,
+  code,
+}: {
+  username: string;
+  password: string;
+  phone: string;
+  code: string;
+}) {
+  const config = getQuickSdkConfig();
+  const payload = buildSignedParams({
+    openId: config.openId,
+    productCode: config.productCode,
+    channelCode: config.channelCode,
+    username,
+    password: md5Hex(password),
+    phone,
+    code,
+  });
+
+  const result = await postQuickSdkForm("/webOpen/upassportReg", payload);
+  return result.data;
+}
+
+export async function createQuickSdkPayUrl({
+  amount,
+  userId,
+  cpOrderNo,
+  orderSubject,
+  goodsName,
+  goodsId,
+  roleId,
+  roleName,
+  roleLevel,
+  serverId,
+  serverName,
+  extrasParams,
+  callbackUrl,
+  successUrl,
+  cancelUrl,
+  theme,
+}: {
+  amount: string;
+  userId: string;
+  cpOrderNo: string;
+  orderSubject: string;
+  goodsName: string;
+  goodsId: string;
+  roleId: string;
+  roleName: string;
+  roleLevel: string;
+  serverId: string;
+  serverName: string;
+  extrasParams?: string;
+  callbackUrl?: string;
+  successUrl?: string;
+  cancelUrl?: string;
+  theme?: string;
+}) {
+  const config = getQuickSdkConfig();
+  const payload = buildSignedParams({
+    openId: config.openId,
+    productCode: config.productCode,
+    channelCode: config.channelCode,
+    amount,
+    userId,
+    cpOrderNo,
+    orderSubject,
+    goodsName,
+    goodsId,
+    roleId,
+    roleName,
+    roleLevel,
+    serverId,
+    serverName,
+    extrasParams,
+    callbackUrl,
+    successUrl,
+    cancelUrl,
+    theme,
+  });
+
+  const response = await postForm(`${config.baseUrl}/webOpen/getPayUrl`, payload);
+  const text = await response.text();
+
+  if (!response.ok) {
+    const errorJson = parseJson<QuickSdkApiResponse>(text);
+    throw new Error(errorJson?.message || `QuickSDK request failed with status ${response.status}`);
+  }
+
+  const payUrl = normalizeQuickSdkPayUrlResponse(text);
+
+  if (!payUrl) {
+    console.error("[QuickSDK getPayUrl raw]", text);
+    throw new Error("QuickSDK did not return a payment URL.");
+  }
+
+  return payUrl;
+}
+
 export function getQuickSdkSyntheticEmail(uid: string) {
   return `sdkuid-${uid}@quicksdk.local`;
 }
@@ -165,6 +328,205 @@ export function getQuickSdkSyntheticPassword(uid: string) {
     .createHash("sha256")
     .update(`quicksdk:${uid}:${localAuthSecret}`, "utf8")
     .digest("hex");
+}
+
+function encodeQuickSdkCallbackUrl(value: string) {
+  return encodeURIComponent(value);
+}
+
+function getQuickSdkSendType(purpose: QuickSdkPhoneCodePurpose) {
+  switch (purpose) {
+    case "bind":
+      return 2;
+    case "unbind":
+      return 3;
+    case "reset-password":
+      return 4;
+    case "login":
+    case "register":
+    default:
+      return 1;
+  }
+}
+
+function md5Hex(value: string) {
+  return crypto.createHash("md5").update(value, "utf8").digest("hex");
+}
+
+async function postQuickSdkForm(path: string, payload: Record<string, string>) {
+  const config = getQuickSdkConfig();
+  const response = await postForm(`${config.baseUrl}${path}`, payload);
+  const text = await response.text();
+  const json = parseJson<QuickSdkApiResponse>(text);
+
+  if (!response.ok) {
+    throw new Error(json?.message || `QuickSDK request failed with status ${response.status}`);
+  }
+
+  if (!json) {
+    throw new Error("QuickSDK returned an invalid response.");
+  }
+
+  if (!json.status) {
+    throw new Error(json.message || "QuickSDK request failed");
+  }
+
+  return json;
+}
+
+function normalizeQuickSdkAuthData(data: unknown): QuickSdkAuthData {
+  const candidate =
+    Array.isArray(data) ? (data[0] as Record<string, unknown> | undefined) : (data as Record<string, unknown> | undefined);
+
+  if (!candidate || typeof candidate !== "object") {
+    throw new Error("QuickSDK login did not return account data.");
+  }
+
+  const uid = readQuickSdkString(candidate, ["uid", "userId"]);
+  const username = readQuickSdkString(candidate, ["username", "userName"]);
+  const authToken = readQuickSdkString(candidate, ["authToken", "token"]);
+  const mobile = readQuickSdkString(candidate, ["mobile", "phone"]);
+  const timeLeft = readQuickSdkNumber(candidate, ["timeLeft", "timeleft"]);
+
+  if (!uid || !username) {
+    throw new Error("QuickSDK login did not return uid or username.");
+  }
+
+  return {
+    uid,
+    username,
+    authToken: authToken || undefined,
+    mobile: mobile || undefined,
+    timeLeft,
+  };
+}
+
+function normalizeQuickSdkPayUrl(data: unknown) {
+  if (typeof data === "string") {
+    return normalizeMaybeRelativeQuickSdkUrl(data);
+  }
+
+  if (!data || typeof data !== "object") {
+    return "";
+  }
+
+  const candidate = data as Record<string, unknown>;
+  const payUrl = candidate.payUrl;
+
+  if (typeof payUrl === "string") {
+    return normalizeMaybeRelativeQuickSdkUrl(payUrl);
+  }
+
+  return "";
+}
+
+function normalizeQuickSdkPayUrlResponse(value: string) {
+  const trimmed = value.trim();
+
+  if (!trimmed) {
+    return "";
+  }
+
+  const directUrl = normalizeMaybeRelativeQuickSdkUrl(trimmed);
+  if (directUrl) {
+    return directUrl;
+  }
+
+  const json = parseJson<QuickSdkApiResponse | { data?: unknown; payUrl?: unknown; url?: unknown }>(trimmed);
+  if (!json) {
+    return "";
+  }
+
+  if ("payUrl" in json && typeof json.payUrl === "string") {
+    return normalizeMaybeRelativeQuickSdkUrl(json.payUrl);
+  }
+
+  if ("url" in json && typeof json.url === "string") {
+    return normalizeMaybeRelativeQuickSdkUrl(json.url);
+  }
+
+  if ("data" in json) {
+    return normalizeQuickSdkPayUrlDeep(json.data);
+  }
+
+  return "";
+}
+
+function normalizeQuickSdkPayUrlDeep(data: unknown): string {
+  if (typeof data === "string") {
+    return normalizeMaybeRelativeQuickSdkUrl(data);
+  }
+
+  if (!data || typeof data !== "object") {
+    return "";
+  }
+
+  const candidate = data as Record<string, unknown>;
+  const direct = [candidate.payUrl, candidate.url, candidate.paymentUrl, candidate.link];
+
+  for (const item of direct) {
+    if (typeof item === "string") {
+      const normalized = normalizeMaybeRelativeQuickSdkUrl(item);
+      if (normalized) {
+        return normalized;
+      }
+    }
+  }
+
+  if ("data" in candidate) {
+    return normalizeQuickSdkPayUrlDeep(candidate.data);
+  }
+
+  return "";
+}
+
+function normalizeMaybeRelativeQuickSdkUrl(value: string) {
+  const trimmed = value.trim();
+
+  if (!trimmed) {
+    return "";
+  }
+
+  if (isAbsoluteHttpUrl(trimmed)) {
+    return trimmed;
+  }
+
+  if (/^[a-z0-9.-]+\.[a-z]{2,}\/.+/i.test(trimmed)) {
+    return `http://${trimmed}`;
+  }
+
+  return "";
+}
+
+function readQuickSdkString(source: Record<string, unknown>, keys: string[]) {
+  for (const key of keys) {
+    const value = source[key];
+    if (typeof value === "string" && value.trim()) {
+      return value.trim();
+    }
+    if (typeof value === "number" && Number.isFinite(value)) {
+      return String(value);
+    }
+  }
+
+  return "";
+}
+
+function readQuickSdkNumber(source: Record<string, unknown>, keys: string[]) {
+  for (const key of keys) {
+    const value = source[key];
+    if (typeof value === "number" && Number.isFinite(value)) {
+      return value;
+    }
+    if (typeof value === "string" && value.trim()) {
+      const parsed = Number(value);
+      if (Number.isFinite(parsed)) {
+        return parsed;
+      }
+    }
+  }
+
+  return null;
 }
 
 function buildSignedParams(input: Record<string, string | undefined>) {

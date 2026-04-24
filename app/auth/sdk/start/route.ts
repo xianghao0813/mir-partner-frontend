@@ -16,7 +16,7 @@ export async function GET(request: Request) {
     const errorUrl = new URL("/login", resolvePublicOrigin(request.url, request.headers));
     errorUrl.searchParams.set(
       "error",
-      error instanceof Error ? error.message : "QuickSDK login is not configured."
+      error instanceof Error ? error.message : "网页登录未配置。"
     );
     return NextResponse.redirect(errorUrl);
   }

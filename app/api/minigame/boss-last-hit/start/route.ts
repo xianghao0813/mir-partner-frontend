@@ -1,4 +1,3 @@
-import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import {
@@ -24,9 +23,7 @@ export async function POST() {
     ok: true,
     game: buildBossLastHitPublicState(gameState),
   });
-
-  const cookieStore = await cookies();
-  cookieStore.set(BOSS_LAST_HIT_COOKIE, JSON.stringify(gameState), {
+  response.cookies.set(BOSS_LAST_HIT_COOKIE, JSON.stringify(gameState), {
     httpOnly: true,
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production",

@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
 
 export default function LoginPage() {
   return (
@@ -16,58 +15,74 @@ export default function LoginPage() {
 function LoginPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const supabase = createClient();
 
-  const [email, setEmail] = useState("");
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
 
   const callbackError = searchParams.get("error");
-  const cancelled = searchParams.get("cancelled") === "1";
 
-  async function handleLogin(e: React.FormEvent) {
+  async function handleLogin(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setLoading(true);
     setMessage("");
 
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
+    try {
+      const response = await fetch("/api/auth/quicksdk/login", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          username,
+          password,
+        }),
+      });
 
-    setLoading(false);
+      const payload = (await response.json()) as {
+        error?: string;
+        profileUrl?: string;
+      };
 
-    if (error) {
-      setMessage(error.message);
-      return;
+      if (!response.ok) {
+        setMessage(payload.error || "登录失败。");
+        return;
+      }
+
+      router.push(payload.profileUrl || "/profile");
+      router.refresh();
+    } catch {
+      setMessage("当前无法连接登录服务。");
+    } finally {
+      setLoading(false);
     }
-
-    router.push("/profile");
-    router.refresh();
   }
 
   return (
     <LoginShell>
       <form onSubmit={handleLogin} className="glow-purple" style={formStyle}>
-        <h1 style={titleStyle}>登录</h1>
+        <h1 style={titleStyle}>账号登录</h1>
 
-        <p style={subtitleStyle}>可使用邮箱登录，也可直接使用游戏内账号接入本站。</p>
+        <p style={subtitleStyle}>
+          如果你已经在游戏 SDK 中创建过账号，请直接输入相同的账号和密码登录。
+        </p>
 
-        <Link href="/auth/sdk/start" style={sdkButtonStyle}>
-          使用游戏账号登录
-        </Link>
-
-        <div style={separatorStyle}>
-          <span>或使用邮箱登录</span>
+        <div style={featureCardStyle}>
+          <div style={featureEyebrowStyle}>直接登录</div>
+          <strong style={featureTitleStyle}>不再跳转额外网页登录页</strong>
+          <span style={featureTextStyle}>
+            此页面只用于账号密码直接登录。如果你还没有 SDK 账号，请先注册。
+          </span>
         </div>
 
         <input
-          type="email"
-          placeholder="邮箱"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
+          type="text"
+          placeholder="账号"
+          value={username}
+          onChange={(e) => setUsername(e.target.value)}
           style={inputStyle}
+          autoComplete="username"
         />
 
         <input
@@ -76,20 +91,19 @@ function LoginPageContent() {
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           style={inputStyle}
+          autoComplete="current-password"
         />
 
         <button type="submit" disabled={loading} className="glow-purple-strong" style={buttonStyle}>
-          {loading ? "登录中..." : "邮箱登录"}
+          {loading ? "登录中..." : "登录"}
         </button>
 
         <div style={footerTextStyle}>
-          아직 계정이 없나요?{" "}
-          <a href="/signup" style={footerLinkStyle}>
-            바로 가입
-          </a>
+          还没有账号？{" "}
+          <Link href="/signup" style={footerLinkStyle}>
+            去注册
+          </Link>
         </div>
-
-        {cancelled ? <p style={infoStyle}>已取消 QuickSDK 登录。</p> : null}
 
         {callbackError ? (
           <p style={errorStyle}>{callbackError}</p>
@@ -127,7 +141,7 @@ const formStyle: React.CSSProperties = {
   position: "relative",
   zIndex: 1,
   width: "100%",
-  maxWidth: "440px",
+  maxWidth: "480px",
   padding: "32px",
   borderRadius: "22px",
   background: "rgba(16,16,24,0.82)",
@@ -140,7 +154,7 @@ const formStyle: React.CSSProperties = {
 
 const fallbackPanelStyle: React.CSSProperties = {
   ...formStyle,
-  minHeight: "520px",
+  minHeight: "440px",
   opacity: 0.4,
 };
 
@@ -158,6 +172,35 @@ const subtitleStyle: React.CSSProperties = {
   textAlign: "center",
   color: "#b8b8c5",
   fontSize: "14px",
+  lineHeight: 1.6,
+};
+
+const featureCardStyle: React.CSSProperties = {
+  padding: "14px",
+  borderRadius: "14px",
+  background: "rgba(255,255,255,0.04)",
+  border: "1px solid rgba(255,255,255,0.06)",
+  display: "grid",
+  gap: "4px",
+  marginBottom: "4px",
+};
+
+const featureEyebrowStyle: React.CSSProperties = {
+  color: "#c4b5fd",
+  fontSize: "11px",
+  letterSpacing: "0.08em",
+  textTransform: "uppercase",
+};
+
+const featureTitleStyle: React.CSSProperties = {
+  color: "white",
+  fontSize: "14px",
+};
+
+const featureTextStyle: React.CSSProperties = {
+  color: "#a1a1aa",
+  fontSize: "12px",
+  lineHeight: 1.5,
 };
 
 const inputStyle: React.CSSProperties = {
@@ -185,29 +228,6 @@ const buttonStyle: React.CSSProperties = {
   fontSize: "15px",
 };
 
-const sdkButtonStyle: React.CSSProperties = {
-  display: "block",
-  width: "100%",
-  boxSizing: "border-box",
-  textAlign: "center",
-  textDecoration: "none",
-  padding: "14px 16px",
-  borderRadius: "12px",
-  border: "1px solid rgba(192,132,252,0.35)",
-  background: "linear-gradient(180deg, rgba(124,58,237,0.18) 0%, rgba(76,29,149,0.28) 100%)",
-  color: "white",
-  fontWeight: 700,
-  fontSize: "15px",
-};
-
-const separatorStyle: React.CSSProperties = {
-  position: "relative",
-  textAlign: "center",
-  color: "#8b8b99",
-  fontSize: "13px",
-  margin: "2px 0",
-};
-
 const footerTextStyle: React.CSSProperties = {
   marginTop: "4px",
   textAlign: "center",
@@ -222,17 +242,9 @@ const footerLinkStyle: React.CSSProperties = {
 };
 
 const errorStyle: React.CSSProperties = {
-  marginTop: "4px",
   color: "#fca5a5",
   textAlign: "center",
   fontSize: "14px",
-  lineHeight: 1.6,
-};
-
-const infoStyle: React.CSSProperties = {
-  marginTop: "4px",
-  color: "#c4b5fd",
-  textAlign: "center",
-  fontSize: "14px",
+  margin: 0,
   lineHeight: 1.6,
 };
