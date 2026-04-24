@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { Noto_Sans_SC } from "next/font/google";
 import "./globals.css";
 import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
@@ -12,12 +11,6 @@ type NavGroup = {
   label: string;
   items: { href: string; label: string }[];
 };
-
-const notoSansSC = Noto_Sans_SC({
-  subsets: ["latin"],
-  weight: ["400", "500", "700", "800"],
-  display: "swap",
-});
 
 const navGroups: NavGroup[] = [
   {
@@ -122,11 +115,12 @@ export default function RootLayout({
   return (
     <html lang="zh-CN">
       <body
-        className={notoSansSC.className}
         style={{
           margin: 0,
           backgroundColor: "#111",
           color: "white",
+          fontFamily:
+            '"Microsoft YaHei", "PingFang SC", "Hiragino Sans GB", "Noto Sans SC", Arial, sans-serif',
         }}
       >
         <header
