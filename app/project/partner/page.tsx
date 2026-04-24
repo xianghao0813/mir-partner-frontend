@@ -120,7 +120,7 @@ export default function PartnerPage() {
       setCurrentIndex(nextIndex);
 
       el.scrollTo({
-        top: nextIndex * window.innerHeight,
+        top: nextIndex * el.clientHeight,
         behavior: "smooth",
       });
 
@@ -145,7 +145,7 @@ export default function PartnerPage() {
       setCurrentIndex(nextIndex);
 
       el.scrollTo({
-        top: nextIndex * window.innerHeight,
+        top: nextIndex * el.clientHeight,
         behavior: "smooth",
       });
 
@@ -169,7 +169,7 @@ export default function PartnerPage() {
 
     setCurrentIndex(index);
     el.scrollTo({
-      top: index * window.innerHeight,
+      top: index * el.clientHeight,
       behavior: "smooth",
     });
   }
@@ -237,7 +237,7 @@ export default function PartnerPage() {
         <section
           key={section.id}
           style={{
-            minHeight: "calc(100vh - 81px)",
+            height: "calc(100vh - 81px)",
             position: "relative",
             zIndex: 1,
             display: "flex",
