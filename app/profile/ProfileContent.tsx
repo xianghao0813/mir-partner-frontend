@@ -51,26 +51,49 @@ export default function ProfileContent({ profile }: ProfileContentProps) {
           <h1 style={titleStyle}>个人资料</h1>
           <p style={subtitleStyle}>查看当前账号的合伙人身份、星级和 MIR 积分进度。</p>
 
-          <div style={infoGridStyle}>
+          <div style={identityGridStyle}>
             <InfoCard label="UID" value={profile.uid || "-"} />
             <InfoCard label="合伙人编号" value={profile.partnerCode} accent="#fde68a" />
-            <InfoCard label="合伙人星级" value={currentTier.label} accent={currentTier.accent} />
-            <InfoCard label="当前累计积分" value={currentPoints.toLocaleString()} accent="#c4b5fd" />
-            <InfoCard label="本月获得积分" value={currentMonthlyPoints.toLocaleString()} accent="#86efac" />
-            <InfoCard
-              label="下一级还需"
-              value={nextTier ? `${pointsToNextTier.toLocaleString()} 分` : "已达最高星级"}
-              accent="#facc15"
-            />
           </div>
 
-          <div style={tierProgressStyle}>
-            <div style={tierProgressHeaderStyle}>
-              <span>{currentTier.label}</span>
-              <span>{nextTier ? nextTier.label : "最高星级"}</span>
-            </div>
-            <div style={progressRailStyle}>
-              <div style={{ ...progressFillStyle, width: `${progressPercent}%` }} />
+          <div style={tierDashboardStyle}>
+            <article style={tierGaugeCardStyle(currentTier.accent)}>
+              <div style={tierGaugeTopStyle}>
+                <div>
+                  <div style={infoLabelStyle}>当前合伙人星级</div>
+                  <div style={{ ...tierGaugeTitleStyle, color: currentTier.accent }}>{currentTier.label}</div>
+                </div>
+                <div style={tierGaugePercentStyle}>{progressPercent}%</div>
+              </div>
+
+              <div style={tierProgressStyle}>
+                <div style={tierProgressHeaderStyle}>
+                  <span>{currentTier.minPoints.toLocaleString()} 分</span>
+                  <span>{nextTier ? `${nextTier.minPoints.toLocaleString()} 分` : "最高星级"}</span>
+                </div>
+                <div style={progressRailStyle}>
+                  <div style={{ ...progressFillStyle(currentTier.accent), width: `${progressPercent}%` }} />
+                </div>
+                <div style={tierProgressHeaderStyle}>
+                  <span>当前累计 {currentPoints.toLocaleString()} 分</span>
+                  <span>{nextTier ? `目标 ${nextTier.label}` : "已达最高等级"}</span>
+                </div>
+              </div>
+            </article>
+
+            <div style={tierMetricGridStyle}>
+              <MetricCard
+                label="本月获得积分"
+                value={`${currentMonthlyPoints.toLocaleString()} 分`}
+                accent="#86efac"
+                progress={Math.min(100, Math.round((currentMonthlyPoints / 100000) * 100))}
+              />
+              <MetricCard
+                label="升级还需"
+                value={nextTier ? `${pointsToNextTier.toLocaleString()} 分` : "已达最高星级"}
+                accent="#facc15"
+                progress={nextTier ? 100 - progressPercent : 100}
+              />
             </div>
           </div>
         </section>
@@ -163,6 +186,28 @@ function InfoCard({
   );
 }
 
+function MetricCard({
+  label,
+  value,
+  accent,
+  progress,
+}: {
+  label: string;
+  value: string;
+  accent: string;
+  progress: number;
+}) {
+  return (
+    <article style={metricCardStyle}>
+      <div style={infoLabelStyle}>{label}</div>
+      <div style={{ ...metricValueStyle, color: accent }}>{value}</div>
+      <div style={metricRailStyle}>
+        <div style={{ ...metricFillStyle(accent), width: `${Math.min(100, Math.max(0, progress))}%` }} />
+      </div>
+    </article>
+  );
+}
+
 function getTierForPoints(points: number) {
   return [...profileTierList]
     .reverse()
@@ -233,14 +278,92 @@ const subtitleStyle: React.CSSProperties = {
   fontSize: "14px",
 };
 
-const infoGridStyle: React.CSSProperties = {
+const identityGridStyle: React.CSSProperties = {
   display: "grid",
   gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
   gap: "14px",
 };
 
+const tierDashboardStyle: React.CSSProperties = {
+  marginTop: "16px",
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(min(320px, 100%), 1fr))",
+  gap: "14px",
+};
+
+const tierGaugeCardStyle = (accent: string): React.CSSProperties => ({
+  padding: "22px",
+  borderRadius: "20px",
+  background: `linear-gradient(145deg, rgba(255,255,255,0.055), rgba(255,255,255,0.025)), radial-gradient(circle at top right, ${accent}26, transparent 48%)`,
+  border: `1px solid ${accent}55`,
+  boxShadow: `0 18px 38px rgba(0,0,0,0.26), 0 0 24px ${accent}1f`,
+  display: "grid",
+  gap: "18px",
+});
+
+const tierGaugeTopStyle: React.CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "flex-start",
+  gap: "16px",
+};
+
+const tierGaugeTitleStyle: React.CSSProperties = {
+  marginTop: "8px",
+  fontSize: "34px",
+  fontWeight: 900,
+  lineHeight: 1.05,
+};
+
+const tierGaugePercentStyle: React.CSSProperties = {
+  minWidth: "70px",
+  textAlign: "center",
+  padding: "10px 12px",
+  borderRadius: "14px",
+  background: "rgba(255,255,255,0.07)",
+  border: "1px solid rgba(255,255,255,0.09)",
+  color: "#f8fafc",
+  fontSize: "20px",
+  fontWeight: 800,
+};
+
+const tierMetricGridStyle: React.CSSProperties = {
+  display: "grid",
+  gap: "14px",
+};
+
+const metricCardStyle: React.CSSProperties = {
+  minHeight: "120px",
+  padding: "18px",
+  borderRadius: "20px",
+  background: "rgba(255,255,255,0.045)",
+  border: "1px solid rgba(255,255,255,0.075)",
+  display: "grid",
+  alignContent: "space-between",
+  gap: "14px",
+};
+
+const metricValueStyle: React.CSSProperties = {
+  fontSize: "24px",
+  fontWeight: 850,
+  lineHeight: 1.18,
+  wordBreak: "break-word",
+};
+
+const metricRailStyle: React.CSSProperties = {
+  height: "8px",
+  borderRadius: "999px",
+  background: "rgba(255,255,255,0.08)",
+  overflow: "hidden",
+};
+
+const metricFillStyle = (accent: string): React.CSSProperties => ({
+  height: "100%",
+  borderRadius: "999px",
+  background: `linear-gradient(90deg, ${accent}, #f8fafc)`,
+});
+
 const tierProgressStyle: React.CSSProperties = {
-  marginTop: "18px",
   display: "grid",
   gap: "10px",
 };
@@ -261,11 +384,11 @@ const progressRailStyle: React.CSSProperties = {
   overflow: "hidden",
 };
 
-const progressFillStyle: React.CSSProperties = {
+const progressFillStyle = (accent: string): React.CSSProperties => ({
   height: "100%",
   borderRadius: "999px",
-  background: "linear-gradient(90deg, #7c3aed, #facc15)",
-};
+  background: `linear-gradient(90deg, ${accent}, #facc15)`,
+});
 
 const infoCardStyle: React.CSSProperties = {
   padding: "18px",
