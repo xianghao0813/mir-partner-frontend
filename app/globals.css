@@ -346,6 +346,27 @@ a {
   }
 }
 
+.site-brand,
+.site-brand * {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.site-brand {
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.site-brand:focus {
+  outline: none;
+}
+
+.site-brand:focus-visible {
+  outline: 2px solid rgba(196, 181, 253, 0.72);
+  outline-offset: 4px;
+  border-radius: 10px;
+}
+
 @media (max-width: 420px) {
   .site-header-inner {
     padding: 9px 10px !important;

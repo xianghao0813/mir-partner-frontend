@@ -162,6 +162,7 @@ export default function RootLayout({
               <img
                 src="/wp-logo.png"
                 alt="MIR Partner"
+                draggable={false}
                 style={{
                   width: "62px",
                   filter: "drop-shadow(0 0 6px #a855f7)",
