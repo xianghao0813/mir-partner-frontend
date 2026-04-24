@@ -99,6 +99,11 @@ export default function NoticeCategoryPage() {
         overflowX: "hidden",
         position: "relative",
         backgroundColor: "#07070a",
+        backgroundImage:
+          "linear-gradient(180deg, rgba(5,5,8,0.42) 0%, rgba(8,8,12,0.52) 100%), url('/login-bg.png')",
+        backgroundSize: "cover",
+        backgroundPosition: "center",
+        backgroundAttachment: "fixed",
         color: "white",
         margin: "-40px",
         width: "calc(100% + 80px)",

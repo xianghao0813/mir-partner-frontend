@@ -186,6 +186,11 @@ export default function PartnerPage() {
         width: "calc(100% + 80px)",
         position: "relative",
         backgroundColor: "#07070a",
+        backgroundImage:
+          "linear-gradient(180deg, rgba(5,5,8,0.42) 0%, rgba(8,8,12,0.52) 100%), url('/login-bg.png')",
+        backgroundSize: "cover",
+        backgroundPosition: "center",
+        backgroundAttachment: "fixed",
       }}
     >
       <div className="auth-bg" style={{ position: "fixed" }} />
@@ -240,7 +245,7 @@ export default function PartnerPage() {
             justifyContent: "center",
             overflow: "hidden",
             background:
-              "radial-gradient(circle at top, rgba(124,58,237,0.16) 0%, rgba(12,12,18,0.44) 38%, rgba(5,5,7,0.32) 100%)",
+              "radial-gradient(circle at top, rgba(124,58,237,0.12) 0%, rgba(12,12,18,0.18) 38%, rgba(5,5,7,0.12) 100%)",
           }}
         >
           <div
