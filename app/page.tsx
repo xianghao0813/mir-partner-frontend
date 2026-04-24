@@ -125,7 +125,7 @@ export default function Home() {
           width: "calc(100% + 80px)",
         }}
       >
-        <section className="home-hero-section" style={heroSectionStyle}>
+        <section className="home-hero-section home-lit-section" style={heroSectionStyle}>
           <div className="home-hero-glow" style={heroGlowStyle} />
 
           <img
@@ -151,7 +151,6 @@ export default function Home() {
         </section>
 
         <section className="home-showcase-section" style={showcaseSectionStyle}>
-          <div className="home-showcase-light" />
           <div style={showcaseOverlayStyle} />
 
           <div className="home-showcase-background" style={showcaseBackgroundStyle}>
@@ -180,7 +179,7 @@ export default function Home() {
           <ScrollCue accent="#c4b5fd" />
         </section>
 
-        <section className="home-news-section" style={newsSectionStyle}>
+        <section className="home-news-section home-lit-section" style={newsSectionStyle}>
           <div className="home-news-shell" style={newsShellStyle}>
             <div style={{ textAlign: "center", marginBottom: "10px" }}>
               <div style={eyebrowStyle}>Latest Updates</div>
@@ -517,13 +516,14 @@ const showcaseSectionStyle: React.CSSProperties = {
   alignItems: "center",
   justifyContent: "center",
   padding: "40px 24px",
+  background: "#05060c",
 };
 
 const showcaseOverlayStyle: React.CSSProperties = {
   position: "absolute",
   inset: 0,
   background:
-    "linear-gradient(180deg, rgba(4,4,8,0.18) 0%, rgba(4,4,8,0.46) 42%, rgba(4,4,8,0.76) 100%)",
+    "linear-gradient(180deg, rgba(4,4,8,0.08) 0%, rgba(4,4,8,0.28) 42%, rgba(4,4,8,0.58) 100%)",
   zIndex: 1,
   pointerEvents: "none",
 };
@@ -534,9 +534,8 @@ const showcaseBackgroundStyle: React.CSSProperties = {
   display: "grid",
   gap: "24px",
   transform: "perspective(1800px) rotateX(9deg) rotateY(-5deg)",
-  opacity: 0.78,
+  opacity: 0.9,
   zIndex: 1,
-  mixBlendMode: "screen",
 };
 
 const showcaseTrackStyle: React.CSSProperties = {

@@ -170,7 +170,7 @@ a {
   will-change: transform;
 }
 
-.home-showcase-section::before {
+.home-lit-section::before {
   content: "";
   position: absolute;
   inset: -16%;
@@ -186,10 +186,11 @@ a {
   animation: showcaseAtmosphere 16s ease-in-out infinite;
 }
 
-.home-showcase-light {
+.home-lit-section::after {
+  content: "";
   position: absolute;
   inset: -30% -45%;
-  z-index: 2;
+  z-index: 0;
   pointer-events: none;
   background:
     linear-gradient(105deg, transparent 0%, transparent 38%, rgba(255, 255, 255, 0.16) 47%, rgba(167, 139, 250, 0.18) 52%, transparent 64%, transparent 100%);
@@ -347,12 +348,12 @@ a {
     transform: perspective(1200px) rotateX(8deg) rotateY(-7deg) !important;
   }
 
-  .home-showcase-section::before {
+  .home-lit-section::before {
     opacity: 0.42;
     animation-duration: 20s;
   }
 
-  .home-showcase-light {
+  .home-lit-section::after {
     opacity: 0.48;
     filter: blur(24px);
   }
