@@ -125,7 +125,8 @@ export default function Home() {
           width: "calc(100% + 80px)",
         }}
       >
-        <section className="home-hero-section home-lit-section" style={heroSectionStyle}>
+        <section className="home-hero-section" style={heroSectionStyle}>
+          <CircuitFlow />
           <div className="home-hero-glow" style={heroGlowStyle} />
 
           <img
@@ -179,7 +180,8 @@ export default function Home() {
           <ScrollCue accent="#c4b5fd" />
         </section>
 
-        <section className="home-news-section home-lit-section" style={newsSectionStyle}>
+        <section className="home-news-section" style={newsSectionStyle}>
+          <CircuitFlow />
           <div className="home-news-shell" style={newsShellStyle}>
             <div style={{ textAlign: "center", marginBottom: "10px" }}>
               <div style={eyebrowStyle}>Latest Updates</div>
@@ -446,6 +448,69 @@ function ScrollCue({ accent = "#a855f7" }: { accent?: string }) {
         ↓
       </div>
     </div>
+  );
+}
+
+function CircuitFlow() {
+  return (
+    <svg className="home-circuit-flow" viewBox="0 0 1440 900" preserveAspectRatio="none" aria-hidden="true">
+      <defs>
+        <linearGradient id="circuitBase" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stopColor="rgba(129,140,248,0.08)" />
+          <stop offset="55%" stopColor="rgba(196,181,253,0.12)" />
+          <stop offset="100%" stopColor="rgba(56,189,248,0.08)" />
+        </linearGradient>
+        <linearGradient id="circuitPulse" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%" stopColor="rgba(255,255,255,0)" />
+          <stop offset="48%" stopColor="rgba(216,180,254,0.95)" />
+          <stop offset="100%" stopColor="rgba(96,165,250,0)" />
+        </linearGradient>
+        <filter id="circuitGlow">
+          <feGaussianBlur stdDeviation="3" result="blur" />
+          <feMerge>
+            <feMergeNode in="blur" />
+            <feMergeNode in="SourceGraphic" />
+          </feMerge>
+        </filter>
+      </defs>
+
+      <g className="circuit-base">
+        <path d="M-40 210H220L310 300H560L650 210H920L1020 310H1480" />
+        <path d="M80 690H330L430 590H690L790 690H1060L1160 590H1480" />
+        <path d="M-20 455H180L260 535H520L620 435H870L960 525H1230L1320 435H1480" />
+        <path d="M260 120V275L350 365V540L250 640V820" />
+        <path d="M1020 80V250L1110 340V520L1010 620V840" />
+        <path d="M720 -40V145L820 245V410L720 510V940" />
+      </g>
+
+      <g className="circuit-pulse">
+        <path d="M-40 210H220L310 300H560L650 210H920L1020 310H1480" />
+        <path d="M80 690H330L430 590H690L790 690H1060L1160 590H1480" />
+        <path d="M-20 455H180L260 535H520L620 435H870L960 525H1230L1320 435H1480" />
+        <path d="M260 120V275L350 365V540L250 640V820" />
+        <path d="M1020 80V250L1110 340V520L1010 620V840" />
+        <path d="M720 -40V145L820 245V410L720 510V940" />
+      </g>
+
+      <g className="circuit-nodes">
+        {[
+          [220, 210],
+          [560, 300],
+          [920, 210],
+          [330, 690],
+          [690, 590],
+          [1060, 690],
+          [520, 535],
+          [870, 435],
+          [1230, 525],
+          [350, 365],
+          [1110, 340],
+          [820, 245],
+        ].map(([cx, cy]) => (
+          <circle key={`${cx}-${cy}`} cx={cx} cy={cy} r="4" />
+        ))}
+      </g>
+    </svg>
   );
 }
 
