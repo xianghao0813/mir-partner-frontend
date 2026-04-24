@@ -124,6 +124,7 @@ export default function RootLayout({
         }}
       >
         <header
+          className="site-header"
           style={{
             position: "sticky",
             top: 0,
@@ -134,6 +135,7 @@ export default function RootLayout({
           }}
         >
           <div
+            className="site-header-inner"
             style={{
               maxWidth: "1400px",
               margin: "0 auto",
@@ -146,6 +148,7 @@ export default function RootLayout({
             }}
           >
             <Link
+              className="site-brand"
               href="/"
               style={{
                 display: "flex",
@@ -166,13 +169,14 @@ export default function RootLayout({
               />
               <div>
                 <div style={{ fontWeight: 800, fontSize: "20px" }}>MIR Partner</div>
-                <div style={{ color: "#9ca3af", fontSize: "12px" }}>
+                <div className="site-brand-tagline" style={{ color: "#9ca3af", fontSize: "12px" }}>
                   创作者与合作伙伴平台
                 </div>
               </div>
             </Link>
 
             <div
+              className="site-nav-area"
               style={{
                 display: "flex",
                 alignItems: "center",
@@ -183,6 +187,7 @@ export default function RootLayout({
               }}
             >
               <nav
+                className="site-nav"
                 style={{
                   display: "flex",
                   alignItems: "center",
@@ -227,6 +232,7 @@ export default function RootLayout({
               </nav>
 
               <div
+                className="site-auth-area"
                 style={{
                   display: "flex",
                   alignItems: "center",
@@ -302,7 +308,7 @@ export default function RootLayout({
           </div>
         </header>
 
-        <div style={{ padding: "40px" }}>{children}</div>
+        <div className="site-content" style={{ padding: "40px" }}>{children}</div>
       </body>
     </html>
   );

@@ -109,7 +109,7 @@ export default function Home() {
       <div className="main-overlay" />
 
       <main
-        className="hide-scrollbar"
+        className="hide-scrollbar home-main"
         style={{
           height: "calc(100vh - 81px)",
           overflowY: "auto",
@@ -122,10 +122,11 @@ export default function Home() {
           width: "calc(100% + 80px)",
         }}
       >
-        <section style={heroSectionStyle}>
-          <div style={heroGlowStyle} />
+        <section className="home-hero-section" style={heroSectionStyle}>
+          <div className="home-hero-glow" style={heroGlowStyle} />
 
           <img
+            className="home-hero-logo"
             src="/company-logo.png"
             alt="MIR Partner"
             style={{
@@ -137,19 +138,19 @@ export default function Home() {
             }}
           />
 
-          <h1 style={heroTitleStyle}>WE DARE TO BREAK RULES</h1>
+          <h1 className="home-hero-title" style={heroTitleStyle}>WE DARE TO BREAK RULES</h1>
 
-          <p style={heroSubtitleStyle}>
+          <p className="home-hero-subtitle" style={heroSubtitleStyle}>
             MIR Partner 是连接游戏、社区与合作价值的内容平台。你可以在这里集中查看核心项目、品牌方向与最新动态。
           </p>
 
           <ScrollCue />
         </section>
 
-        <section style={showcaseSectionStyle}>
+        <section className="home-showcase-section" style={showcaseSectionStyle}>
           <div style={showcaseOverlayStyle} />
 
-          <div style={showcaseBackgroundStyle}>
+          <div className="home-showcase-background" style={showcaseBackgroundStyle}>
             <div style={showcaseTrackStyle}>
               {[...showcasePosters, ...showcasePosters].map((poster, index) => (
                 <PosterCard key={`top-${poster.title}-${index}`} poster={poster} tall={index % 2 === 0} />
@@ -163,11 +164,11 @@ export default function Home() {
             </div>
           </div>
 
-          <div style={showcasePanelStyle}>
+          <div className="home-showcase-panel" style={showcasePanelStyle}>
             <div style={eyebrowStyle}>Our Games, Our Direction</div>
             <div style={showcaseMiniTitleStyle}>游戏矩阵驱动长期增长</div>
-            <h2 style={showcaseTitleStyle}>GREAT GAMES BUILD LONG-TERM WORLDS</h2>
-            <p style={showcaseTextStyle}>
+            <h2 className="home-showcase-title" style={showcaseTitleStyle}>GREAT GAMES BUILD LONG-TERM WORLDS</h2>
+            <p className="home-showcase-text" style={showcaseTextStyle}>
               自研与核心发行游戏共同构成公司的增长引擎，我们围绕 IP 生命周期、全球运营能力与用户社群价值持续扩张业务边界。
             </p>
           </div>
@@ -175,12 +176,12 @@ export default function Home() {
           <ScrollCue accent="#c4b5fd" />
         </section>
 
-        <section style={newsSectionStyle}>
-          <div style={newsShellStyle}>
+        <section className="home-news-section" style={newsSectionStyle}>
+          <div className="home-news-shell" style={newsShellStyle}>
             <div style={{ textAlign: "center", marginBottom: "10px" }}>
               <div style={eyebrowStyle}>Latest Updates</div>
-              <h2 style={newsTitleStyle}>最新消息</h2>
-              <p style={newsSubtitleStyle}>快速查看重点横幅与最新公告，保持和平台动态同步。</p>
+              <h2 className="home-news-title" style={newsTitleStyle}>最新消息</h2>
+              <p className="home-news-subtitle" style={newsSubtitleStyle}>快速查看重点横幅与最新公告，保持和平台动态同步。</p>
             </div>
 
             <div
@@ -207,6 +208,7 @@ export default function Home() {
                       <img
                         src={banner.image_url}
                         alt={banner.title || `横幅 ${index + 1}`}
+                        className="home-banner-image"
                         style={bannerImageStyle}
                       />
                     );
@@ -231,7 +233,7 @@ export default function Home() {
               </div>
             </div>
 
-            <div style={newsGridStyle}>
+            <div className="home-news-grid" style={newsGridStyle}>
               {loading ? (
                 <div style={{ color: "#aaa", textAlign: "center", gridColumn: "1 / -1" }}>加载中...</div>
               ) : newsPosts.length === 0 ? (
@@ -246,7 +248,7 @@ export default function Home() {
                       color: "inherit",
                     }}
                   >
-                    <div style={newsCardStyle}>
+                    <div className="home-news-card" style={newsCardStyle}>
                       <div
                         style={{
                           display: "flex",
@@ -347,6 +349,7 @@ function PosterCard({
 }) {
   return (
     <div
+      className={`home-poster-card ${tall ? "is-tall" : "is-short"}`}
       style={{
         position: "relative",
         width: "clamp(150px, 16vw, 240px)",
@@ -405,6 +408,7 @@ function PosterCard({
 function ScrollCue({ accent = "#a855f7" }: { accent?: string }) {
   return (
     <div
+      className="home-scroll-cue"
       style={{
         position: "absolute",
         bottom: "84px",
