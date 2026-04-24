@@ -96,16 +96,22 @@ export default function NoticeCategoryPage() {
       style={{
         height: "calc(100vh - 81px)",
         overflowY: "auto",
-        background:
-          "radial-gradient(circle at top, rgba(124,58,237,0.12) 0%, rgba(10,10,14,1) 32%, rgba(6,6,10,1) 100%)",
+        overflowX: "hidden",
+        position: "relative",
+        backgroundColor: "#07070a",
         color: "white",
         margin: "-40px",
         width: "calc(100% + 80px)",
         padding: "48px 0 80px",
       }}
     >
+      <div className="auth-bg" style={{ position: "fixed" }} />
+      <div className="auth-overlay" style={{ position: "fixed" }} />
+
       <div
         style={{
+          position: "relative",
+          zIndex: 1,
           maxWidth: "1240px",
           margin: "0 auto",
           padding: "0 28px",

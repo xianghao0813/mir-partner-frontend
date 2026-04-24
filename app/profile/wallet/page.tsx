@@ -28,6 +28,8 @@ type WalletTransaction = {
 type WalletSummary = {
   account: string;
   nickname: string;
+  uid: string;
+  partnerCode: string;
   status: string;
   cloudCoins: number;
   transactions: WalletTransaction[];
@@ -68,8 +70,8 @@ export default function WalletPage() {
 
   const accountInfo = useMemo(
     () => [
-      { label: "账号", value: wallet?.account ?? "当前登录账号" },
-      { label: "昵称", value: wallet?.nickname ?? "MIR Partner 玩家" },
+      { label: "账号", value: wallet?.nickname ?? "MIR Partner 玩家" },
+      { label: "UID", value: wallet?.uid ?? extractAccountUid(wallet?.account ?? "") },
       { label: "状态", value: wallet?.status ?? "正常" },
     ],
     [wallet]
@@ -165,7 +167,7 @@ export default function WalletPage() {
         <section style={heroCardStyle}>
           <div style={heroHeaderStyle}>
             <div>
-              <div style={eyebrowStyle}>WALLET CHARGE</div>
+              <div style={eyebrowStyle}>WALLET</div>
               <h1 style={titleStyle}>钱包</h1>
               <p style={subtitleStyle}>
                 查看账户状态、云币余额与充值记录。充值将跳转到 QuickSDK 外部支付页面继续完成。
@@ -201,7 +203,7 @@ export default function WalletPage() {
         <section ref={rechargeRef} style={rechargeCardStyle}>
           <div style={sectionHeaderStyle}>
             <div>
-              <div style={eyebrowStyle}>WALLET CHARGE</div>
+              <div style={eyebrowStyle}>CHARGE</div>
               <h2 style={sectionTitleStyle}>云币充值</h2>
               <p style={sectionTextStyle}>点击整张卡片即可直接前往充值，不再显示单独的支付方式区域。</p>
             </div>
@@ -300,10 +302,17 @@ function isWalletSummary(value: unknown): value is WalletSummary {
   return (
     typeof candidate.account === "string" &&
     typeof candidate.nickname === "string" &&
+    typeof candidate.uid === "string" &&
+    typeof candidate.partnerCode === "string" &&
     typeof candidate.status === "string" &&
     typeof candidate.cloudCoins === "number" &&
     Array.isArray(candidate.transactions)
   );
+}
+
+function extractAccountUid(account: string) {
+  const localPart = account.split("@")[0] ?? account;
+  return localPart.replace(/\D/g, "") || localPart.trim() || "-";
 }
 
 function buildPopupFeatures() {

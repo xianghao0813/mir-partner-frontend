@@ -5,6 +5,7 @@ import { Noto_Sans_SC } from "next/font/google";
 import "./globals.css";
 import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import type { User } from "@supabase/supabase-js";
 
 type NavGroup = {
   key: string;
@@ -55,6 +56,7 @@ export default function RootLayout({
   const [openMenu, setOpenMenu] = useState<string | null>(null);
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const [userEmail, setUserEmail] = useState<string | null>(null);
+  const [accountDisplayName, setAccountDisplayName] = useState<string | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
   const accountMenuRef = useRef<HTMLDivElement | null>(null);
 
@@ -65,6 +67,7 @@ export default function RootLayout({
       } = await supabase.auth.getUser();
 
       setUserEmail(user?.email ?? null);
+      setAccountDisplayName(user ? getAccountDisplayName(user) : null);
       setAuthLoading(false);
     }
 
@@ -74,6 +77,7 @@ export default function RootLayout({
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
       setUserEmail(session?.user?.email ?? null);
+      setAccountDisplayName(session?.user ? getAccountDisplayName(session.user) : null);
       setAuthLoading(false);
     });
 
@@ -111,6 +115,7 @@ export default function RootLayout({
 
     setAccountMenuOpen(false);
     setUserEmail(null);
+    setAccountDisplayName(null);
     window.location.href = "/";
   }
 
@@ -268,8 +273,8 @@ export default function RootLayout({
                       <div style={accountDropdownStyle}>
                         <div style={accountEmailBlockStyle}>
                           <div style={accountLabelStyle}>当前账号</div>
-                          <div style={accountEmailStyle} title={userEmail}>
-                            {userEmail}
+                          <div style={accountEmailStyle} title={accountDisplayName ?? userEmail}>
+                            {accountDisplayName ?? userEmail}
                           </div>
                         </div>
 
@@ -307,6 +312,20 @@ export default function RootLayout({
       </body>
     </html>
   );
+}
+
+function getAccountDisplayName(user: User) {
+  const metadata = user.user_metadata ?? {};
+  const displayName =
+    readMetadataString(metadata.nickname) ||
+    readMetadataString(metadata.quicksdk_username) ||
+    readMetadataString(metadata.username);
+
+  return displayName || user.email || "";
+}
+
+function readMetadataString(value: unknown) {
+  return typeof value === "string" ? value.trim() : "";
 }
 
 const navLinkStyle: React.CSSProperties = {

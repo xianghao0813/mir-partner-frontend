@@ -184,9 +184,13 @@ export default function PartnerPage() {
         scrollBehavior: "smooth",
         margin: "-40px",
         width: "calc(100% + 80px)",
-        backgroundColor: "#050507",
+        position: "relative",
+        backgroundColor: "#07070a",
       }}
     >
+      <div className="auth-bg" style={{ position: "fixed" }} />
+      <div className="auth-overlay" style={{ position: "fixed" }} />
+
       <div
         style={{
           position: "fixed",
@@ -230,6 +234,7 @@ export default function PartnerPage() {
           style={{
             minHeight: "calc(100vh - 81px)",
             position: "relative",
+            zIndex: 1,
             display: "flex",
             alignItems: "center",
             justifyContent: "center",

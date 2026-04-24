@@ -1,4 +1,5 @@
 import type { User, UserMetadata } from "@supabase/supabase-js";
+import { createPartnerCode } from "@/lib/partnerProfile";
 
 export type WalletTransaction = {
   id: string;
@@ -14,6 +15,8 @@ export type WalletTransaction = {
 export type WalletSummary = {
   account: string;
   nickname: string;
+  uid: string;
+  partnerCode: string;
   status: string;
   cloudCoins: number;
   transactions: WalletTransaction[];
@@ -42,14 +45,24 @@ const DEFAULT_TRANSACTIONS: WalletTransaction[] = [
 ];
 
 export function buildWalletSummary(user: User): WalletSummary {
+  const account =
+    user.email?.trim() ||
+    readStringMetadata(user.user_metadata, ["quicksdk_username", "username"]) ||
+    "当前登录账号";
+
   return {
-    account:
-      user.email?.trim() ||
-      readStringMetadata(user.user_metadata, ["quicksdk_username", "username"]) ||
-      "当前登录账号",
+    account,
     nickname:
       readStringMetadata(user.user_metadata, ["nickname", "quicksdk_username", "username"]) ||
       "MIR Partner 玩家",
+    uid: readStringMetadata(user.user_metadata, ["quicksdk_uid", "uid"]) || extractAccountUid(account),
+    partnerCode:
+      readStringMetadata(user.user_metadata, [
+        "partner_code",
+        "mir_partner_code",
+        "partnerCode",
+        "mirPartnerCode",
+      ]) || createPartnerCode(user.id),
     status: "正常",
     cloudCoins: readCloudCoins(user.user_metadata),
     transactions: readWalletTransactions(user.user_metadata),
@@ -159,4 +172,9 @@ function readStringMetadata(metadata: UserMetadata | undefined, keys: string[]) 
   }
 
   return "";
+}
+
+function extractAccountUid(account: string) {
+  const localPart = account.split("@")[0] ?? account;
+  return localPart.replace(/\D/g, "") || localPart.trim();
 }

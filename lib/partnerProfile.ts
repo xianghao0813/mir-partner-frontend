@@ -125,7 +125,7 @@ function getCurrentTier(points: number) {
     .find((tier) => points >= tier.minPoints) ?? MIR_PARTNER_TIERS[0];
 }
 
-function createPartnerCode(userId: string) {
+export function createPartnerCode(userId: string) {
   const digest = crypto.createHash("sha256").update(`mir-partner:${userId}`, "utf8").digest("hex");
   const numericCode = String(parseInt(digest.slice(0, 12), 16) % 100000000).padStart(8, "0");
   return `MP${numericCode}`;
