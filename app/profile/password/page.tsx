@@ -9,7 +9,8 @@ export default function PasswordPage() {
   const router = useRouter();
   const supabase = createClient();
 
-  const [email, setEmail] = useState("");
+  const [account, setAccount] = useState("");
+  const [oldPassword, setOldPassword] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(true);
@@ -28,7 +29,13 @@ export default function PasswordPage() {
         return;
       }
 
-      setEmail(user.email ?? "");
+      const username =
+        readMetadataString(user.user_metadata?.quicksdk_username) ||
+        readMetadataString(user.user_metadata?.username) ||
+        user.email ||
+        "";
+
+      setAccount(username);
       setLoading(false);
     }
 
@@ -40,29 +47,47 @@ export default function PasswordPage() {
     setMessage("");
     setError("");
 
+    if (!oldPassword) {
+      setError("请输入当前密码。");
+      return;
+    }
+
     if (password.length < 8) {
       setError("新密码至少需要 8 位。");
       return;
     }
 
     if (password !== confirmPassword) {
-      setError("两次输入的密码不一致。");
+      setError("两次输入的新密码不一致。");
       return;
     }
 
     setSubmitting(true);
 
-    const { error: updateError } = await supabase.auth.updateUser({
-      password,
+    const response = await fetch("/api/auth/quicksdk/change-password", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        oldPassword,
+        newPassword: password,
+      }),
     });
 
     setSubmitting(false);
 
-    if (updateError) {
-      setError(updateError.message);
+    const result = (await response.json().catch(() => null)) as {
+      error?: string;
+      success?: boolean;
+    } | null;
+
+    if (!response.ok || !result?.success) {
+      setError(result?.error ?? "修改密码失败。");
       return;
     }
 
+    setOldPassword("");
     setPassword("");
     setConfirmPassword("");
     setMessage("密码已更新。");
@@ -100,7 +125,7 @@ export default function PasswordPage() {
             <h1 style={{ margin: 0, fontSize: "34px" }}>修改密码</h1>
           </div>
           <Link href="/profile" style={backLinkStyle}>
-            返回账户信息
+            返回合伙人信息
           </Link>
         </div>
 
@@ -110,7 +135,21 @@ export default function PasswordPage() {
           <form onSubmit={handleSubmit} style={{ marginTop: "28px" }}>
             <div style={fieldBlockStyle}>
               <label style={labelStyle}>当前账号</label>
-              <div style={readonlyValueStyle}>{email}</div>
+              <div style={readonlyValueStyle}>{account}</div>
+            </div>
+
+            <div style={fieldBlockStyle}>
+              <label htmlFor="old-password" style={labelStyle}>
+                当前密码
+              </label>
+              <input
+                id="old-password"
+                type="password"
+                value={oldPassword}
+                onChange={(event) => setOldPassword(event.target.value)}
+                placeholder="请输入当前密码"
+                style={inputStyle}
+              />
             </div>
 
             <div style={fieldBlockStyle}>
@@ -121,7 +160,7 @@ export default function PasswordPage() {
                 id="new-password"
                 type="password"
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={(event) => setPassword(event.target.value)}
                 placeholder="请输入新密码"
                 style={inputStyle}
               />
@@ -135,7 +174,7 @@ export default function PasswordPage() {
                 id="confirm-password"
                 type="password"
                 value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
+                onChange={(event) => setConfirmPassword(event.target.value)}
                 placeholder="请再次输入新密码"
                 style={inputStyle}
               />
@@ -152,6 +191,10 @@ export default function PasswordPage() {
       </div>
     </main>
   );
+}
+
+function readMetadataString(value: unknown) {
+  return typeof value === "string" ? value.trim() : "";
 }
 
 const backLinkStyle: React.CSSProperties = {
