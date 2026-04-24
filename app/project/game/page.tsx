@@ -30,7 +30,17 @@ const games = [
 
 export default function GamePage() {
   return (
-    <main>
+    <main
+      className="hide-scrollbar"
+      style={{
+        height: "calc(100vh - 81px)",
+        overflowY: "auto",
+        margin: "-40px",
+        width: "calc(100% + 80px)",
+        padding: "40px",
+        boxSizing: "border-box",
+      }}
+    >
       <div style={{ textAlign: "center", marginBottom: "50px" }}>
      <h1
      style={{

@@ -156,15 +156,13 @@ export default function Home() {
 
           <div className="home-showcase-background" style={showcaseBackgroundStyle}>
             <div style={showcaseTrackStyle}>
-              {[...showcasePosters, ...showcasePosters].map((poster, index) => (
-                <PosterCard key={`top-${poster.title}-${index}`} poster={poster} tall={index % 2 === 0} />
-              ))}
+              <PosterRow posters={showcasePosters} rowKey="top-a" tallOffset={0} />
+              <PosterRow posters={showcasePosters} rowKey="top-b" tallOffset={0} ariaHidden />
             </div>
 
             <div style={showcaseTrackReverseStyle}>
-              {[...showcasePosters.slice().reverse(), ...showcasePosters.slice().reverse()].map((poster, index) => (
-                <PosterCard key={`bottom-${poster.title}-${index}`} poster={poster} tall={index % 2 !== 0} />
-              ))}
+              <PosterRow posters={showcasePosters.slice().reverse()} rowKey="bottom-a" tallOffset={1} />
+              <PosterRow posters={showcasePosters.slice().reverse()} rowKey="bottom-b" tallOffset={1} ariaHidden />
             </div>
           </div>
 
@@ -327,13 +325,13 @@ export default function Home() {
               transform: translateX(0);
             }
             to {
-              transform: translateX(-50%);
+              transform: translateX(calc(-50%));
             }
           }
 
           @keyframes showcaseMarqueeReverse {
             from {
-              transform: translateX(-50%);
+              transform: translateX(calc(-50%));
             }
             to {
               transform: translateX(0);
@@ -406,6 +404,26 @@ function PosterCard({
           {poster.subtitle}
         </div>
       </div>
+    </div>
+  );
+}
+
+function PosterRow({
+  posters,
+  rowKey,
+  tallOffset,
+  ariaHidden = false,
+}: {
+  posters: typeof showcasePosters;
+  rowKey: string;
+  tallOffset: number;
+  ariaHidden?: boolean;
+}) {
+  return (
+    <div className="home-poster-row" aria-hidden={ariaHidden}>
+      {posters.map((poster, index) => (
+        <PosterCard key={`${rowKey}-${poster.title}-${index}`} poster={poster} tall={(index + tallOffset) % 2 === 0} />
+      ))}
     </div>
   );
 }
@@ -605,14 +623,12 @@ const showcaseBackgroundStyle: React.CSSProperties = {
 
 const showcaseTrackStyle: React.CSSProperties = {
   display: "flex",
-  gap: "20px",
   width: "max-content",
   animation: "showcaseMarquee 32s linear infinite",
 };
 
 const showcaseTrackReverseStyle: React.CSSProperties = {
   display: "flex",
-  gap: "20px",
   width: "max-content",
   justifySelf: "end",
   animation: "showcaseMarqueeReverse 40s linear infinite",
