@@ -23,10 +23,10 @@ const navGroups: NavGroup[] = [
   },
   {
     key: "profile",
-    label: "我的信息",
+    label: "合伙人信息",
     items: [
       { href: "/profile", label: "个人资料" },
-      { href: "/profile/wallet", label: "钱包" },
+      { href: "/profile/wallet", label: "我的钱包" },
     ],
   },
   {
@@ -278,13 +278,6 @@ export default function RootLayout({
                           </div>
                         </div>
 
-                        <Link
-                          href="/profile"
-                          style={accountDropdownItemStyle}
-                          onClick={() => setAccountMenuOpen(false)}
-                        >
-                          账户信息
-                        </Link>
                         <Link
                           href="/profile/password"
                           style={accountDropdownItemStyle}
