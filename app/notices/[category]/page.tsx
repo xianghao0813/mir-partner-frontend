@@ -155,7 +155,7 @@ export default function NoticeCategoryPage() {
 
         <div
           style={{
-            background: "rgba(16,16,24,0.78)",
+            background: "rgba(16,16,24,0.58)",
             border: "1px solid rgba(124,58,237,0.18)",
             borderRadius: "26px",
             padding: "28px",
@@ -205,7 +205,7 @@ export default function NoticeCategoryPage() {
             style={{
               display: "flex",
               marginBottom: "24px",
-              background: "rgba(8,8,12,0.82)",
+              background: "rgba(8,8,12,0.58)",
               border: "1px solid rgba(255,255,255,0.08)",
               borderRadius: "14px",
               minHeight: "58px",

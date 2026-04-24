@@ -240,7 +240,7 @@ export default function PartnerPage() {
             justifyContent: "center",
             overflow: "hidden",
             background:
-              "radial-gradient(circle at top, rgba(124,58,237,0.18) 0%, rgba(12,12,18,1) 35%, rgba(5,5,7,1) 100%)",
+              "radial-gradient(circle at top, rgba(124,58,237,0.16) 0%, rgba(12,12,18,0.44) 38%, rgba(5,5,7,0.32) 100%)",
           }}
         >
           <div
