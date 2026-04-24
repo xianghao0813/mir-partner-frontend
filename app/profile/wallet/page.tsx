@@ -165,7 +165,7 @@ export default function WalletPage() {
         <section style={heroCardStyle}>
           <div style={heroHeaderStyle}>
             <div>
-              <div style={eyebrowStyle}>MIR Partner</div>
+              <div style={eyebrowStyle}>WALLET CHARGE</div>
               <h1 style={titleStyle}>钱包</h1>
               <p style={subtitleStyle}>
                 查看账户状态、云币余额与充值记录。充值将跳转到 QuickSDK 外部支付页面继续完成。
@@ -196,13 +196,12 @@ export default function WalletPage() {
             </button>
           </div>
 
-          {message ? <div style={messageStyle}>{message}</div> : null}
         </section>
 
         <section ref={rechargeRef} style={rechargeCardStyle}>
           <div style={sectionHeaderStyle}>
             <div>
-              <div style={eyebrowStyle}>QuickSDK</div>
+              <div style={eyebrowStyle}>WALLET CHARGE</div>
               <h2 style={sectionTitleStyle}>云币充值</h2>
               <p style={sectionTextStyle}>点击整张卡片即可直接前往充值，不再显示单独的支付方式区域。</p>
             </div>
@@ -232,8 +231,8 @@ export default function WalletPage() {
                   </div>
 
                   <div style={tierCoinsStyle}>{tier.coins.toLocaleString()} 云币</div>
-                  <div style={tierPriceCenterStyle}>{tier.priceLabel}</div>
                   <div style={tierBonusStyle}>{tier.bonus || "标准档位"}</div>
+                  <div style={tierPriceCenterStyle}>{tier.priceLabel}</div>
 
                   {submittingTierId === tier.id ? <div style={tierLoadingStyle}>跳转中...</div> : null}
                 </article>
@@ -577,14 +576,15 @@ const tierImageStyle: CSSProperties = {
 
 const tierPriceCenterStyle: CSSProperties = {
   color: "#f8fafc",
-  fontWeight: 700,
-  fontSize: "16px",
+  fontWeight: 800,
+  fontSize: "20px",
   textAlign: "center",
 };
 
 const tierBonusStyle: CSSProperties = {
-  color: "#9ca3af",
-  fontSize: "13px",
+  color: "#facc15",
+  fontSize: "14px",
+  fontWeight: 800,
   minHeight: "18px",
   textAlign: "center",
 };
