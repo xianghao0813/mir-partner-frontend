@@ -1,5 +1,10 @@
 import type { User, UserMetadata } from "@supabase/supabase-js";
 import { createPartnerCode } from "@/lib/partnerProfile";
+import {
+  getQuickSdkUserOrders,
+  getQuickSdkWalletAmount,
+  type QuickSdkOrderData,
+} from "@/lib/quicksdk";
 
 export type WalletTransaction = {
   id: string;
@@ -22,40 +27,22 @@ export type WalletSummary = {
   transactions: WalletTransaction[];
 };
 
-const DEFAULT_TRANSACTIONS: WalletTransaction[] = [
-  {
-    id: "demo-1",
-    date: "2026-04-08",
-    type: "recharge",
-    amount: 1000,
-    coins: 1000,
-    desc: "云币充值",
-    payMethod: "wechat",
-    status: "success",
-  },
-  {
-    id: "demo-2",
-    date: "2026-04-06",
-    type: "consume",
-    amount: -80,
-    coins: -80,
-    desc: "云币消费",
-    status: "success",
-  },
-];
-
-export function buildWalletSummary(user: User): WalletSummary {
+export async function buildWalletSummary(user: User): Promise<WalletSummary> {
   const account =
     user.email?.trim() ||
     readStringMetadata(user.user_metadata, ["quicksdk_username", "username"]) ||
     "当前登录账号";
+  const uid = readStringMetadata(user.user_metadata, ["quicksdk_uid", "uid"]) || extractAccountUid(account);
+  const sdkWallet = uid ? await readQuickSdkWallet(uid) : null;
+  const localTransactions = readWalletTransactions(user.user_metadata);
+  const sdkOrderTransactions = sdkWallet?.orders.map(mapOrderToTransaction) ?? [];
 
   return {
     account,
     nickname:
       readStringMetadata(user.user_metadata, ["nickname", "quicksdk_username", "username"]) ||
       "MIR Partner 玩家",
-    uid: readStringMetadata(user.user_metadata, ["quicksdk_uid", "uid"]) || extractAccountUid(account),
+    uid,
     partnerCode:
       readStringMetadata(user.user_metadata, [
         "partner_code",
@@ -64,8 +51,8 @@ export function buildWalletSummary(user: User): WalletSummary {
         "mirPartnerCode",
       ]) || createPartnerCode(user.id),
     status: "正常",
-    cloudCoins: readCloudCoins(user.user_metadata),
-    transactions: readWalletTransactions(user.user_metadata),
+    cloudCoins: sdkWallet?.amount ?? readCloudCoins(user.user_metadata),
+    transactions: mergeWalletTransactions([...localTransactions, ...sdkOrderTransactions]),
   };
 }
 
@@ -85,22 +72,20 @@ export function readCloudCoins(metadata: UserMetadata | undefined) {
     }
   }
 
-  return 2580;
+  return 0;
 }
 
 export function readWalletTransactions(metadata: UserMetadata | undefined) {
   const value = metadata?.wallet_transactions;
 
   if (!Array.isArray(value)) {
-    return DEFAULT_TRANSACTIONS;
+    return [];
   }
 
-  const normalized = value
+  return value
     .map((item) => normalizeWalletTransaction(item))
     .filter((item): item is WalletTransaction => item !== null)
     .sort((a, b) => b.date.localeCompare(a.date));
-
-  return normalized.length > 0 ? normalized : DEFAULT_TRANSACTIONS;
 }
 
 export function appendWalletTransaction(
@@ -108,7 +93,52 @@ export function appendWalletTransaction(
   transaction: WalletTransaction
 ) {
   const existing = readWalletTransactions(current).filter((item) => item.id !== transaction.id);
-  return [transaction, ...existing].slice(0, 20);
+  return [transaction, ...existing].slice(0, 50);
+}
+
+async function readQuickSdkWallet(uid: string) {
+  try {
+    const [amount, orders] = await Promise.all([
+      getQuickSdkWalletAmount({ userId: uid }),
+      getQuickSdkUserOrders({ userId: uid, payStatus: "1" }),
+    ]);
+
+    return {
+      amount: Math.max(0, Math.floor(amount)),
+      orders,
+    };
+  } catch (error) {
+    console.error("[QuickSDK wallet]", error);
+    return null;
+  }
+}
+
+function mapOrderToTransaction(order: QuickSdkOrderData): WalletTransaction {
+  const id = order.productOrderNo || order.orderNo;
+  const amount = order.dealAmount || order.amount;
+
+  return {
+    id: `sdk-order-${id}`,
+    type: "recharge",
+    amount,
+    coins: Math.floor(amount),
+    desc: order.productName || "平台币充值",
+    date: formatSdkTimestamp(order.payTime ?? order.createTime),
+    payMethod: "",
+    status: order.payStatus === 1 ? "success" : order.payStatus === 0 ? "failed" : "pending",
+  };
+}
+
+function mergeWalletTransactions(items: WalletTransaction[]) {
+  const byId = new Map<string, WalletTransaction>();
+
+  for (const item of items) {
+    byId.set(item.id, item);
+  }
+
+  return [...byId.values()]
+    .sort((a, b) => b.date.localeCompare(a.date))
+    .slice(0, 50);
 }
 
 function normalizeWalletTransaction(value: unknown): WalletTransaction | null {
@@ -139,11 +169,20 @@ function normalizeWalletTransaction(value: unknown): WalletTransaction | null {
     type,
     amount,
     coins,
-    desc: desc || "云币变动",
+    desc: desc || "平台币变动",
     date,
     payMethod,
     status,
   };
+}
+
+function formatSdkTimestamp(value: number | null) {
+  if (!value || !Number.isFinite(value)) {
+    return new Date().toISOString().slice(0, 10);
+  }
+
+  const milliseconds = value > 9999999999 ? value : value * 1000;
+  return new Date(milliseconds).toISOString().slice(0, 10);
 }
 
 function readString(value: unknown) {

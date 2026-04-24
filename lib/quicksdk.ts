@@ -41,6 +41,18 @@ export type QuickSdkAuthData = {
   mobile?: string;
 };
 
+export type QuickSdkOrderData = {
+  orderNo: string;
+  productOrderNo: string;
+  productName: string;
+  amount: number;
+  dealAmount: number;
+  payStatus: number;
+  createTime: number | null;
+  payTime: number | null;
+  payTypeName: string;
+};
+
 type QuickSdkPhoneCodePurpose = "login" | "register" | "bind" | "unbind" | "reset-password";
 
 export function getQuickSdkConfig(): QuickSdkConfig {
@@ -265,6 +277,65 @@ export async function changeQuickSdkPassword({
   return result.data;
 }
 
+export async function getQuickSdkWalletAmount({ userId }: { userId: string }) {
+  const config = getQuickSdkConfig();
+  const payload = buildSignedParams({
+    openId: config.openId,
+    productCode: config.productCode,
+    channelCode: config.channelCode,
+    userId,
+  });
+
+  const result = await postQuickSdkForm("/webOpen/walletInfo", payload);
+  return normalizeQuickSdkWalletAmount(result.data);
+}
+
+export async function changeQuickSdkPlatformCoins({
+  userId,
+  amount,
+  remark,
+}: {
+  userId: string;
+  amount: string;
+  remark?: string;
+}) {
+  const config = getQuickSdkConfig();
+  const payload = buildSignedParams({
+    openId: config.openId,
+    productCode: config.productCode,
+    channelCode: config.channelCode,
+    userId,
+    amount,
+    remark,
+  });
+
+  const result = await postQuickSdkForm("/webOpen/payToUser", payload);
+  return normalizeQuickSdkWalletAmount(result.data);
+}
+
+export async function getQuickSdkUserOrders({
+  userId,
+  page = "1",
+  payStatus = "1",
+}: {
+  userId: string;
+  page?: string;
+  payStatus?: "-1" | "0" | "1";
+}) {
+  const config = getQuickSdkConfig();
+  const payload = buildSignedParams({
+    openId: config.openId,
+    productCode: config.productCode,
+    channelCode: config.channelCode,
+    userId,
+    payStatus,
+    page,
+  });
+
+  const result = await postQuickSdkForm("/webOpen/orderList", payload);
+  return normalizeQuickSdkOrders(result.data);
+}
+
 export async function createQuickSdkPayUrl({
   amount,
   userId,
@@ -421,6 +492,67 @@ function normalizeQuickSdkAuthData(data: unknown): QuickSdkAuthData {
     authToken: authToken || undefined,
     mobile: mobile || undefined,
     timeLeft,
+  };
+}
+
+function normalizeQuickSdkWalletAmount(data: unknown) {
+  const candidate =
+    Array.isArray(data) ? (data[0] as Record<string, unknown> | undefined) : (data as Record<string, unknown> | undefined);
+
+  if (typeof data === "number" && Number.isFinite(data)) {
+    return data;
+  }
+
+  if (typeof data === "string") {
+    const parsed = Number(data);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+
+  if (!candidate || typeof candidate !== "object") {
+    return 0;
+  }
+
+  return readQuickSdkNumber(candidate, ["amount", "balance", "money"]) ?? 0;
+}
+
+function normalizeQuickSdkOrders(data: unknown): QuickSdkOrderData[] {
+  const items = Array.isArray(data)
+    ? data
+    : data && typeof data === "object" && Array.isArray((data as Record<string, unknown>).list)
+      ? ((data as Record<string, unknown>).list as unknown[])
+      : [];
+
+  return items
+    .map((item) => normalizeQuickSdkOrder(item))
+    .filter((item): item is QuickSdkOrderData => item !== null);
+}
+
+function normalizeQuickSdkOrder(value: unknown): QuickSdkOrderData | null {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+
+  const item = value as Record<string, unknown>;
+  const orderNo = readQuickSdkString(item, ["orderNo", "sdkOrderNo"]);
+  const productOrderNo = readQuickSdkString(item, ["productOrderNo", "cpOrderNo", "gameOrder"]);
+  const amount = readQuickSdkNumber(item, ["amount"]) ?? 0;
+  const dealAmount = readQuickSdkNumber(item, ["dealAmount", "realAmount"]) ?? amount;
+  const payStatus = readQuickSdkNumber(item, ["payStatus"]) ?? 0;
+
+  if (!orderNo && !productOrderNo) {
+    return null;
+  }
+
+  return {
+    orderNo,
+    productOrderNo,
+    productName: readQuickSdkString(item, ["productName", "orderSubject", "goodsName"]),
+    amount,
+    dealAmount,
+    payStatus,
+    createTime: readQuickSdkNumber(item, ["createTime"]),
+    payTime: readQuickSdkNumber(item, ["payTime"]),
+    payTypeName: readQuickSdkString(item, ["payTypeName"]),
   };
 }
 

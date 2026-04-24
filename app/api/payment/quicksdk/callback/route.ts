@@ -1,25 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
+import { changeQuickSdkPlatformCoins } from "@/lib/quicksdk";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { appendWalletTransaction, readCloudCoins, readWalletTransactions } from "@/lib/wallet";
 
 export async function POST(request: NextRequest) {
-  const contentType = request.headers.get("content-type") ?? "";
-
-  let payload: Record<string, unknown> | null = null;
-
-  if (contentType.includes("application/json")) {
-    payload = (await request.json().catch(() => null)) as Record<string, unknown> | null;
-  } else if (
-    contentType.includes("application/x-www-form-urlencoded") ||
-    contentType.includes("multipart/form-data")
-  ) {
-    const formData = await request.formData().catch(() => null);
-    payload = formData ? Object.fromEntries(formData.entries()) : null;
-  } else {
-    const text = await request.text().catch(() => "");
-    payload = text ? { raw: text } : null;
-  }
-
+  const payload = await readCallbackPayload(request);
   console.log("[QuickSDK callback]", payload);
 
   const cpOrderNo = readString(payload?.cpOrderNo) || readString(payload?.orderNo) || readString(payload?.cp_order_no);
@@ -29,10 +14,10 @@ export async function POST(request: NextRequest) {
 
   const extras = parseExtras(extrasParams);
   const userId = extras?.userId ?? "";
-  const coins = Number(extras?.coins ?? 0);
+  const coins = Math.max(0, Number(extras?.coins ?? 0));
   const payMethod: "wechat" | "alipay" = extras?.payMethod === "alipay" ? "alipay" : "wechat";
 
-  if (!userId || !cpOrderNo || !isSuccessStatus(orderStatus)) {
+  if (!userId || !cpOrderNo || !isSuccessStatus(orderStatus) || coins <= 0) {
     return NextResponse.json({
       success: true,
       message: "ignored",
@@ -48,22 +33,37 @@ export async function POST(request: NextRequest) {
   }
 
   const user = data.user;
+  const transactionId = `sdk-order-${cpOrderNo}`;
   const existingTransactions = readWalletTransactions(user.user_metadata);
 
-  if (existingTransactions.some((item) => item.id === cpOrderNo)) {
+  if (existingTransactions.some((item) => item.id === transactionId)) {
     return NextResponse.json({
       success: true,
       message: "duplicate",
     });
   }
 
-  const nextCoins = readCloudCoins(user.user_metadata) + Math.max(0, coins);
+  const sdkUid = readString(user.user_metadata?.quicksdk_uid);
+  if (!sdkUid) {
+    return NextResponse.json({
+      success: false,
+      message: "missing_quicksdk_uid",
+    });
+  }
+
+  const nextSdkAmount = await changeQuickSdkPlatformCoins({
+    userId: sdkUid,
+    amount: String(coins),
+    remark: `MIR Partner recharge ${cpOrderNo}`,
+  });
+  const fallbackAmount = readCloudCoins(user.user_metadata) + coins;
+  const nextCoins = Math.max(0, Math.floor(nextSdkAmount || fallbackAmount));
   const transaction = {
-    id: cpOrderNo,
+    id: transactionId,
     type: "recharge" as const,
     amount: paidAmount || coins,
-    coins: Math.max(0, coins),
-    desc: "云币充值",
+    coins,
+    desc: "平台币充值",
     date: new Date().toISOString().slice(0, 10),
     payMethod,
     status: "success" as const,
@@ -89,6 +89,25 @@ export async function POST(request: NextRequest) {
     success: true,
     message: "ok",
   });
+}
+
+async function readCallbackPayload(request: NextRequest) {
+  const contentType = request.headers.get("content-type") ?? "";
+
+  if (contentType.includes("application/json")) {
+    return (await request.json().catch(() => null)) as Record<string, unknown> | null;
+  }
+
+  if (
+    contentType.includes("application/x-www-form-urlencoded") ||
+    contentType.includes("multipart/form-data")
+  ) {
+    const formData = await request.formData().catch(() => null);
+    return formData ? Object.fromEntries(formData.entries()) : null;
+  }
+
+  const text = await request.text().catch(() => "");
+  return text ? { raw: text } : null;
 }
 
 function readString(value: unknown) {

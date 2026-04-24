@@ -256,22 +256,26 @@ export default function WalletPage() {
             </div>
 
             <div style={historyListStyle}>
-              {(wallet?.transactions ?? []).map((item) => (
-                <article key={item.id} style={historyItemStyle}>
-                  <div>
-                    <div style={historyDescStyle}>{item.desc}</div>
-                    <div style={historyMetaStyle}>
-                      {item.date}
-                      {item.payMethod ? ` · ${item.payMethod === "wechat" ? "微信" : "支付宝"}` : ""}
-                      {item.status ? ` · ${renderStatus(item.status)}` : ""}
+              {(wallet?.transactions ?? []).length === 0 ? (
+                <div style={emptyHistoryStyle}>暂无平台币使用明细。</div>
+              ) : (
+                (wallet?.transactions ?? []).map((item) => (
+                  <article key={item.id} style={historyItemStyle}>
+                    <div>
+                      <div style={historyDescStyle}>{item.desc}</div>
+                      <div style={historyMetaStyle}>
+                        {item.date}
+                        {item.payMethod ? ` · ${item.payMethod === "wechat" ? "微信" : "支付宝"}` : ""}
+                        {item.status ? ` · ${renderStatus(item.status)}` : ""}
+                      </div>
                     </div>
-                  </div>
-                  <div style={historyValueStyle(item.coins >= 0)}>
-                    {item.coins >= 0 ? "+" : ""}
-                    {item.coins}
-                  </div>
-                </article>
-              ))}
+                    <div style={historyValueStyle(item.coins >= 0)}>
+                      {item.coins >= 0 ? "+" : ""}
+                      {item.coins}
+                    </div>
+                  </article>
+                ))
+              )}
             </div>
           </div>
         </div>
@@ -717,6 +721,15 @@ const modalTitleStyle: CSSProperties = {
 const historyListStyle: CSSProperties = {
   display: "grid",
   gap: "12px",
+};
+
+const emptyHistoryStyle: CSSProperties = {
+  padding: "22px",
+  borderRadius: "16px",
+  background: "rgba(255,255,255,0.04)",
+  border: "1px solid rgba(255,255,255,0.06)",
+  color: "#9ca3af",
+  textAlign: "center",
 };
 
 const historyItemStyle: CSSProperties = {
