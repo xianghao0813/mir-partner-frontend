@@ -64,15 +64,11 @@ function LoginPageContent() {
       <form onSubmit={handleLogin} className="glow-purple" style={formStyle}>
         <h1 style={titleStyle}>账号登录</h1>
 
-        <p style={subtitleStyle}>
-          如果你已经在游戏 SDK 中创建过账号，请直接输入相同的账号和密码登录。
-        </p>
-
         <div style={featureCardStyle}>
           <div style={featureEyebrowStyle}>直接登录</div>
           <strong style={featureTitleStyle}>不再跳转额外网页登录页</strong>
           <span style={featureTextStyle}>
-            此页面只用于账号密码直接登录。如果你还没有 SDK 账号，请先注册。
+            如果你已拥有娱美德旗下游戏的注册账号，可使用该账号和密码直接登录。
           </span>
         </div>
 
@@ -164,15 +160,6 @@ const titleStyle: React.CSSProperties = {
   fontSize: "32px",
   color: "white",
   textAlign: "center",
-};
-
-const subtitleStyle: React.CSSProperties = {
-  marginTop: 0,
-  marginBottom: "8px",
-  textAlign: "center",
-  color: "#b8b8c5",
-  fontSize: "14px",
-  lineHeight: 1.6,
 };
 
 const featureCardStyle: React.CSSProperties = {
