@@ -50,8 +50,7 @@ function LoginPageContent() {
         return;
       }
 
-      router.push(payload?.profileUrl || "/profile");
-      router.refresh();
+      window.location.href = payload?.profileUrl || "/profile";
     } catch {
       setMessage("当前无法连接登录服务。");
     } finally {

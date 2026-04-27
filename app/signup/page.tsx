@@ -75,8 +75,7 @@ export default function SignupPage() {
         return;
       }
 
-      router.push(payload.profileUrl || "/profile");
-      router.refresh();
+      window.location.href = payload.profileUrl || "/profile";
     } catch {
       setMessage("当前无法完成注册。");
     } finally {
