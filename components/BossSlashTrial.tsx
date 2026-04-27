@@ -224,6 +224,7 @@ export default function BossSlashTrial({ initialPoints, onPointsChange }: BossSl
 
   function beginLoop() {
     stopLoop();
+    activeRef.current = true;
     lastFrameRef.current = window.performance.now();
     startedAtRef.current = lastFrameRef.current;
     rafRef.current = window.requestAnimationFrame(loop);
