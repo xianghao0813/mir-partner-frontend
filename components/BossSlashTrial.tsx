@@ -26,6 +26,14 @@ type BossGamePayload = {
 type BossSlashTrialProps = {
   initialPoints: number;
   onPointsChange?: (points: number) => void;
+  onRewardClaimed?: (transaction: {
+    id?: string;
+    title?: string;
+    description?: string;
+    points?: number;
+    createdAt?: string;
+    source?: string;
+  }) => void;
 };
 
 type RunnerObstacle = {
@@ -44,11 +52,16 @@ const PLAYER_WIDTH = 44;
 const PLAYER_HEIGHT = 58;
 const GRAVITY = 0.95;
 const JUMP_FORCE = 15.5;
-const START_SPEED = 6.2;
-const MAX_SPEED = 12.4;
-const TARGET_SCORE = 180;
+const MAX_JUMPS = 2;
+const START_SPEED = 4.8;
+const MAX_SPEED = 9.2;
+const TARGET_SCORE = 120;
 
-export default function BossSlashTrial({ initialPoints, onPointsChange }: BossSlashTrialProps) {
+export default function BossSlashTrial({
+  initialPoints,
+  onPointsChange,
+  onRewardClaimed,
+}: BossSlashTrialProps) {
   const [mirPoints, setMirPoints] = useState(initialPoints);
   const [requiredScore, setRequiredScore] = useState(TARGET_SCORE);
   const [bestScore, setBestScore] = useState(0);
@@ -74,6 +87,7 @@ export default function BossSlashTrial({ initialPoints, onPointsChange }: BossSl
   const [speed, setSpeed] = useState(START_SPEED);
   const [playerY, setPlayerY] = useState(0);
   const [isJumping, setIsJumping] = useState(false);
+  const [jumpCount, setJumpCount] = useState(0);
   const [obstacles, setObstacles] = useState<RunnerObstacle[]>([]);
 
   const rafRef = useRef<number | null>(null);
@@ -90,6 +104,7 @@ export default function BossSlashTrial({ initialPoints, onPointsChange }: BossSl
   const speedRef = useRef(START_SPEED);
   const playerYRef = useRef(0);
   const obstacleStateRef = useRef<RunnerObstacle[]>([]);
+  const jumpCountRef = useRef(0);
 
   const missionCleared = gameFinished && serverScore >= requiredScore;
 
@@ -123,7 +138,7 @@ export default function BossSlashTrial({ initialPoints, onPointsChange }: BossSl
 
   useEffect(() => {
     void fetchRunnerStatus();
-  }, [initialPoints, onPointsChange]);
+  }, [initialPoints]);
 
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
@@ -189,7 +204,7 @@ export default function BossSlashTrial({ initialPoints, onPointsChange }: BossSl
       syncGameStateFromApi(payload.game);
       resetLocalRun();
       beginLoop();
-      setStatusMessage("挑战开始。按空格、W，或点击跳跃来越过障碍。");
+      setStatusMessage("挑战开始。按空格、W，或点击跳跃来越过障碍。支持二段跳。");
     } catch (error) {
       console.error(error);
       setStatusMessage("无法开始挑战。");
@@ -210,6 +225,7 @@ export default function BossSlashTrial({ initialPoints, onPointsChange }: BossSl
     setSpeed(START_SPEED);
     setPlayerY(0);
     setIsJumping(false);
+    setJumpCount(0);
     setObstacles([]);
     velocityRef.current = 0;
     obstacleIdRef.current = 0;
@@ -220,6 +236,7 @@ export default function BossSlashTrial({ initialPoints, onPointsChange }: BossSl
     speedRef.current = START_SPEED;
     playerYRef.current = 0;
     obstacleStateRef.current = [];
+    jumpCountRef.current = 0;
   }
 
   function beginLoop() {
@@ -258,6 +275,8 @@ export default function BossSlashTrial({ initialPoints, onPointsChange }: BossSl
       if (playerYRef.current > 0) {
         setIsJumping(false);
       }
+      setJumpCount(0);
+      jumpCountRef.current = 0;
     } else {
       velocityRef.current = playerVelocity;
     }
@@ -335,18 +354,20 @@ export default function BossSlashTrial({ initialPoints, onPointsChange }: BossSl
     return {
       id: obstacleIdRef.current,
       x: TRACK_WIDTH + 12,
-      width: 22 + Math.random() * 26,
-      height: 28 + Math.random() * 38,
+      width: 18 + Math.random() * 22,
+      height: 22 + Math.random() * 30,
       passed: false,
     };
   }
 
   function jump() {
-    if (!activeRef.current || playerYRef.current > 0) {
+    if (!activeRef.current || jumpCountRef.current >= MAX_JUMPS) {
       return;
     }
 
-    velocityRef.current = JUMP_FORCE;
+    jumpCountRef.current += 1;
+    setJumpCount(jumpCountRef.current);
+    velocityRef.current = jumpCountRef.current === 1 ? JUMP_FORCE : JUMP_FORCE * 0.86;
     setIsJumping(true);
   }
 
@@ -408,6 +429,9 @@ export default function BossSlashTrial({ initialPoints, onPointsChange }: BossSl
       setRewardClaimedToday(Boolean(payload.rewardClaimedToday));
       setMirPoints(payload.points ?? mirPoints);
       onPointsChange?.(payload.points ?? mirPoints);
+      if (payload.pointTransaction) {
+        onRewardClaimed?.(payload.pointTransaction);
+      }
       if (payload.game) {
         syncGameStateFromApi(payload.game);
       }
@@ -449,14 +473,14 @@ export default function BossSlashTrial({ initialPoints, onPointsChange }: BossSl
     <section style={shellStyle}>
       <div style={headerRowStyle}>
         <div>
-          <p style={eyebrowStyle}>Runner Challenge</p>
-          <h2 style={titleStyle}>Shadow Sprint</h2>
+          <p style={eyebrowStyle}>小游戏挑战</p>
+          <h2 style={titleStyle}>遗迹冲刺</h2>
           <p style={subtitleStyle}>
-            Clear the collapsing causeway, hit {requiredScore} points, and secure today's MIR reward.
+            穿越遗迹道路，达到 {requiredScore} 分后即可领取今日 MIR 积分奖励。
           </p>
         </div>
         <div style={pointsBadgeStyle}>
-          <span style={{ fontSize: 12, opacity: 0.72 }}>Current MIR</span>
+          <span style={{ fontSize: 12, opacity: 0.72 }}>当前 MIR 积分</span>
           <strong style={{ fontSize: 28 }}>{mirPoints}</strong>
         </div>
       </div>
@@ -465,15 +489,15 @@ export default function BossSlashTrial({ initialPoints, onPointsChange }: BossSl
         <div style={arenaCardStyle}>
           <div style={arenaTopBarStyle}>
             <div>
-              <div style={statLabelStyle}>Run Score</div>
+              <div style={statLabelStyle}>本局分数</div>
               <div style={statValueStyle}>{score}</div>
             </div>
             <div>
-              <div style={statLabelStyle}>Target</div>
+              <div style={statLabelStyle}>目标</div>
               <div style={statValueStyle}>{requiredScore}</div>
             </div>
             <div>
-              <div style={statLabelStyle}>Best</div>
+              <div style={statLabelStyle}>最佳</div>
               <div style={statValueStyle}>{bestScore}</div>
             </div>
           </div>
@@ -521,7 +545,7 @@ export default function BossSlashTrial({ initialPoints, onPointsChange }: BossSl
                 cursor: gameActive || isStartingGame ? "not-allowed" : "pointer",
               }}
             >
-              {isStartingGame ? "Starting..." : gameFinished || runs.length > 0 ? "Run Again" : "Start Run"}
+              {isStartingGame ? "开始中..." : gameFinished || runs.length > 0 ? "再次挑战" : "开始挑战"}
             </button>
 
             <button
@@ -534,28 +558,29 @@ export default function BossSlashTrial({ initialPoints, onPointsChange }: BossSl
                 cursor: gameActive ? "pointer" : "not-allowed",
               }}
             >
-              Jump
+              跳跃
             </button>
           </div>
 
           <div style={hintRowStyle}>
-            <span>Controls: `Space` / `W` / `Arrow Up`</span>
-            <span>Distance {Math.floor(distance)} m</span>
-            <span>Cleared {obstaclesCleared}</span>
-            <span>Speed x{speed.toFixed(1)}</span>
+            <span>操作：空格 / W / 方向上 / 点击跳跃</span>
+            <span>支持二段跳：{jumpCount}/{MAX_JUMPS}</span>
+            <span>距离 {Math.floor(distance)} 米</span>
+            <span>越过 {obstaclesCleared}</span>
+            <span>速度 x{speed.toFixed(1)}</span>
           </div>
         </div>
 
         <div style={sidePanelStyle}>
           <div style={summaryCardStyle}>
-            <div style={summaryTitleStyle}>Mission Status</div>
+            <div style={summaryTitleStyle}>任务状态</div>
             <p style={summaryTextStyle}>{statusMessage}</p>
 
             <div style={summaryGridStyle}>
-              <SummaryStat label="Last Score" value={serverScore} />
-              <SummaryStat label="Last Distance" value={`${serverDistance} m`} />
-              <SummaryStat label="Obstacles" value={serverObstacles} />
-              <SummaryStat label="Run Time" value={`${(serverDuration / 1000).toFixed(1)} s`} />
+              <SummaryStat label="上次分数" value={serverScore} />
+              <SummaryStat label="上次距离" value={`${serverDistance} 米`} />
+              <SummaryStat label="越过障碍" value={serverObstacles} />
+              <SummaryStat label="用时" value={`${(serverDuration / 1000).toFixed(1)} 秒`} />
             </div>
 
             <button
@@ -569,31 +594,31 @@ export default function BossSlashTrial({ initialPoints, onPointsChange }: BossSl
                   missionCleared && !rewardClaimedToday && !isClaimingReward ? "pointer" : "not-allowed",
               }}
             >
-              {rewardClaimedToday ? "Reward Claimed" : isClaimingReward ? "Claiming..." : "Claim 50 MIR"}
+              {rewardClaimedToday ? "今日已领取" : isClaimingReward ? "领取中..." : "领取 50 MIR"}
             </button>
 
             <div style={footnoteStyle}>
               {rewardClaimedToday
-                ? `Reward locked for today${rewardClaimedDate ? ` (${rewardClaimedDate})` : ""}.`
-                : `Today's reward unlocks at ${requiredScore} points.`}
+                ? `今日奖励已锁定${rewardClaimedDate ? `（${rewardClaimedDate}）` : ""}。`
+                : `达到 ${requiredScore} 分后解锁今日奖励。`}
             </div>
           </div>
 
           <div style={summaryCardStyle}>
-            <div style={summaryTitleStyle}>Recent Runs</div>
+            <div style={summaryTitleStyle}>最近挑战</div>
             {runs.length === 0 ? (
-              <p style={summaryTextStyle}>No runs recorded yet. Start one and we will log the highlights here.</p>
+              <p style={summaryTextStyle}>暂无挑战记录。开始挑战后会在这里显示最近成绩。</p>
             ) : (
               <div style={runListStyle}>
                 {runs.map((run, index) => (
                   <div key={`${run.completedAt}-${index}`} style={runRowStyle}>
                     <div>
-                      <div style={runScoreStyle}>{run.score} pts</div>
+                      <div style={runScoreStyle}>{run.score} 分</div>
                       <div style={runMetaStyle}>
-                        {run.distance} m · {run.obstaclesCleared} clears
+                        {run.distance} 米 · 越过 {run.obstaclesCleared}
                       </div>
                     </div>
-                    <div style={runTimeStyle}>{(run.durationMs / 1000).toFixed(1)} s</div>
+                    <div style={runTimeStyle}>{(run.durationMs / 1000).toFixed(1)} 秒</div>
                   </div>
                 ))}
               </div>

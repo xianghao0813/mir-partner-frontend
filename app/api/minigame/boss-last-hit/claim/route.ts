@@ -73,6 +73,9 @@ export async function POST() {
     ...gameState,
     rewardClaimedDate: today,
   };
+  const pointTransactions = Array.isArray(pointAward.metadata.mir_point_transactions)
+    ? pointAward.metadata.mir_point_transactions
+    : [];
 
   const response = NextResponse.json({
     ok: true,
@@ -81,6 +84,7 @@ export async function POST() {
     rewardClaimedToday: true,
     rewardClaimedDate: today,
     receipt,
+    pointTransaction: pointTransactions[0] ?? null,
     game: buildBossLastHitPublicState(nextGameState),
   });
   response.cookies.set(BOSS_LAST_HIT_COOKIE, JSON.stringify(nextGameState), {

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import BossSlashTrial from "@/components/BossSlashTrial";
-import type { PartnerProfileSummary } from "@/lib/partnerProfile";
+import type { PartnerPointTransaction, PartnerProfileSummary } from "@/lib/partnerProfile";
 
 type ProfileContentProps = {
   profile: PartnerProfileSummary;
@@ -23,6 +23,7 @@ export default function ProfileContent({ profile }: ProfileContentProps) {
   const [currentPoints, setCurrentPoints] = useState(profile.points);
   const [currentMonthlyPoints, setCurrentMonthlyPoints] = useState(profile.monthlyPoints);
   const [ledgerMonth, setLedgerMonth] = useState(getCurrentMonth());
+  const [pointTransactions, setPointTransactions] = useState(profile.pointTransactions);
   const [activeTierIndex, setActiveTierIndex] = useState(
     Math.max(0, profileTierList.findIndex((tier) => tier.id === profile.currentTier.id))
   );
@@ -40,7 +41,7 @@ export default function ProfileContent({ profile }: ProfileContentProps) {
         )
       )
     : 100;
-  const filteredPointTransactions = profile.pointTransactions.filter((entry) =>
+  const filteredPointTransactions = pointTransactions.filter((entry) =>
     ledgerMonth ? (entry.createdAt ?? "").startsWith(ledgerMonth) : true
   );
   const filteredPointTotal = filteredPointTransactions.reduce((sum, entry) => sum + entry.points, 0);
@@ -167,6 +168,16 @@ export default function ProfileContent({ profile }: ProfileContentProps) {
                 return points;
               });
             }}
+            onRewardClaimed={(transaction) => {
+              const normalized = normalizeRewardTransaction(transaction);
+              setPointTransactions((current) => [
+                normalized,
+                ...current.filter((entry) => entry.id !== normalized.id),
+              ]);
+              if (normalized.createdAt) {
+                setLedgerMonth(normalized.createdAt.slice(0, 7));
+              }
+            }}
           />
         </section>
 
@@ -292,6 +303,26 @@ function formatDate(value: string | null) {
     hour: "2-digit",
     minute: "2-digit",
   });
+}
+
+function normalizeRewardTransaction(transaction: {
+  id?: string;
+  title?: string;
+  description?: string;
+  points?: number;
+  createdAt?: string;
+  source?: string;
+}): PartnerPointTransaction {
+  const createdAt = transaction.createdAt || new Date().toISOString();
+
+  return {
+    id: transaction.id || `boss-last-hit-${Date.now()}`,
+    title: transaction.title || "小游戏积分",
+    description: transaction.description || "Boss Last Hit 小游戏奖励",
+    points: Number.isFinite(Number(transaction.points)) ? Math.floor(Number(transaction.points)) : 50,
+    createdAt,
+    source: transaction.source || "boss_last_hit",
+  };
 }
 
 const pageStyle: React.CSSProperties = {

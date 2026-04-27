@@ -2,7 +2,7 @@ import crypto from "node:crypto";
 
 export const BOSS_LAST_HIT_COOKIE = "mir-boss-last-hit-state";
 export const BOSS_LAST_HIT_REWARD_POINTS = 50;
-export const RUNNER_REQUIRED_SCORE = 180;
+export const RUNNER_REQUIRED_SCORE = 120;
 
 export type RunnerRunSummary = {
   score: number;
