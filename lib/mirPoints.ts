@@ -142,6 +142,15 @@ export function awardMirPoints({
       mir_last_point_source: source,
       mir_last_point_award: awardedPoints,
       mir_last_point_awarded_at: now.toISOString(),
+      mir_point_transactions: appendPointTransaction(metadata, {
+        id: `point-${now.getTime()}-${source}`,
+        type: "earn",
+        source,
+        points: awardedPoints,
+        title: getPointSourceTitle(source),
+        description: getPointSourceDescription(source),
+        createdAt: now.toISOString(),
+      }),
     },
     beforePoints,
     afterPoints,
@@ -263,4 +272,45 @@ function readNumber(value: unknown) {
 
 function readString(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
+}
+
+function appendPointTransaction(
+  metadata: UserMetadata | undefined,
+  transaction: {
+    id: string;
+    type: string;
+    source: string;
+    points: number;
+    title: string;
+    description: string;
+    createdAt: string;
+  }
+) {
+  const current = Array.isArray(metadata?.mir_point_transactions)
+    ? metadata.mir_point_transactions
+    : [];
+
+  return [transaction, ...current].slice(0, 300);
+}
+
+function getPointSourceTitle(source: string) {
+  switch (source) {
+    case "wallet_recharge":
+      return "云币充值积分";
+    case "boss_last_hit":
+      return "小游戏积分";
+    default:
+      return "MIR 积分";
+  }
+}
+
+function getPointSourceDescription(source: string) {
+  switch (source) {
+    case "wallet_recharge":
+      return "根据云币充值金额自动发放";
+    case "boss_last_hit":
+      return "Boss Last Hit 小游戏奖励";
+    default:
+      return source || "积分变动";
+  }
 }

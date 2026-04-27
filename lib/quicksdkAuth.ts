@@ -74,6 +74,10 @@ async function upsertQuickSdkSupabaseUser({
   password: string;
 }) {
   const existingUser = await findUserByEmail(email);
+  const partnerCode =
+    readString(existingUser?.user_metadata?.partner_code) ||
+    readString(existingUser?.user_metadata?.mir_partner_code) ||
+    (await createNextPartnerCode());
   const userMetadata = buildQuickSdkMetadata({
     current: existingUser?.user_metadata,
     uid,
@@ -81,6 +85,7 @@ async function upsertQuickSdkSupabaseUser({
     timeLeft,
     mobile,
     bindingSource,
+    partnerCode,
   });
 
   if (!existingUser) {
@@ -135,6 +140,7 @@ function buildQuickSdkMetadata({
   timeLeft,
   mobile,
   bindingSource,
+  partnerCode,
 }: {
   current?: UserMetadata;
   uid: string;
@@ -142,12 +148,14 @@ function buildQuickSdkMetadata({
   timeLeft?: number | null;
   mobile?: string;
   bindingSource?: QuickSdkSupabaseProfile["bindingSource"];
+  partnerCode: string;
 }) {
   const merged: UserMetadata = {
     ...(current ?? {}),
     provider: "quicksdk",
     quicksdk_uid: uid,
     quicksdk_username: username,
+    partner_code: partnerCode,
     login_type: "direct_credentials",
   };
 
@@ -164,4 +172,35 @@ function buildQuickSdkMetadata({
   }
 
   return merged;
+}
+
+async function createNextPartnerCode() {
+  const { data, error } = await supabaseAdmin.auth.admin.listUsers({
+    page: 1,
+    perPage: 1000,
+  });
+
+  if (error) {
+    throw error;
+  }
+
+  const existingCodes = new Set(
+    data.users
+      .map((user) => readString(user.user_metadata?.partner_code))
+      .filter(Boolean)
+  );
+  let nextNumber =
+    data.users.filter((user) => readString(user.user_metadata?.quicksdk_uid)).length + 1;
+  let nextCode = String(nextNumber).padStart(6, "0");
+
+  while (existingCodes.has(nextCode)) {
+    nextNumber += 1;
+    nextCode = String(nextNumber).padStart(6, "0");
+  }
+
+  return nextCode;
+}
+
+function readString(value: unknown) {
+  return typeof value === "string" ? value.trim() : "";
 }
