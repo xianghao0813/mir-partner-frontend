@@ -184,7 +184,7 @@ export default function RootLayout({
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "space-between",
-                gap: "36px",
+                gap: "48px",
                 flex: "1 1 720px",
                 flexWrap: "wrap",
               }}
@@ -194,7 +194,7 @@ export default function RootLayout({
                 style={{
                   display: "flex",
                   alignItems: "center",
-                  gap: "18px 40px",
+                  gap: "18px 64px",
                   flexWrap: "wrap",
                 }}
               >
