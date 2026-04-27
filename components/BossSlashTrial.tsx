@@ -290,9 +290,7 @@ export default function BossSlashTrial({ initialPoints, onPointsChange }: BossSl
     const collided = nextObstacles.some((obstacle) => {
       const overlapX =
         obstacle.x < PLAYER_LEFT + PLAYER_WIDTH && obstacle.x + obstacle.width > PLAYER_LEFT + 4;
-      const playerBottom = nextPlayerY + PLAYER_HEIGHT;
-      const obstacleTop = obstacle.height;
-      return overlapX && playerBottom > obstacleTop - 6;
+      return overlapX && nextPlayerY < obstacle.height - 6;
     });
 
     setDistance(nextDistance);

@@ -22,6 +22,7 @@ const profileTierList = [
 export default function ProfileContent({ profile }: ProfileContentProps) {
   const [currentPoints, setCurrentPoints] = useState(profile.points);
   const [currentMonthlyPoints, setCurrentMonthlyPoints] = useState(profile.monthlyPoints);
+  const [ledgerMonth, setLedgerMonth] = useState(getCurrentMonth());
   const [activeTierIndex, setActiveTierIndex] = useState(
     Math.max(0, profileTierList.findIndex((tier) => tier.id === profile.currentTier.id))
   );
@@ -39,6 +40,10 @@ export default function ProfileContent({ profile }: ProfileContentProps) {
         )
       )
     : 100;
+  const filteredPointTransactions = profile.pointTransactions.filter((entry) =>
+    ledgerMonth ? (entry.createdAt ?? "").startsWith(ledgerMonth) : true
+  );
+  const filteredPointTotal = filteredPointTransactions.reduce((sum, entry) => sum + entry.points, 0);
 
   return (
     <main className="hide-scrollbar" style={pageStyle}>
@@ -164,6 +169,44 @@ export default function ProfileContent({ profile }: ProfileContentProps) {
             }}
           />
         </section>
+
+        <section style={cardStyle}>
+          <div style={sectionHeaderStyle}>
+            <div>
+              <div style={eyebrowStyle}>Point Ledger</div>
+              <h2 style={sectionTitleStyle}>MIR 积分月度明细</h2>
+            </div>
+            <div style={ledgerControlStyle}>
+              <input
+                type="month"
+                value={ledgerMonth}
+                onChange={(event) => setLedgerMonth(event.target.value)}
+                style={monthInputStyle}
+              />
+              <div style={pointsBadgeStyle}>合计 {filteredPointTotal.toLocaleString()} 分</div>
+            </div>
+          </div>
+
+          {filteredPointTransactions.length === 0 ? (
+            <div style={emptyLedgerStyle}>该月份暂无积分记录。</div>
+          ) : (
+            <div style={ledgerListStyle}>
+              {filteredPointTransactions.map((entry) => (
+                <article key={entry.id} style={ledgerItemStyle}>
+                  <div>
+                    <div style={ledgerTitleStyle}>{entry.title}</div>
+                    <div style={ledgerDescriptionStyle}>{entry.description}</div>
+                    <div style={ledgerDateStyle}>{formatDate(entry.createdAt)}</div>
+                  </div>
+                  <div style={entry.points < 0 ? ledgerNegativeAmountStyle : ledgerAmountStyle}>
+                    {entry.points > 0 ? "+" : ""}
+                    {entry.points.toLocaleString()}
+                  </div>
+                </article>
+              ))}
+            </div>
+          )}
+        </section>
       </div>
     </main>
   );
@@ -225,6 +268,30 @@ function getTierBenefits(tierLabel: string) {
     "云币任务奖励加成（待定）",
     "合伙人数据看板权限（待定）",
   ];
+}
+
+function getCurrentMonth() {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function formatDate(value: string | null) {
+  if (!value) {
+    return "-";
+  }
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return value;
+  }
+
+  return parsed.toLocaleString("zh-CN", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
 const pageStyle: React.CSSProperties = {
@@ -433,6 +500,78 @@ const pointsBadgeStyle: React.CSSProperties = {
   color: "#f5d0fe",
   fontSize: "14px",
   fontWeight: 700,
+};
+
+const ledgerControlStyle: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: "10px",
+  flexWrap: "wrap",
+};
+
+const monthInputStyle: React.CSSProperties = {
+  padding: "10px 12px",
+  borderRadius: "14px",
+  border: "1px solid rgba(255,255,255,0.1)",
+  background: "rgba(255,255,255,0.05)",
+  color: "white",
+  colorScheme: "dark",
+  outline: "none",
+};
+
+const emptyLedgerStyle: React.CSSProperties = {
+  padding: "20px",
+  borderRadius: "16px",
+  background: "rgba(255,255,255,0.04)",
+  border: "1px solid rgba(255,255,255,0.06)",
+  color: "#a1a1aa",
+  textAlign: "center",
+};
+
+const ledgerListStyle: React.CSSProperties = {
+  display: "grid",
+  gap: "10px",
+};
+
+const ledgerItemStyle: React.CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  gap: "14px",
+  alignItems: "center",
+  padding: "14px",
+  borderRadius: "16px",
+  background: "rgba(255,255,255,0.04)",
+  border: "1px solid rgba(255,255,255,0.06)",
+};
+
+const ledgerTitleStyle: React.CSSProperties = {
+  color: "white",
+  fontWeight: 800,
+};
+
+const ledgerDescriptionStyle: React.CSSProperties = {
+  marginTop: "5px",
+  color: "#a1a1aa",
+  fontSize: "13px",
+  lineHeight: 1.5,
+};
+
+const ledgerDateStyle: React.CSSProperties = {
+  marginTop: "5px",
+  color: "#71717a",
+  fontSize: "12px",
+};
+
+const ledgerAmountStyle: React.CSSProperties = {
+  color: "#86efac",
+  fontSize: "18px",
+  fontWeight: 900,
+  whiteSpace: "nowrap",
+};
+
+const ledgerNegativeAmountStyle: React.CSSProperties = {
+  ...ledgerAmountStyle,
+  color: "#fca5a5",
 };
 
 const tierCarouselStyle: React.CSSProperties = {
