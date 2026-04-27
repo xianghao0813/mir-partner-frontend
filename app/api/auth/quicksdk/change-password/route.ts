@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { changeQuickSdkPassword } from "@/lib/quicksdk";
+import { changeQuickSdkPassword, loginQuickSdkAccount } from "@/lib/quicksdk";
 
 export async function POST(request: Request) {
   try {
@@ -37,8 +37,11 @@ export async function POST(request: Request) {
     }
 
     const uid = readMetadataString(user.user_metadata?.quicksdk_uid);
+    const username =
+      readMetadataString(user.user_metadata?.quicksdk_username) ||
+      readMetadataString(user.user_metadata?.username);
 
-    if (!uid) {
+    if (!uid || !username) {
       return NextResponse.json(
         { error: "当前账号不是 QuickSDK 账号，无法使用 SDK 修改密码。" },
         { status: 400 }
@@ -50,6 +53,21 @@ export async function POST(request: Request) {
       oldPassword,
       newPassword,
     });
+
+    try {
+      await loginQuickSdkAccount({
+        username,
+        password: newPassword,
+      });
+    } catch (verifyError) {
+      console.error("[QuickSDK change-password verify]", verifyError);
+      return NextResponse.json(
+        {
+          error: "密码修改请求已提交，但新密码验证失败。请稍后重试或使用找回密码重置。",
+        },
+        { status: 502 }
+      );
+    }
 
     return NextResponse.json({ success: true });
   } catch (error) {

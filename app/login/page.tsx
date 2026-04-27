@@ -46,7 +46,7 @@ function LoginPageContent() {
       }>(response);
 
       if (!response.ok) {
-        setMessage(payload?.error || "登录失败。");
+        setMessage(payload?.error || "登录服务异常，请重新构建并重启服务器后再试。");
         return;
       }
 

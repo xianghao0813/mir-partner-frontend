@@ -48,6 +48,7 @@ export async function POST(request: Request) {
       profileUrl: "/profile",
     });
   } catch (error) {
+    console.error("[QuickSDK login]", error);
     return NextResponse.json(
       {
         error: error instanceof Error ? error.message : "登录失败。",
