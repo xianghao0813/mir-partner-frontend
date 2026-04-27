@@ -75,14 +75,13 @@ export default function PasswordPage() {
       }),
     });
 
-    setSubmitting(false);
-
     const result = (await response.json().catch(() => null)) as {
       error?: string;
       success?: boolean;
     } | null;
 
     if (!response.ok || !result?.success) {
+      setSubmitting(false);
       setError(result?.error ?? "修改密码失败。");
       return;
     }
@@ -90,7 +89,15 @@ export default function PasswordPage() {
     setOldPassword("");
     setPassword("");
     setConfirmPassword("");
-    setMessage("密码已更新。");
+    setMessage("密码已更新，请重新登录。");
+
+    try {
+      await fetch("/auth/logout", {
+        method: "POST",
+      });
+    } finally {
+      router.replace("/login");
+    }
   }
 
   return (
