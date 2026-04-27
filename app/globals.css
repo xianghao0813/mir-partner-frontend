@@ -297,7 +297,7 @@ a {
   }
 
   .site-brand img {
-    width: 118px !important;
+    width: 42px !important;
   }
 
   .site-brand-tagline {
@@ -489,7 +489,11 @@ a {
   }
 
   .site-brand img {
-    width: 104px !important;
+    width: 38px !important;
+  }
+
+  .site-brand > div > div:first-child {
+    font-size: 16px !important;
   }
 
   .site-nav {
