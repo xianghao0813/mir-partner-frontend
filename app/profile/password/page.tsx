@@ -75,14 +75,14 @@ export default function PasswordPage() {
       }),
     });
 
-    const result = (await response.json().catch(() => null)) as {
+    const result = await readJsonResponse<{
       error?: string;
       success?: boolean;
-    } | null;
+    }>(response);
 
     if (!response.ok || !result?.success) {
       setSubmitting(false);
-      setError(result?.error ?? "修改密码失败。");
+      setError(result?.error ?? getPasswordChangeFallbackMessage(response.status));
       return;
     }
 
@@ -202,6 +202,35 @@ export default function PasswordPage() {
 
 function readMetadataString(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
+}
+
+async function readJsonResponse<T>(response: Response) {
+  const text = await response.text();
+  if (!text) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    return null;
+  }
+}
+
+function getPasswordChangeFallbackMessage(status: number) {
+  if (status === 400) {
+    return "输入的信息有误，请检查当前密码、新密码和确认密码。";
+  }
+
+  if (status === 401) {
+    return "登录状态已失效，请重新登录后再修改密码。";
+  }
+
+  if (status === 502 || status === 503 || status === 504) {
+    return "密码服务暂时不可用，请稍后再试。";
+  }
+
+  return "密码修改失败，请稍后再试。";
 }
 
 const backLinkStyle: React.CSSProperties = {

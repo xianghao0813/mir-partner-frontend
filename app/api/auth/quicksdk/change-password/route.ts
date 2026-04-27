@@ -48,11 +48,43 @@ export async function POST(request: Request) {
       );
     }
 
-    await changeQuickSdkPassword({
-      userId: uid,
-      oldPassword,
-      newPassword,
-    });
+    try {
+      await loginQuickSdkAccount({
+        username,
+        password: oldPassword,
+      });
+    } catch (error) {
+      console.error("[QuickSDK change-password current-password]", {
+        username,
+        uid,
+        error,
+      });
+      return NextResponse.json(
+        { error: "当前密码不正确，请重新输入后再试。", code: "INVALID_CURRENT_PASSWORD" },
+        { status: 400 }
+      );
+    }
+
+    try {
+      await changeQuickSdkPassword({
+        userId: uid,
+        oldPassword,
+        newPassword,
+      });
+    } catch (error) {
+      console.error("[QuickSDK change-password submit]", {
+        username,
+        uid,
+        error,
+      });
+      return NextResponse.json(
+        {
+          error: getChangePasswordErrorMessage(error),
+          code: "CHANGE_PASSWORD_FAILED",
+        },
+        { status: 502 }
+      );
+    }
 
     try {
       await loginQuickSdkAccount({
@@ -71,9 +103,10 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ success: true });
   } catch (error) {
+    console.error("[QuickSDK change-password unexpected]", error);
     return NextResponse.json(
       {
-        error: error instanceof Error ? error.message : "修改密码失败。",
+        error: getChangePasswordErrorMessage(error),
       },
       { status: 500 }
     );
@@ -82,4 +115,38 @@ export async function POST(request: Request) {
 
 function readMetadataString(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
+}
+
+function getChangePasswordErrorMessage(error: unknown) {
+  const message = error instanceof Error ? error.message : "";
+  const normalized = message.toLowerCase();
+
+  if (
+    normalized.includes("old") ||
+    normalized.includes("password") ||
+    normalized.includes("pass") ||
+    normalized.includes("pwd") ||
+    normalized.includes("密码")
+  ) {
+    return "当前密码不正确，请重新输入后再试。";
+  }
+
+  if (
+    normalized.includes("user") ||
+    normalized.includes("uid") ||
+    normalized.includes("account") ||
+    normalized.includes("tokenuid")
+  ) {
+    return "未能确认当前账号信息，请退出后重新登录再修改密码。";
+  }
+
+  if (normalized.includes("timeout") || normalized.includes("fetch") || normalized.includes("network")) {
+    return "暂时无法连接密码服务，请稍后再试。";
+  }
+
+  if (message && message !== "QuickSDK request failed") {
+    return message;
+  }
+
+  return "密码修改失败，请稍后再试或联系管理员确认账号状态。";
 }
