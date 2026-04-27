@@ -41,6 +41,7 @@ type RunnerObstacle = {
   x: number;
   width: number;
   height: number;
+  kind: "normal" | "high";
   passed: boolean;
 };
 
@@ -53,9 +54,11 @@ const PLAYER_HEIGHT = 58;
 const GRAVITY = 0.95;
 const JUMP_FORCE = 15.5;
 const MAX_JUMPS = 2;
-const START_SPEED = 4.8;
-const MAX_SPEED = 9.2;
+const START_SPEED = 3.6;
+const MAX_SPEED = 13.2;
 const TARGET_SCORE = 120;
+const FEVER_INTERVAL_SCORE = 100;
+const FEVER_DURATION_MS = 5000;
 
 export default function BossSlashTrial({
   initialPoints,
@@ -88,6 +91,8 @@ export default function BossSlashTrial({
   const [playerY, setPlayerY] = useState(0);
   const [isJumping, setIsJumping] = useState(false);
   const [jumpCount, setJumpCount] = useState(0);
+  const [feverActive, setFeverActive] = useState(false);
+  const [feverRemainingMs, setFeverRemainingMs] = useState(0);
   const [obstacles, setObstacles] = useState<RunnerObstacle[]>([]);
 
   const rafRef = useRef<number | null>(null);
@@ -105,6 +110,9 @@ export default function BossSlashTrial({
   const playerYRef = useRef(0);
   const obstacleStateRef = useRef<RunnerObstacle[]>([]);
   const jumpCountRef = useRef(0);
+  const feverActiveRef = useRef(false);
+  const lastFeverScoreRef = useRef(0);
+  const feverUntilRef = useRef(0);
 
   const missionCleared = gameFinished && serverScore >= requiredScore;
 
@@ -226,6 +234,8 @@ export default function BossSlashTrial({
     setPlayerY(0);
     setIsJumping(false);
     setJumpCount(0);
+    setFeverActive(false);
+    setFeverRemainingMs(0);
     setObstacles([]);
     velocityRef.current = 0;
     obstacleIdRef.current = 0;
@@ -237,6 +247,9 @@ export default function BossSlashTrial({
     playerYRef.current = 0;
     obstacleStateRef.current = [];
     jumpCountRef.current = 0;
+    feverActiveRef.current = false;
+    lastFeverScoreRef.current = 0;
+    feverUntilRef.current = 0;
   }
 
   function beginLoop() {
@@ -265,7 +278,7 @@ export default function BossSlashTrial({
 
     const nextDistance = distanceRef.current + speedRef.current * (delta / 16);
     const nextScore = Math.floor(nextDistance / 7) + obstaclesRef.current * 12;
-    const nextSpeed = Math.min(MAX_SPEED, START_SPEED + nextDistance / 300);
+    const nextSpeed = Math.min(MAX_SPEED, START_SPEED + nextDistance / 210);
     const playerVelocity = velocityRef.current - GRAVITY * (delta / 16);
     let nextPlayerY = Math.max(0, playerYRef.current + playerVelocity * (delta / 16));
 
@@ -289,7 +302,7 @@ export default function BossSlashTrial({
 
     if (nextSpawnRef.current <= 0) {
       nextObstacles.push(createObstacle());
-      nextSpawnRef.current = 760 + Math.random() * 520 - nextDistance / 8;
+      nextSpawnRef.current = Math.max(540, 1380 + Math.random() * 760 - nextSpeed * 42);
     }
 
     let nextCleared = obstaclesRef.current;
@@ -307,7 +320,25 @@ export default function BossSlashTrial({
       })
       .filter((obstacle) => obstacle.x + obstacle.width > -80);
 
-    const collided = nextObstacles.some((obstacle) => {
+    const nextFeverScore = Math.floor(nextScore / FEVER_INTERVAL_SCORE) * FEVER_INTERVAL_SCORE;
+    if (nextFeverScore > 0 && nextFeverScore > lastFeverScoreRef.current) {
+      lastFeverScoreRef.current = nextFeverScore;
+      feverActiveRef.current = true;
+      feverUntilRef.current = timestamp + FEVER_DURATION_MS;
+      setFeverActive(true);
+      setStatusMessage("疾风模式已触发！5 秒内无敌。");
+    }
+
+    if (feverActiveRef.current) {
+      const remaining = Math.max(0, feverUntilRef.current - timestamp);
+      setFeverRemainingMs(remaining);
+      if (remaining <= 0) {
+        feverActiveRef.current = false;
+        setFeverActive(false);
+      }
+    }
+
+    const collided = !feverActiveRef.current && nextObstacles.some((obstacle) => {
       const overlapX =
         obstacle.x < PLAYER_LEFT + PLAYER_WIDTH && obstacle.x + obstacle.width > PLAYER_LEFT + 4;
       return overlapX && nextPlayerY < obstacle.height - 6;
@@ -350,12 +381,14 @@ export default function BossSlashTrial({
 
   function createObstacle(): RunnerObstacle {
     obstacleIdRef.current += 1;
+    const isHighObstacle = obstacleIdRef.current > 2 && Math.random() < 0.28;
 
     return {
       id: obstacleIdRef.current,
       x: TRACK_WIDTH + 12,
-      width: 18 + Math.random() * 22,
-      height: 22 + Math.random() * 30,
+      width: isHighObstacle ? 22 + Math.random() * 18 : 18 + Math.random() * 22,
+      height: isHighObstacle ? 60 + Math.random() * 20 : 22 + Math.random() * 28,
+      kind: isHighObstacle ? "high" : "normal",
       passed: false,
     };
   }
@@ -515,11 +548,14 @@ export default function BossSlashTrial({
                 key={obstacle.id}
                 style={{
                   ...obstacleStyle,
+                  ...(obstacle.kind === "high" ? highObstacleStyle : null),
                   width: obstacle.width,
                   height: obstacle.height,
                   left: obstacle.x,
                 }}
-              />
+              >
+                {obstacle.kind === "high" ? <span style={highObstacleMarkStyle} /> : null}
+              </div>
             ))}
             <div
               style={{
@@ -577,6 +613,12 @@ export default function BossSlashTrial({
           <div style={hintRowStyle}>
             <span>操作：空格 / W / 方向上 / 点击跳跃</span>
             <span>支持二段跳：{jumpCount}/{MAX_JUMPS}</span>
+            <span>
+              疾风模式：
+              {feverActive
+                ? `${Math.ceil(feverRemainingMs / 1000)} 秒`
+                : `${Math.max(FEVER_INTERVAL_SCORE, (Math.floor(score / FEVER_INTERVAL_SCORE) + 1) * FEVER_INTERVAL_SCORE)} 分触发`}
+            </span>
             <span>距离 {Math.floor(distance)} 米</span>
             <span>越过 {obstaclesCleared}</span>
             <span>速度 x{speed.toFixed(1)}</span>
@@ -783,6 +825,22 @@ const obstacleStyle: React.CSSProperties = {
   borderRadius: "12px 12px 4px 4px",
   background: "linear-gradient(180deg, #b45309 0%, #7c2d12 100%)",
   boxShadow: "0 6px 18px rgba(0,0,0,0.28)",
+};
+
+const highObstacleStyle: React.CSSProperties = {
+  background: "linear-gradient(180deg, #7f1d1d 0%, #451a03 100%)",
+  boxShadow: "0 0 18px rgba(248,113,113,0.22), 0 8px 18px rgba(0,0,0,0.34)",
+};
+
+const highObstacleMarkStyle: React.CSSProperties = {
+  position: "absolute",
+  top: 6,
+  left: "50%",
+  width: 8,
+  height: 8,
+  transform: "translateX(-50%)",
+  background: "#facc15",
+  boxShadow: "0 12px 0 #facc15, 0 24px 0 #facc15",
 };
 
 const playerStyle: React.CSSProperties = {
