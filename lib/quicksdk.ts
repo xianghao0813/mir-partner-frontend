@@ -277,6 +277,29 @@ export async function changeQuickSdkPassword({
   return result.data;
 }
 
+export async function resetQuickSdkPassword({
+  phone,
+  code,
+  newPassword,
+}: {
+  phone: string;
+  code: string;
+  newPassword: string;
+}) {
+  const config = getQuickSdkConfig();
+  const payload = buildSignedParams({
+    openId: config.openId,
+    productCode: config.productCode,
+    channelCode: config.channelCode,
+    phone,
+    code,
+    newPassword: md5Hex(newPassword),
+  });
+
+  const result = await postQuickSdkForm("/webOpen/setNewPass", payload);
+  return result.data;
+}
+
 export async function getQuickSdkWalletAmount({ userId }: { userId: string }) {
   const config = getQuickSdkConfig();
   const payload = buildSignedParams({

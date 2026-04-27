@@ -5,11 +5,12 @@ export async function POST(request: Request) {
   try {
     const body = (await request.json()) as {
       phone?: string;
-      purpose?: "login" | "register";
+      purpose?: "login" | "register" | "reset-password";
     };
 
     const phone = body.phone?.trim() ?? "";
-    const purpose = body.purpose === "login" ? "login" : "register";
+    const purpose =
+      body.purpose === "login" || body.purpose === "reset-password" ? body.purpose : "register";
 
     if (!phone) {
       return NextResponse.json({ error: "请输入手机号。" }, { status: 400 });

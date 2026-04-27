@@ -40,17 +40,17 @@ function LoginPageContent() {
         }),
       });
 
-      const payload = (await response.json()) as {
+      const payload = await readJsonResponse<{
         error?: string;
         profileUrl?: string;
-      };
+      }>(response);
 
       if (!response.ok) {
-        setMessage(payload.error || "登录失败。");
+        setMessage(payload?.error || "登录失败。");
         return;
       }
 
-      router.push(payload.profileUrl || "/profile");
+      router.push(payload?.profileUrl || "/profile");
       router.refresh();
     } catch {
       setMessage("当前无法连接登录服务。");
@@ -95,6 +95,10 @@ function LoginPageContent() {
         </button>
 
         <div style={footerTextStyle}>
+          <Link href="/forgot-password" style={footerLinkStyle}>
+            找回密码
+          </Link>
+          <span style={footerDividerStyle}>|</span>
           还没有账号？{" "}
           <Link href="/signup" style={footerLinkStyle}>
             去注册
@@ -109,6 +113,19 @@ function LoginPageContent() {
       </form>
     </LoginShell>
   );
+}
+
+async function readJsonResponse<T>(response: Response) {
+  const text = await response.text();
+  if (!text) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    return null;
+  }
 }
 
 function LoginShell({ children }: { children?: React.ReactNode }) {
@@ -226,6 +243,12 @@ const footerLinkStyle: React.CSSProperties = {
   color: "#ffffff",
   textDecoration: "none",
   fontWeight: 700,
+};
+
+const footerDividerStyle: React.CSSProperties = {
+  display: "inline-block",
+  margin: "0 10px",
+  color: "#71717a",
 };
 
 const errorStyle: React.CSSProperties = {
