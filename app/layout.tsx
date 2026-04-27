@@ -160,20 +160,16 @@ export default function RootLayout({
               }}
             >
               <img
-                src="/wp-logo.png"
+                src="/wp-logo2.png"
                 alt="MIR Partner"
                 draggable={false}
                 style={{
-                  width: "62px",
-                  filter: "drop-shadow(0 0 6px #a855f7)",
+                  width: "156px",
+                  height: "auto",
+                  display: "block",
+                  filter: "drop-shadow(0 0 8px rgba(168,85,247,0.35))",
                 }}
               />
-              <div>
-                <div style={{ fontWeight: 800, fontSize: "20px" }}>MIR Partner</div>
-                <div className="site-brand-tagline" style={{ color: "#9ca3af", fontSize: "12px" }}>
-                  创作者与合作伙伴平台
-                </div>
-              </div>
             </Link>
 
             <div
