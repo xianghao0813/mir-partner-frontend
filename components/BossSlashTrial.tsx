@@ -41,7 +41,7 @@ type RunnerObstacle = {
   x: number;
   width: number;
   height: number;
-  kind: "normal" | "high";
+  kind: "normal" | "high" | "double";
   passed: boolean;
 };
 
@@ -57,7 +57,7 @@ const MAX_JUMPS = 2;
 const START_SPEED = 3.6;
 const MAX_SPEED = 13.2;
 const TARGET_SCORE = 120;
-const FEVER_INTERVAL_SCORE = 100;
+const FEVER_INTERVAL_SCORE = 1000;
 const FEVER_DURATION_MS = 5000;
 
 export default function BossSlashTrial({
@@ -301,7 +301,7 @@ export default function BossSlashTrial({
     }));
 
     if (nextSpawnRef.current <= 0) {
-      nextObstacles.push(createObstacle());
+      nextObstacles.push(...createObstaclePattern());
       nextSpawnRef.current = Math.max(540, 1380 + Math.random() * 760 - nextSpeed * 42);
     }
 
@@ -379,16 +379,38 @@ export default function BossSlashTrial({
     rafRef.current = window.requestAnimationFrame(loop);
   }
 
-  function createObstacle(): RunnerObstacle {
+  function createObstaclePattern(): RunnerObstacle[] {
     obstacleIdRef.current += 1;
-    const isHighObstacle = obstacleIdRef.current > 2 && Math.random() < 0.28;
+    const canUseSpecialPattern = obstacleIdRef.current > 2;
+    const roll = Math.random();
+
+    if (canUseSpecialPattern && roll < 0.3) {
+      const first = createObstacle("double", 0, 22 + Math.random() * 8, 42 + Math.random() * 8);
+      const second = createObstacle("double", 70 + Math.random() * 20, 22 + Math.random() * 8, 42 + Math.random() * 8);
+      return [first, second];
+    }
+
+    if (canUseSpecialPattern && roll < 0.55) {
+      return [createObstacle("high", 0, 24 + Math.random() * 14, 78 + Math.random() * 20)];
+    }
+
+    return [createObstacle("normal", 0, 18 + Math.random() * 22, 22 + Math.random() * 28)];
+  }
+
+  function createObstacle(
+    kind: RunnerObstacle["kind"],
+    offsetX: number,
+    width: number,
+    height: number
+  ): RunnerObstacle {
+    obstacleIdRef.current += 1;
 
     return {
       id: obstacleIdRef.current,
-      x: TRACK_WIDTH + 12,
-      width: isHighObstacle ? 22 + Math.random() * 18 : 18 + Math.random() * 22,
-      height: isHighObstacle ? 60 + Math.random() * 20 : 22 + Math.random() * 28,
-      kind: isHighObstacle ? "high" : "normal",
+      x: TRACK_WIDTH + 12 + offsetX,
+      width,
+      height,
+      kind,
       passed: false,
     };
   }
@@ -504,6 +526,27 @@ export default function BossSlashTrial({
 
   return (
     <section style={shellStyle}>
+      <style jsx>{`
+        @keyframes feverSweep {
+          0% {
+            transform: translateX(-36%);
+          }
+          100% {
+            transform: translateX(36%);
+          }
+        }
+
+        @keyframes feverPulse {
+          from {
+            transform: scale(0.92);
+            opacity: 0.7;
+          }
+          to {
+            transform: scale(1.12);
+            opacity: 1;
+          }
+        }
+      `}</style>
       <div style={headerRowStyle}>
         <div>
           <p style={eyebrowStyle}>小游戏挑战</p>
@@ -539,9 +582,10 @@ export default function BossSlashTrial({
             <div style={{ ...progressFillStyle, transform: `scaleX(${progress})` }} />
           </div>
 
-          <div style={trackShellStyle}>
+          <div style={{ ...trackShellStyle, ...(feverActive ? feverTrackShellStyle : null) }}>
             <div style={skylineStyle} />
             <div style={sunGlowStyle} />
+            {feverActive ? <div style={feverOverlayStyle} /> : null}
             <div style={trackRuinLayerStyle} />
             {obstacles.map((obstacle) => (
               <div
@@ -549,21 +593,24 @@ export default function BossSlashTrial({
                 style={{
                   ...obstacleStyle,
                   ...(obstacle.kind === "high" ? highObstacleStyle : null),
+                  ...(obstacle.kind === "double" ? doubleObstacleStyle : null),
                   width: obstacle.width,
                   height: obstacle.height,
                   left: obstacle.x,
                 }}
               >
-                {obstacle.kind === "high" ? <span style={highObstacleMarkStyle} /> : null}
+                {obstacle.kind !== "normal" ? <span style={highObstacleMarkStyle} /> : null}
               </div>
             ))}
             <div
               style={{
                 ...playerStyle,
                 bottom: GROUND_HEIGHT + playerY,
+                ...(feverActive ? feverPlayerStyle : null),
                 transform: isJumping ? "scale(0.98) rotate(-6deg)" : "scale(1)",
               }}
             >
+              {feverActive ? <div style={feverAuraStyle} /> : null}
               <div style={pixelShadowStyle} />
               <div style={pixelCapeStyle} />
               <div style={pixelHeadStyle}>
@@ -801,6 +848,21 @@ const trackShellStyle: React.CSSProperties = {
   background: "linear-gradient(180deg, #25334b 0%, #111827 75%)",
 };
 
+const feverTrackShellStyle: React.CSSProperties = {
+  boxShadow: "inset 0 0 44px rgba(250,204,21,0.28), 0 0 28px rgba(250,204,21,0.2)",
+};
+
+const feverOverlayStyle: React.CSSProperties = {
+  position: "absolute",
+  inset: 0,
+  zIndex: 2,
+  pointerEvents: "none",
+  background:
+    "linear-gradient(100deg, transparent 0%, rgba(250,204,21,0.08) 22%, transparent 44%, rgba(255,255,255,0.12) 52%, transparent 70%), radial-gradient(circle at 68% 26%, rgba(250,204,21,0.24), transparent 28%)",
+  mixBlendMode: "screen",
+  animation: "feverSweep 900ms linear infinite",
+};
+
 const sunGlowStyle: React.CSSProperties = {
   position: "absolute",
   top: 26,
@@ -832,6 +894,11 @@ const highObstacleStyle: React.CSSProperties = {
   boxShadow: "0 0 18px rgba(248,113,113,0.22), 0 8px 18px rgba(0,0,0,0.34)",
 };
 
+const doubleObstacleStyle: React.CSSProperties = {
+  background: "linear-gradient(180deg, #92400e 0%, #431407 100%)",
+  boxShadow: "0 0 16px rgba(251,146,60,0.22), 0 8px 18px rgba(0,0,0,0.32)",
+};
+
 const highObstacleMarkStyle: React.CSSProperties = {
   position: "absolute",
   top: 6,
@@ -851,6 +918,19 @@ const playerStyle: React.CSSProperties = {
   background: "transparent",
   imageRendering: "pixelated",
   transition: "transform 120ms ease",
+};
+
+const feverPlayerStyle: React.CSSProperties = {
+  filter: "drop-shadow(0 0 10px rgba(250,204,21,0.9)) drop-shadow(0 0 18px rgba(251,113,133,0.5))",
+};
+
+const feverAuraStyle: React.CSSProperties = {
+  position: "absolute",
+  inset: -12,
+  borderRadius: "50%",
+  background: "radial-gradient(circle, rgba(250,204,21,0.24), rgba(250,204,21,0.08) 48%, transparent 70%)",
+  zIndex: -1,
+  animation: "feverPulse 700ms ease-in-out infinite alternate",
 };
 
 const pixelShadowStyle: React.CSSProperties = {
