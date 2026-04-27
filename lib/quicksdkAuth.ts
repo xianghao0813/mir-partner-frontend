@@ -75,8 +75,8 @@ async function upsertQuickSdkSupabaseUser({
 }) {
   const existingUser = await findUserByEmail(email);
   const partnerCode =
-    readString(existingUser?.user_metadata?.partner_code) ||
-    readString(existingUser?.user_metadata?.mir_partner_code) ||
+    readValidPartnerCode(existingUser?.user_metadata?.partner_code) ||
+    readValidPartnerCode(existingUser?.user_metadata?.mir_partner_code) ||
     (await createNextPartnerCode());
   const userMetadata = buildQuickSdkMetadata({
     current: existingUser?.user_metadata,
@@ -186,19 +186,28 @@ async function createNextPartnerCode() {
 
   const existingCodes = new Set(
     data.users
-      .map((user) => readString(user.user_metadata?.partner_code))
+      .map((user) => readValidPartnerCode(user.user_metadata?.partner_code))
       .filter(Boolean)
   );
   let nextNumber =
     data.users.filter((user) => readString(user.user_metadata?.quicksdk_uid)).length + 1;
-  let nextCode = String(nextNumber).padStart(6, "0");
+  let nextCode = formatPartnerCode(nextNumber);
 
   while (existingCodes.has(nextCode)) {
     nextNumber += 1;
-    nextCode = String(nextNumber).padStart(6, "0");
+    nextCode = formatPartnerCode(nextNumber);
   }
 
   return nextCode;
+}
+
+function formatPartnerCode(value: number) {
+  return `LP${String(value).padStart(6, "0")}`;
+}
+
+function readValidPartnerCode(value: unknown) {
+  const raw = readString(value).toUpperCase();
+  return /^LP\d{6}$/.test(raw) ? raw : "";
 }
 
 function readString(value: unknown) {

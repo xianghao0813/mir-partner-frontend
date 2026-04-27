@@ -46,8 +46,8 @@ export function buildPartnerProfileSummary(user: User): PartnerProfileSummary {
 
 export function createPartnerCode(userId: string) {
   const digest = crypto.createHash("sha256").update(`mir-partner:${userId}`, "utf8").digest("hex");
-  const numericCode = String(parseInt(digest.slice(0, 12), 16) % 100000000).padStart(8, "0");
-  return `MP${numericCode}`;
+  const numericCode = String(parseInt(digest.slice(0, 12), 16) % 1000000).padStart(6, "0");
+  return `LP${numericCode}`;
 }
 
 function readStringMetadata(user: User, keys: string[]) {
