@@ -43,10 +43,11 @@ function LoginPageContent() {
       const payload = await readJsonResponse<{
         error?: string;
         profileUrl?: string;
+        stage?: string;
       }>(response);
 
       if (!response.ok) {
-        setMessage(payload?.error || "登录服务异常，请重新构建并重启服务器后再试。");
+        setMessage(getLoginErrorMessage(response.status, payload));
         return;
       }
 
@@ -114,17 +115,40 @@ function LoginPageContent() {
   );
 }
 
-async function readJsonResponse<T>(response: Response) {
+type ParsedResponse<T> = T & {
+  rawText?: string;
+};
+
+async function readJsonResponse<T>(response: Response): Promise<ParsedResponse<T> | null> {
   const text = await response.text();
   if (!text) {
     return null;
   }
 
   try {
-    return JSON.parse(text) as T;
+    return JSON.parse(text) as ParsedResponse<T>;
   } catch {
-    return null;
+    return { rawText: text.slice(0, 160) } as ParsedResponse<T>;
   }
+}
+
+function getLoginErrorMessage(
+  status: number,
+  payload: ParsedResponse<{ error?: string; stage?: string }> | null
+) {
+  if (payload?.error) {
+    return payload.error;
+  }
+
+  if (payload?.stage === "sdk-auth") {
+    return "账号或密码验证失败，请确认账号与密码是否正确。";
+  }
+
+  if (payload?.rawText) {
+    return `登录接口返回异常响应（HTTP ${status}）。请检查服务器日志。`;
+  }
+
+  return `登录失败（HTTP ${status}）。请稍后重试。`;
 }
 
 function LoginShell({ children }: { children?: React.ReactNode }) {

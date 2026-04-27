@@ -19,28 +19,55 @@ export async function POST(request: Request) {
       );
     }
 
-    const result = await loginQuickSdkAccount({
-      username,
-      password,
-    });
+    let result;
+    try {
+      result = await loginQuickSdkAccount({
+        username,
+        password,
+      });
+    } catch (error) {
+      console.error("[QuickSDK login: sdk-auth]", { username, error });
+      return NextResponse.json(
+        {
+          error: error instanceof Error ? error.message : "账号或密码验证失败。",
+          stage: "sdk-auth",
+        },
+        { status: 401 }
+      );
+    }
 
-    if (result.authToken) {
-      await verifyAndSignInQuickSdkUser({
+    try {
+      if (result.authToken) {
+        await verifyAndSignInQuickSdkUser({
+          uid: result.uid,
+          username: result.username,
+          authToken: result.authToken,
+          timeLeft: result.timeLeft ?? null,
+          mobile: result.mobile,
+          bindingSource: "sdk_login",
+        });
+      } else {
+        await signInQuickSdkUser({
+          uid: result.uid,
+          username: result.username,
+          timeLeft: result.timeLeft ?? null,
+          mobile: result.mobile,
+          bindingSource: "sdk_login",
+        });
+      }
+    } catch (error) {
+      console.error("[QuickSDK login: local-session]", {
+        username,
         uid: result.uid,
-        username: result.username,
-        authToken: result.authToken,
-        timeLeft: result.timeLeft ?? null,
-        mobile: result.mobile,
-        bindingSource: "sdk_login",
+        error,
       });
-    } else {
-      await signInQuickSdkUser({
-        uid: result.uid,
-        username: result.username,
-        timeLeft: result.timeLeft ?? null,
-        mobile: result.mobile,
-        bindingSource: "sdk_login",
-      });
+      return NextResponse.json(
+        {
+          error: error instanceof Error ? error.message : "登录状态创建失败。",
+          stage: "local-session",
+        },
+        { status: 500 }
+      );
     }
 
     return NextResponse.json({
