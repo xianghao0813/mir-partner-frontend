@@ -153,7 +153,7 @@ export default function ProfileContent({ profile }: ProfileContentProps) {
           <div style={sectionHeaderStyle}>
             <div>
               <div style={eyebrowStyle}>Mini Game</div>
-              <h2 style={sectionTitleStyle}>Boss Last Hit</h2>
+              <h2 style={sectionTitleStyle}>遗迹冲刺</h2>
             </div>
             <div style={pointsBadgeStyle}>MIR Points: {currentPoints.toLocaleString()}</div>
           </div>
@@ -318,7 +318,7 @@ function normalizeRewardTransaction(transaction: {
   return {
     id: transaction.id || `boss-last-hit-${Date.now()}`,
     title: transaction.title || "小游戏积分",
-    description: transaction.description || "Boss Last Hit 小游戏奖励",
+    description: transaction.description || "遗迹冲刺小游戏奖励",
     points: Number.isFinite(Number(transaction.points)) ? Math.floor(Number(transaction.points)) : 50,
     createdAt,
     source: transaction.source || "boss_last_hit",

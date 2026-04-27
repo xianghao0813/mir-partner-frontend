@@ -528,8 +528,20 @@ export default function BossSlashTrial({
                 transform: isJumping ? "scale(0.98) rotate(-6deg)" : "scale(1)",
               }}
             >
-              <div style={playerCapeStyle} />
-              <div style={playerBladeStyle} />
+              <div style={pixelShadowStyle} />
+              <div style={pixelCapeStyle} />
+              <div style={pixelHeadStyle}>
+                <span style={pixelHairStyle} />
+                <span style={pixelFaceStyle} />
+              </div>
+              <div style={pixelBodyStyle}>
+                <span style={pixelChestStyle} />
+              </div>
+              <div style={pixelLeftArmStyle} />
+              <div style={pixelRightArmStyle} />
+              <div style={pixelLeftLegStyle} />
+              <div style={pixelRightLegStyle} />
+              <div style={pixelSwordStyle} />
             </div>
             <div style={groundStyle} />
           </div>
@@ -778,31 +790,131 @@ const playerStyle: React.CSSProperties = {
   left: PLAYER_LEFT,
   width: PLAYER_WIDTH,
   height: PLAYER_HEIGHT,
-  borderRadius: "16px 16px 10px 10px",
-  background: "linear-gradient(180deg, #f8fafc 0%, #94a3b8 100%)",
-  boxShadow: "0 8px 18px rgba(0,0,0,0.28)",
+  background: "transparent",
+  imageRendering: "pixelated",
   transition: "transform 120ms ease",
 };
 
-const playerCapeStyle: React.CSSProperties = {
+const pixelShadowStyle: React.CSSProperties = {
   position: "absolute",
-  top: 12,
-  right: -16,
-  width: 24,
-  height: 30,
-  borderRadius: "6px 14px 18px 6px",
-  background: "linear-gradient(180deg, #f97316 0%, #7c2d12 100%)",
+  left: 4,
+  right: 2,
+  bottom: -5,
+  height: 8,
+  background: "rgba(0,0,0,0.34)",
+  borderRadius: "50%",
 };
 
-const playerBladeStyle: React.CSSProperties = {
+const pixelCapeStyle: React.CSSProperties = {
   position: "absolute",
-  left: 14,
-  top: 2,
-  width: 10,
-  height: 34,
-  borderRadius: 999,
-  background: "linear-gradient(180deg, #fde68a 0%, #f59e0b 100%)",
-  transform: "rotate(24deg)",
+  left: 4,
+  top: 19,
+  width: 22,
+  height: 28,
+  background: "#8b1e1e",
+  boxShadow: "0 6px 0 #5f1111, -4px 10px 0 #5f1111",
+};
+
+const pixelHeadStyle: React.CSSProperties = {
+  position: "absolute",
+  left: 12,
+  top: 4,
+  width: 22,
+  height: 20,
+  background: "#d8a05f",
+  boxShadow: "0 0 0 4px #2b1a13, 4px 4px 0 #f2c078",
+};
+
+const pixelHairStyle: React.CSSProperties = {
+  position: "absolute",
+  left: -4,
+  top: -4,
+  width: 30,
+  height: 8,
+  background: "#1b1010",
+  boxShadow: "4px 8px 0 #1b1010, 22px 8px 0 #1b1010",
+};
+
+const pixelFaceStyle: React.CSSProperties = {
+  position: "absolute",
+  left: 6,
+  top: 10,
+  width: 4,
+  height: 4,
+  background: "#111827",
+  boxShadow: "10px 0 0 #111827, 6px 7px 0 #7c2d12",
+};
+
+const pixelBodyStyle: React.CSSProperties = {
+  position: "absolute",
+  left: 11,
+  top: 27,
+  width: 24,
+  height: 22,
+  background: "#243b64",
+  boxShadow: "0 5px 0 #172554, 4px -4px 0 #d6b05f, 16px -4px 0 #d6b05f",
+};
+
+const pixelChestStyle: React.CSSProperties = {
+  position: "absolute",
+  left: 8,
+  top: 3,
+  width: 8,
+  height: 14,
+  background: "#c9a24d",
+  boxShadow: "0 6px 0 #8a6a27",
+};
+
+const pixelLeftArmStyle: React.CSSProperties = {
+  position: "absolute",
+  left: 3,
+  top: 30,
+  width: 8,
+  height: 20,
+  background: "#d8a05f",
+  boxShadow: "0 8px 0 #8b4513",
+};
+
+const pixelRightArmStyle: React.CSSProperties = {
+  position: "absolute",
+  left: 35,
+  top: 28,
+  width: 8,
+  height: 20,
+  background: "#d8a05f",
+  boxShadow: "0 8px 0 #8b4513",
+};
+
+const pixelLeftLegStyle: React.CSSProperties = {
+  position: "absolute",
+  left: 12,
+  top: 49,
+  width: 9,
+  height: 9,
+  background: "#111827",
+  boxShadow: "0 5px 0 #0f172a",
+};
+
+const pixelRightLegStyle: React.CSSProperties = {
+  position: "absolute",
+  left: 26,
+  top: 49,
+  width: 9,
+  height: 9,
+  background: "#111827",
+  boxShadow: "0 5px 0 #0f172a",
+};
+
+const pixelSwordStyle: React.CSSProperties = {
+  position: "absolute",
+  left: 39,
+  top: 8,
+  width: 5,
+  height: 38,
+  background: "#e5e7eb",
+  boxShadow: "0 0 0 2px #94a3b8, -4px 28px 0 #d6b05f, 4px 28px 0 #d6b05f",
+  transform: "rotate(20deg)",
+  transformOrigin: "bottom center",
 };
 
 const groundStyle: React.CSSProperties = {

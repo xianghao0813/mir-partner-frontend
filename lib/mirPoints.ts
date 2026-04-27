@@ -309,7 +309,7 @@ function getPointSourceDescription(source: string) {
     case "wallet_recharge":
       return "根据云币充值金额自动发放";
     case "boss_last_hit":
-      return "Boss Last Hit 小游戏奖励";
+      return "遗迹冲刺小游戏奖励";
     default:
       return source || "积分变动";
   }
