@@ -117,7 +117,8 @@ const RUNNER_BIOMES: RunnerBiome[] = [
 ];
 
 function getBiomeForDistance(distance: number) {
-  return RUNNER_BIOMES[Math.floor(distance / BIOME_DISTANCE) % RUNNER_BIOMES.length];
+  const safeDistance = Number.isFinite(distance) && distance > 0 ? distance : 0;
+  return RUNNER_BIOMES[Math.floor(safeDistance / BIOME_DISTANCE) % RUNNER_BIOMES.length] ?? RUNNER_BIOMES[0];
 }
 
 export default function BossSlashTrial({
@@ -271,8 +272,8 @@ export default function BossSlashTrial({
         return;
       }
 
-      syncGameStateFromApi(payload.game);
       resetLocalRun();
+      syncGameStateFromApi(payload.game, { preserveActive: true });
       beginLoop();
       setStatusMessage("挑战开始。按空格、W，或点击跳跃来越过障碍。支持二段跳。");
     } catch (error) {
@@ -589,7 +590,7 @@ export default function BossSlashTrial({
     setServerDuration(game.durationMs);
     setRuns(game.runs);
     setGameFinished(game.gameFinished);
-    setGameActive(options?.preserveActive ? true : game.gameActive);
+    setGameActive(options?.preserveActive ? activeRef.current : game.gameActive);
     setRewardClaimedDate(game.rewardClaimedDate ?? "");
   }
 
