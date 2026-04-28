@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import type { User, UserMetadata } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
@@ -189,20 +190,20 @@ async function createNextPartnerCode() {
       .map((user) => readValidPartnerCode(user.user_metadata?.partner_code))
       .filter(Boolean)
   );
-  let nextNumber =
-    data.users.filter((user) => readString(user.user_metadata?.quicksdk_uid)).length + 1;
-  let nextCode = formatPartnerCode(nextNumber);
 
-  while (existingCodes.has(nextCode)) {
-    nextNumber += 1;
-    nextCode = formatPartnerCode(nextNumber);
+  for (let attempt = 0; attempt < 30; attempt += 1) {
+    const nextCode = createRandomPartnerCode();
+
+    if (!existingCodes.has(nextCode)) {
+      return nextCode;
+    }
   }
 
-  return nextCode;
+  throw new Error("Failed to create a unique partner code.");
 }
 
-function formatPartnerCode(value: number) {
-  return `LP${String(value).padStart(6, "0")}`;
+function createRandomPartnerCode() {
+  return `LP${crypto.randomInt(0, 1000000).toString().padStart(6, "0")}`;
 }
 
 function readValidPartnerCode(value: unknown) {

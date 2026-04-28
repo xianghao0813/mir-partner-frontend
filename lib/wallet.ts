@@ -90,6 +90,8 @@ export async function reconcileQuickSdkRechargePoints(user: User) {
     const existingPointTransactions = Array.isArray(metadata?.mir_point_transactions)
       ? metadata.mir_point_transactions
       : [];
+    const existingPointTotal = readPointTransactionTotal(existingPointTransactions);
+    const currentMirPoints = readMetadataNumber(metadata?.mir_points);
     const hasWalletTransaction = existingWalletTransactions.some((item) => item.id === transactionId);
     const hasPointTransaction = existingPointTransactions.some((item) => {
       if (!item || typeof item !== "object") return false;
@@ -114,6 +116,14 @@ export async function reconcileQuickSdkRechargePoints(user: User) {
         now: paidAt,
       });
       metadata = pointAward.metadata;
+      changed = true;
+    }
+
+    if (currentMirPoints < existingPointTotal) {
+      metadata = {
+        ...metadata,
+        mir_points: existingPointTotal,
+      };
       changed = true;
     }
 
@@ -149,6 +159,30 @@ export async function reconcileQuickSdkRechargePoints(user: User) {
   }
 
   return metadata;
+}
+
+function readPointTransactionTotal(items: unknown[]): number {
+  return items.reduce<number>((total, item) => {
+    if (!item || typeof item !== "object") {
+      return total;
+    }
+
+    const source = item as Record<string, unknown>;
+    return total + readMetadataNumber(source.points ?? source.amount ?? source.value);
+  }, 0);
+}
+
+function readMetadataNumber(value: unknown) {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return Math.max(0, Math.floor(value));
+  }
+  if (typeof value === "string") {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) {
+      return Math.max(0, Math.floor(parsed));
+    }
+  }
+  return 0;
 }
 
 export function readCloudCoins(metadata: UserMetadata | undefined) {

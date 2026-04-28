@@ -36,11 +36,15 @@ export default function ProfileContent({ profile }: ProfileContentProps) {
         Math.max(
           0,
           Math.round(
-            ((currentPoints - currentTier.minPoints) / (nextTier.minPoints - currentTier.minPoints)) * 100
-          )
+            ((currentPoints - currentTier.minPoints) / (nextTier.minPoints - currentTier.minPoints)) * 1000
+          ) / 10
         )
       )
     : 100;
+  const progressPercentText =
+    progressPercent > 0 && progressPercent < 1
+      ? `${progressPercent.toFixed(1)}%`
+      : `${Math.round(progressPercent)}%`;
   const filteredPointTransactions = pointTransactions.filter((entry) =>
     ledgerMonth ? (entry.createdAt ?? "").startsWith(ledgerMonth) : true
   );
@@ -69,12 +73,12 @@ export default function ProfileContent({ profile }: ProfileContentProps) {
                   <div style={infoLabelStyle}>当前合伙人星级</div>
                   <div style={{ ...tierGaugeTitleStyle, color: currentTier.accent }}>{currentTier.label}</div>
                 </div>
-                <div style={tierGaugePercentStyle}>{progressPercent}%</div>
+                <div style={tierGaugePercentStyle}>{progressPercentText}</div>
               </div>
 
               <div style={tierProgressStyle}>
                 <div style={tierProgressHeaderStyle}>
-                  <span>{currentTier.minPoints.toLocaleString()} 分</span>
+                  <span>当前 {currentPoints.toLocaleString()} 分</span>
                   <span>{nextTier ? `${nextTier.minPoints.toLocaleString()} 分` : "最高星级"}</span>
                 </div>
                 <div style={progressRailStyle}>
@@ -607,7 +611,7 @@ const ledgerNegativeAmountStyle: React.CSSProperties = {
 
 const tierCarouselStyle: React.CSSProperties = {
   position: "relative",
-  height: "360px",
+  height: "390px",
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
@@ -616,13 +620,13 @@ const tierCarouselStyle: React.CSSProperties = {
 
 const tierCardButtonStyle = (offset: number, isActive: boolean): React.CSSProperties => ({
   position: "absolute",
-  width: "min(360px, 82vw)",
-  height: "300px",
+  width: "min(560px, 96%)",
+  height: "330px",
   border: "none",
   padding: 0,
   background: "transparent",
   cursor: "pointer",
-  transform: `translateX(${offset * 42}%) scale(${isActive ? 1 : 0.86}) rotate(${offset * -3}deg)`,
+  transform: `translateX(${offset * 34}%) scale(${isActive ? 1 : 0.84}) rotate(${offset * -2.5}deg)`,
   opacity: isActive ? 1 : 0.58,
   zIndex: 20 - Math.abs(offset),
   transition:
@@ -635,7 +639,7 @@ const tierCardStyle = (isActive: boolean, accent: string): React.CSSProperties =
   height: "100%",
   boxSizing: "border-box",
   borderRadius: "24px",
-  padding: "24px",
+  padding: "26px 30px",
   textAlign: "left",
   color: "white",
   background: isActive
@@ -653,12 +657,16 @@ const tierCardStyle = (isActive: boolean, accent: string): React.CSSProperties =
 const tierCardBadgeStyle: React.CSSProperties = {
   fontSize: "28px",
   fontWeight: 800,
+  lineHeight: 1.15,
+  wordBreak: "keep-all",
 };
 
 const tierCardPointsStyle: React.CSSProperties = {
   fontSize: "34px",
   fontWeight: 800,
   color: "#f8fafc",
+  lineHeight: 1.1,
+  wordBreak: "break-word",
 };
 
 const tierCardTextStyle: React.CSSProperties = {
@@ -679,4 +687,7 @@ const tierBenefitItemStyle: React.CSSProperties = {
   border: "1px solid rgba(255,255,255,0.07)",
   color: "#d1d5db",
   fontSize: "13px",
+  lineHeight: 1.45,
+  whiteSpace: "normal",
+  overflowWrap: "anywhere",
 };
