@@ -55,10 +55,70 @@ const GRAVITY = 0.95;
 const JUMP_FORCE = 15.5;
 const MAX_JUMPS = 2;
 const START_SPEED = 3.6;
-const MAX_SPEED = 13.2;
+const MAX_SPEED = 16.8;
 const TARGET_SCORE = 5000;
 const FEVER_INTERVAL_SCORE = 1000;
 const FEVER_DURATION_MS = 5000;
+
+type RunnerBiome = {
+  label: string;
+  track: string;
+  skyline: string;
+  ground: string;
+};
+
+const BIOME_DISTANCE = 10000;
+const RUNNER_BIOMES: RunnerBiome[] = [
+  {
+    label: "森林",
+    track:
+      "linear-gradient(180deg, #24462d 0%, #152819 68%, #0d1710 100%), repeating-linear-gradient(90deg, rgba(74,222,128,0.14) 0 12px, transparent 12px 38px)",
+    skyline:
+      "linear-gradient(180deg, rgba(30,64,43,0.22) 0%, rgba(9,23,14,0.72) 100%), repeating-linear-gradient(90deg, transparent 0 22px, rgba(34,197,94,0.24) 22px 36px, transparent 36px 76px)",
+    ground:
+      "linear-gradient(180deg, #31572c 0%, #1f2f16 100%), repeating-linear-gradient(90deg, rgba(190,242,100,0.18) 0 8px, transparent 8px 24px)",
+  },
+  {
+    label: "沙漠",
+    track:
+      "linear-gradient(180deg, #8a5a2b 0%, #51301a 62%, #22140b 100%), repeating-linear-gradient(90deg, rgba(254,215,170,0.14) 0 18px, transparent 18px 54px)",
+    skyline:
+      "linear-gradient(180deg, rgba(251,191,36,0.22) 0%, rgba(88,44,16,0.68) 100%), repeating-linear-gradient(90deg, transparent 0 40px, rgba(251,146,60,0.18) 40px 86px)",
+    ground:
+      "linear-gradient(180deg, #b7792f 0%, #6b3f1d 100%), repeating-linear-gradient(90deg, rgba(255,237,213,0.22) 0 14px, transparent 14px 34px)",
+  },
+  {
+    label: "岩石",
+    track:
+      "linear-gradient(180deg, #475569 0%, #263241 64%, #111827 100%), repeating-linear-gradient(90deg, rgba(203,213,225,0.12) 0 10px, transparent 10px 34px)",
+    skyline:
+      "linear-gradient(180deg, rgba(148,163,184,0.16) 0%, rgba(15,23,42,0.72) 100%), repeating-linear-gradient(90deg, transparent 0 26px, rgba(148,163,184,0.18) 26px 48px, transparent 48px 82px)",
+    ground:
+      "linear-gradient(180deg, #64748b 0%, #334155 100%), repeating-linear-gradient(90deg, rgba(226,232,240,0.16) 0 11px, transparent 11px 29px)",
+  },
+  {
+    label: "熔岩",
+    track:
+      "linear-gradient(180deg, #5f1717 0%, #2a0c0c 62%, #09090b 100%), repeating-linear-gradient(90deg, rgba(248,113,113,0.16) 0 8px, transparent 8px 30px)",
+    skyline:
+      "linear-gradient(180deg, rgba(239,68,68,0.24) 0%, rgba(24,10,10,0.82) 100%), repeating-linear-gradient(90deg, transparent 0 34px, rgba(249,115,22,0.2) 34px 48px, transparent 48px 88px)",
+    ground:
+      "linear-gradient(180deg, #7f1d1d 0%, #1f0808 100%), repeating-linear-gradient(90deg, rgba(251,146,60,0.32) 0 7px, transparent 7px 23px)",
+  },
+  {
+    label: "云端",
+    track:
+      "linear-gradient(180deg, #5b7bbd 0%, #334f8c 58%, #172554 100%), repeating-linear-gradient(90deg, rgba(255,255,255,0.14) 0 18px, transparent 18px 52px)",
+    skyline:
+      "linear-gradient(180deg, rgba(191,219,254,0.28) 0%, rgba(37,99,235,0.5) 100%), repeating-linear-gradient(90deg, rgba(255,255,255,0.14) 0 28px, transparent 28px 72px)",
+    ground:
+      "linear-gradient(180deg, #dbeafe 0%, #93c5fd 100%), repeating-linear-gradient(90deg, rgba(255,255,255,0.55) 0 18px, transparent 18px 40px)",
+  },
+];
+
+function getBiomeForDistance(distance: number) {
+  return RUNNER_BIOMES[Math.floor(distance / BIOME_DISTANCE) % RUNNER_BIOMES.length];
+}
 
 export default function BossSlashTrial({
   initialPoints,
@@ -171,6 +231,7 @@ export default function BossSlashTrial({
   }, []);
 
   const progress = useMemo(() => Math.min(1, score / requiredScore), [requiredScore, score]);
+  const currentBiome = getBiomeForDistance(distance);
 
   async function fetchRunnerStatus() {
     try {
@@ -280,7 +341,7 @@ export default function BossSlashTrial({
 
     const nextDistance = distanceRef.current + speedRef.current * (delta / 16);
     const nextScore = Math.floor(nextDistance / 7) + obstaclesRef.current * 12;
-    const nextSpeed = Math.min(MAX_SPEED, START_SPEED + nextDistance / 210);
+    const nextSpeed = Math.min(MAX_SPEED, START_SPEED + nextDistance / 390);
     const playerVelocity = velocityRef.current - GRAVITY * (delta / 16);
     let nextPlayerY = Math.max(0, playerYRef.current + playerVelocity * (delta / 16));
 
@@ -304,7 +365,7 @@ export default function BossSlashTrial({
 
     if (nextSpawnRef.current <= 0) {
       nextObstacles.push(...createObstaclePattern());
-      nextSpawnRef.current = Math.max(540, 1380 + Math.random() * 760 - nextSpeed * 42);
+      nextSpawnRef.current = Math.max(460, 1180 + Math.random() * 560 - nextSpeed * 34);
     }
 
     let nextCleared = obstaclesRef.current;
@@ -349,7 +410,7 @@ export default function BossSlashTrial({
         distance: nextDistance,
         obstaclesCleared: nextCleared,
         durationMs: Math.max(0, Math.floor(timestamp - startedAtRef.current)),
-      });
+      }, { preserveActive: true });
     }
 
     const collided = !feverActiveRef.current && nextObstacles.some((obstacle) => {
@@ -398,17 +459,17 @@ export default function BossSlashTrial({
     const canUseSpecialPattern = obstacleIdRef.current > 2;
     const roll = Math.random();
 
-    if (canUseSpecialPattern && roll < 0.3) {
-      const first = createObstacle("double", 0, 22 + Math.random() * 8, 42 + Math.random() * 8);
-      const second = createObstacle("double", 70 + Math.random() * 20, 22 + Math.random() * 8, 42 + Math.random() * 8);
+    if (canUseSpecialPattern && roll < 0.38) {
+      const first = createObstacle("double", 0, 24 + Math.random() * 10, 42 + Math.random() * 12);
+      const second = createObstacle("double", 58 + Math.random() * 18, 24 + Math.random() * 10, 44 + Math.random() * 14);
       return [first, second];
     }
 
-    if (canUseSpecialPattern && roll < 0.55) {
-      return [createObstacle("high", 0, 24 + Math.random() * 14, 78 + Math.random() * 20)];
+    if (canUseSpecialPattern && roll < 0.68) {
+      return [createObstacle("high", 0, 28 + Math.random() * 14, 88 + Math.random() * 22)];
     }
 
-    return [createObstacle("normal", 0, 18 + Math.random() * 22, 22 + Math.random() * 28)];
+    return [createObstacle("normal", 0, 20 + Math.random() * 24, 28 + Math.random() * 30)];
   }
 
   function createObstacle(
@@ -445,12 +506,14 @@ export default function BossSlashTrial({
     distance: number;
     obstaclesCleared: number;
     durationMs: number;
-  }) {
-    if (submittedRef.current && result.score <= serverScore) {
+  }, options?: { preserveActive?: boolean }) {
+    if (submittedRef.current && result.score <= serverScore && !options?.preserveActive) {
       return;
     }
 
-    submittedRef.current = true;
+    if (!options?.preserveActive) {
+      submittedRef.current = true;
+    }
 
     try {
       setIsSubmittingRun(true);
@@ -468,7 +531,7 @@ export default function BossSlashTrial({
         return;
       }
 
-      syncGameStateFromApi(payload.game);
+      syncGameStateFromApi(payload.game, options);
     } catch (error) {
       console.error(error);
       setStatusMessage("无法保存本次成绩。");
@@ -513,7 +576,7 @@ export default function BossSlashTrial({
     }
   }
 
-  function syncGameStateFromApi(game: BossGamePayload | null) {
+  function syncGameStateFromApi(game: BossGamePayload | null, options?: { preserveActive?: boolean }) {
     if (!game) {
       return;
     }
@@ -526,21 +589,21 @@ export default function BossSlashTrial({
     setServerDuration(game.durationMs);
     setRuns(game.runs);
     setGameFinished(game.gameFinished);
-    setGameActive(game.gameActive);
+    setGameActive(options?.preserveActive ? true : game.gameActive);
     setRewardClaimedDate(game.rewardClaimedDate ?? "");
   }
 
   const skylineStyle: React.CSSProperties = {
     position: "absolute",
     inset: 0,
-    background:
-      "linear-gradient(180deg, rgba(20,26,38,0.1) 0%, rgba(20,26,38,0.6) 100%), radial-gradient(circle at 20% 20%, rgba(255,207,128,0.35), transparent 30%), linear-gradient(90deg, rgba(255,255,255,0.06) 0 2px, transparent 2px 70px)",
+    background: currentBiome.skyline,
     opacity: 0.95,
+    imageRendering: "pixelated",
   };
 
   return (
     <section style={shellStyle}>
-      <style jsx>{`
+      <style jsx global>{`
         @keyframes feverSweep {
           0% {
             transform: translateX(-36%);
@@ -558,6 +621,26 @@ export default function BossSlashTrial({
           to {
             transform: scale(1.12);
             opacity: 1;
+          }
+        }
+
+        @keyframes pixelRunLeft {
+          0%,
+          100% {
+            transform: translate(0, 0);
+          }
+          50% {
+            transform: translate(-4px, 3px);
+          }
+        }
+
+        @keyframes pixelRunRight {
+          0%,
+          100% {
+            transform: translate(3px, 3px);
+          }
+          50% {
+            transform: translate(0, 0);
           }
         }
       `}</style>
@@ -596,7 +679,13 @@ export default function BossSlashTrial({
             <div style={{ ...progressFillStyle, transform: `scaleX(${progress})` }} />
           </div>
 
-          <div style={{ ...trackShellStyle, ...(feverActive ? feverTrackShellStyle : null) }}>
+          <div
+            style={{
+              ...trackShellStyle,
+              background: currentBiome.track,
+              ...(feverActive ? feverTrackShellStyle : null),
+            }}
+          >
             <div style={skylineStyle} />
             <div style={sunGlowStyle} />
             {feverActive ? <div style={feverOverlayStyle} /> : null}
@@ -636,11 +725,21 @@ export default function BossSlashTrial({
               </div>
               <div style={pixelLeftArmStyle} />
               <div style={pixelRightArmStyle} />
-              <div style={pixelLeftLegStyle} />
-              <div style={pixelRightLegStyle} />
+              <div
+                style={{
+                  ...pixelLeftLegStyle,
+                  ...(gameActive && !isJumping ? pixelLeftLegRunStyle : null),
+                }}
+              />
+              <div
+                style={{
+                  ...pixelRightLegStyle,
+                  ...(gameActive && !isJumping ? pixelRightLegRunStyle : null),
+                }}
+              />
               <div style={pixelSwordStyle} />
             </div>
-            <div style={groundStyle} />
+            <div style={{ ...groundStyle, background: currentBiome.ground }} />
           </div>
 
           <div style={controlRowStyle}>
@@ -860,6 +959,7 @@ const trackShellStyle: React.CSSProperties = {
   borderRadius: 22,
   overflow: "hidden",
   background: "linear-gradient(180deg, #25334b 0%, #111827 75%)",
+  imageRendering: "pixelated",
 };
 
 const feverTrackShellStyle: React.CSSProperties = {
@@ -1047,6 +1147,10 @@ const pixelLeftLegStyle: React.CSSProperties = {
   boxShadow: "0 5px 0 #0f172a",
 };
 
+const pixelLeftLegRunStyle: React.CSSProperties = {
+  animation: "pixelRunLeft 260ms steps(2, end) infinite",
+};
+
 const pixelRightLegStyle: React.CSSProperties = {
   position: "absolute",
   left: 26,
@@ -1055,6 +1159,10 @@ const pixelRightLegStyle: React.CSSProperties = {
   height: 9,
   background: "#111827",
   boxShadow: "0 5px 0 #0f172a",
+};
+
+const pixelRightLegRunStyle: React.CSSProperties = {
+  animation: "pixelRunRight 260ms steps(2, end) infinite",
 };
 
 const pixelSwordStyle: React.CSSProperties = {
