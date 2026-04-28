@@ -53,17 +53,18 @@ const PLAYER_WIDTH = 44;
 const PLAYER_HEIGHT = 58;
 const GRAVITY = 0.95;
 const JUMP_FORCE = 15.5;
-const MAX_JUMPS = 2;
+const MAX_JUMPS = 1;
 const START_SPEED = 3.6;
 const MAX_SPEED = 16.8;
 const TARGET_SCORE = 5000;
 const FEVER_INTERVAL_SCORE = 1000;
-const FEVER_DURATION_MS = 5000;
+const FEVER_DURATION_MS = 3000;
 
 type RunnerBiome = {
   label: string;
   track: string;
   skyline: string;
+  objects: string;
   ground: string;
 };
 
@@ -75,6 +76,8 @@ const RUNNER_BIOMES: RunnerBiome[] = [
       "linear-gradient(180deg, #24462d 0%, #152819 68%, #0d1710 100%), repeating-linear-gradient(90deg, rgba(74,222,128,0.14) 0 12px, transparent 12px 38px)",
     skyline:
       "linear-gradient(180deg, rgba(30,64,43,0.22) 0%, rgba(9,23,14,0.72) 100%), repeating-linear-gradient(90deg, transparent 0 22px, rgba(34,197,94,0.24) 22px 36px, transparent 36px 76px)",
+    objects:
+      "linear-gradient(#4ade80 0 0) 58px 82px / 30px 42px no-repeat, linear-gradient(#166534 0 0) 70px 118px / 8px 50px no-repeat, linear-gradient(#22c55e 0 0) 128px 66px / 42px 54px no-repeat, linear-gradient(#14532d 0 0) 146px 112px / 10px 58px no-repeat, linear-gradient(#86efac 0 0) 282px 78px / 34px 46px no-repeat, linear-gradient(#166534 0 0) 295px 116px / 8px 54px no-repeat, linear-gradient(#22c55e 0 0) 402px 70px / 48px 58px no-repeat, linear-gradient(#14532d 0 0) 422px 116px / 10px 58px no-repeat",
     ground:
       "linear-gradient(180deg, #31572c 0%, #1f2f16 100%), repeating-linear-gradient(90deg, rgba(190,242,100,0.18) 0 8px, transparent 8px 24px)",
   },
@@ -84,6 +87,8 @@ const RUNNER_BIOMES: RunnerBiome[] = [
       "linear-gradient(180deg, #8a5a2b 0%, #51301a 62%, #22140b 100%), repeating-linear-gradient(90deg, rgba(254,215,170,0.14) 0 18px, transparent 18px 54px)",
     skyline:
       "linear-gradient(180deg, rgba(251,191,36,0.22) 0%, rgba(88,44,16,0.68) 100%), repeating-linear-gradient(90deg, transparent 0 40px, rgba(251,146,60,0.18) 40px 86px)",
+    objects:
+      "linear-gradient(135deg, transparent 0 45%, #b45309 46% 100%) 44px 120px / 110px 50px no-repeat, linear-gradient(135deg, transparent 0 45%, #92400e 46% 100%) 126px 132px / 96px 38px no-repeat, linear-gradient(#166534 0 0) 308px 104px / 8px 66px no-repeat, linear-gradient(#166534 0 0) 288px 122px / 48px 8px no-repeat, linear-gradient(#166534 0 0) 298px 84px / 30px 8px no-repeat, linear-gradient(#78350f 0 0) 412px 134px / 74px 36px no-repeat",
     ground:
       "linear-gradient(180deg, #b7792f 0%, #6b3f1d 100%), repeating-linear-gradient(90deg, rgba(255,237,213,0.22) 0 14px, transparent 14px 34px)",
   },
@@ -93,6 +98,8 @@ const RUNNER_BIOMES: RunnerBiome[] = [
       "linear-gradient(180deg, #475569 0%, #263241 64%, #111827 100%), repeating-linear-gradient(90deg, rgba(203,213,225,0.12) 0 10px, transparent 10px 34px)",
     skyline:
       "linear-gradient(180deg, rgba(148,163,184,0.16) 0%, rgba(15,23,42,0.72) 100%), repeating-linear-gradient(90deg, transparent 0 26px, rgba(148,163,184,0.18) 26px 48px, transparent 48px 82px)",
+    objects:
+      "linear-gradient(135deg, transparent 0 38%, #64748b 39% 100%) 30px 100px / 96px 70px no-repeat, linear-gradient(135deg, transparent 0 42%, #475569 43% 100%) 104px 86px / 126px 84px no-repeat, linear-gradient(135deg, transparent 0 42%, #334155 43% 100%) 256px 112px / 90px 58px no-repeat, linear-gradient(135deg, transparent 0 40%, #64748b 41% 100%) 370px 78px / 116px 92px no-repeat",
     ground:
       "linear-gradient(180deg, #64748b 0%, #334155 100%), repeating-linear-gradient(90deg, rgba(226,232,240,0.16) 0 11px, transparent 11px 29px)",
   },
@@ -102,6 +109,8 @@ const RUNNER_BIOMES: RunnerBiome[] = [
       "linear-gradient(180deg, #5f1717 0%, #2a0c0c 62%, #09090b 100%), repeating-linear-gradient(90deg, rgba(248,113,113,0.16) 0 8px, transparent 8px 30px)",
     skyline:
       "linear-gradient(180deg, rgba(239,68,68,0.24) 0%, rgba(24,10,10,0.82) 100%), repeating-linear-gradient(90deg, transparent 0 34px, rgba(249,115,22,0.2) 34px 48px, transparent 48px 88px)",
+    objects:
+      "linear-gradient(135deg, transparent 0 42%, #3f0b0b 43% 100%) 36px 80px / 130px 90px no-repeat, linear-gradient(45deg, transparent 0 42%, #571313 43% 100%) 126px 96px / 112px 74px no-repeat, linear-gradient(#fb923c 0 0) 128px 92px / 18px 78px no-repeat, linear-gradient(#f97316 0 0) 146px 112px / 12px 58px no-repeat, linear-gradient(135deg, transparent 0 42%, #450a0a 43% 100%) 326px 72px / 150px 98px no-repeat, linear-gradient(#facc15 0 0) 406px 96px / 16px 74px no-repeat",
     ground:
       "linear-gradient(180deg, #7f1d1d 0%, #1f0808 100%), repeating-linear-gradient(90deg, rgba(251,146,60,0.32) 0 7px, transparent 7px 23px)",
   },
@@ -111,6 +120,8 @@ const RUNNER_BIOMES: RunnerBiome[] = [
       "linear-gradient(180deg, #5b7bbd 0%, #334f8c 58%, #172554 100%), repeating-linear-gradient(90deg, rgba(255,255,255,0.14) 0 18px, transparent 18px 52px)",
     skyline:
       "linear-gradient(180deg, rgba(191,219,254,0.28) 0%, rgba(37,99,235,0.5) 100%), repeating-linear-gradient(90deg, rgba(255,255,255,0.14) 0 28px, transparent 28px 72px)",
+    objects:
+      "linear-gradient(#eff6ff 0 0) 44px 108px / 82px 24px no-repeat, linear-gradient(#bfdbfe 0 0) 84px 92px / 56px 24px no-repeat, linear-gradient(#eff6ff 0 0) 182px 74px / 96px 26px no-repeat, linear-gradient(#dbeafe 0 0) 238px 96px / 74px 22px no-repeat, linear-gradient(#eff6ff 0 0) 364px 112px / 112px 28px no-repeat, linear-gradient(#bfdbfe 0 0) 398px 88px / 64px 26px no-repeat",
     ground:
       "linear-gradient(180deg, #dbeafe 0%, #93c5fd 100%), repeating-linear-gradient(90deg, rgba(255,255,255,0.55) 0 18px, transparent 18px 40px)",
   },
@@ -690,6 +701,7 @@ export default function BossSlashTrial({
             <div style={skylineStyle} />
             <div style={sunGlowStyle} />
             {feverActive ? <div style={feverOverlayStyle} /> : null}
+            <div style={{ ...biomeObjectLayerStyle, background: currentBiome.objects }} />
             <div style={trackRuinLayerStyle} />
             {obstacles.map((obstacle) => (
               <div
@@ -773,7 +785,7 @@ export default function BossSlashTrial({
 
           <div style={hintRowStyle}>
             <span>操作：空格 / W / 方向上 / 点击跳跃</span>
-            <span>支持二段跳：{jumpCount}/{MAX_JUMPS}</span>
+            <span>跳跃次数：{jumpCount}/{MAX_JUMPS}</span>
             <span>
               疾风模式：
               {feverActive
@@ -986,6 +998,18 @@ const sunGlowStyle: React.CSSProperties = {
   height: 110,
   borderRadius: "50%",
   background: "radial-gradient(circle, rgba(255,210,124,0.75), rgba(255,210,124,0.06) 68%, transparent 72%)",
+};
+
+const biomeObjectLayerStyle: React.CSSProperties = {
+  position: "absolute",
+  left: 0,
+  right: 0,
+  bottom: GROUND_HEIGHT,
+  height: TRACK_HEIGHT - GROUND_HEIGHT,
+  zIndex: 1,
+  opacity: 0.88,
+  imageRendering: "pixelated",
+  pointerEvents: "none",
 };
 
 const trackRuinLayerStyle: React.CSSProperties = {
