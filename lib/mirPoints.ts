@@ -311,7 +311,7 @@ function appendPointTransaction(
     ? metadata.mir_point_transactions
     : [];
 
-  return [transaction, ...current].slice(0, 300);
+  return [transaction, ...current].slice(0, 20);
 }
 
 function getPointSourceTitle(source: string) {

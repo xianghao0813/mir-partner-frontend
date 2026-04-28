@@ -5,6 +5,7 @@ import {
   MIR_PARTNER_TIERS,
   type MirPartnerTier,
 } from "@/lib/mirPoints";
+import { readPointTransactionsFromDb } from "@/lib/userLedgers";
 
 export { MIR_PARTNER_TIERS, type MirPartnerTier };
 
@@ -30,7 +31,7 @@ export type PartnerPointTransaction = {
   source: string;
 };
 
-export function buildPartnerProfileSummary(user: User): PartnerProfileSummary {
+export async function buildPartnerProfileSummary(user: User): Promise<PartnerProfileSummary> {
   const uid = String(user.user_metadata?.quicksdk_uid ?? "").trim();
   const partnerCode =
     readStringMetadata(user, [
@@ -40,6 +41,7 @@ export function buildPartnerProfileSummary(user: User): PartnerProfileSummary {
       "mirPartnerCode",
     ]) || createPartnerCode(user.id);
   const pointsSummary = buildMirPointSummary(user.user_metadata);
+  const dbPointTransactions = await readPointTransactionsFromDb(user.id);
 
   return {
     partnerCode,
@@ -51,7 +53,7 @@ export function buildPartnerProfileSummary(user: User): PartnerProfileSummary {
     progressPercent: pointsSummary.progressPercent,
     pointsToNextTier: pointsSummary.pointsToNextTier,
     upgradedThisMonth: pointsSummary.upgradedThisMonth,
-    pointTransactions: readPointTransactions(user.user_metadata),
+    pointTransactions: dbPointTransactions.length > 0 ? dbPointTransactions : readPointTransactions(user.user_metadata),
   };
 }
 

@@ -1,8 +1,10 @@
 import { cookies } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
+import { compactAuthMetadata } from "@/lib/authMetadata";
 import { createClient } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { awardMirPoints } from "@/lib/mirPoints";
+import { insertPointTransaction } from "@/lib/userLedgers";
 import {
   BOSS_LAST_HIT_COOKIE,
   BOSS_LAST_HIT_REWARD_POINTS,
@@ -58,11 +60,11 @@ export async function POST(request: NextRequest) {
   });
 
   const { error } = await supabaseAdmin.auth.admin.updateUserById(user.id, {
-    user_metadata: {
+    user_metadata: compactAuthMetadata({
       ...pointAward.metadata,
       boss_last_hit_reward_date: today,
       boss_last_hit_reward_receipt: receipt,
-    },
+    }),
   });
 
   if (error) {
@@ -76,6 +78,19 @@ export async function POST(request: NextRequest) {
   const pointTransactions = Array.isArray(pointAward.metadata.mir_point_transactions)
     ? pointAward.metadata.mir_point_transactions
     : [];
+  const latestPointTransaction = pointTransactions[0];
+
+  if (latestPointTransaction && typeof latestPointTransaction === "object") {
+    const source = latestPointTransaction as Record<string, unknown>;
+    await insertPointTransaction(user.id, {
+      id: readString(source.id),
+      title: readString(source.title) || "MIR 积分",
+      description: readString(source.description) || readString(source.source) || "-",
+      points: readNumber(source.points),
+      createdAt: readString(source.createdAt) || new Date().toISOString(),
+      source: readString(source.source) || "boss_last_hit",
+    });
+  }
 
   const response = NextResponse.json({
     ok: true,
@@ -96,4 +111,23 @@ export async function POST(request: NextRequest) {
   });
 
   return response;
+}
+
+function readString(value: unknown) {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function readNumber(value: unknown) {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return Math.floor(value);
+  }
+
+  if (typeof value === "string") {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) {
+      return Math.floor(parsed);
+    }
+  }
+
+  return 0;
 }

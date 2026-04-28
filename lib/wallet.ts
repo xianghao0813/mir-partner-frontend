@@ -1,4 +1,5 @@
-import type { User, UserMetadata } from "@supabase/supabase-js";
+﻿import type { User, UserMetadata } from "@supabase/supabase-js";
+import { compactAuthMetadata } from "@/lib/authMetadata";
 import { createPartnerCode } from "@/lib/partnerProfile";
 import { awardMirPoints } from "@/lib/mirPoints";
 import {
@@ -7,6 +8,12 @@ import {
   type QuickSdkOrderData,
 } from "@/lib/quicksdk";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import {
+  insertPointTransaction,
+  insertWalletTransaction,
+  migrateMetadataLedgersToDb,
+  readWalletTransactionsFromDb,
+} from "@/lib/userLedgers";
 
 export type WalletTransaction = {
   id: string;
@@ -33,17 +40,18 @@ export async function buildWalletSummary(user: User): Promise<WalletSummary> {
   const account =
     user.email?.trim() ||
     readStringMetadata(user.user_metadata, ["quicksdk_username", "username"]) ||
-    "当前登录账号";
+    "褰撳墠鐧诲綍璐﹀彿";
   const uid = readStringMetadata(user.user_metadata, ["quicksdk_uid", "uid"]) || extractAccountUid(account);
   const sdkWallet = uid ? await readQuickSdkWallet(uid) : null;
-  const localTransactions = readWalletTransactions(user.user_metadata);
+  const dbTransactions = await readWalletTransactionsFromDb(user.id);
+  const localTransactions = dbTransactions.length > 0 ? dbTransactions : readWalletTransactions(user.user_metadata);
   const sdkOrderTransactions = sdkWallet?.orders.map(mapOrderToTransaction) ?? [];
 
   return {
     account,
     nickname:
       readStringMetadata(user.user_metadata, ["nickname", "quicksdk_username", "username"]) ||
-      "MIR Partner 玩家",
+      "MIR Partner 鐜╁",
     uid,
     partnerCode:
       readStringMetadata(user.user_metadata, [
@@ -52,7 +60,7 @@ export async function buildWalletSummary(user: User): Promise<WalletSummary> {
         "partnerCode",
         "mirPartnerCode",
       ]) || createPartnerCode(user.id),
-    status: "正常",
+    status: "姝ｅ父",
     cloudCoins: sdkWallet?.amount ?? readCloudCoins(user.user_metadata),
     transactions: mergeWalletTransactions([...localTransactions, ...sdkOrderTransactions]),
   };
@@ -60,9 +68,13 @@ export async function buildWalletSummary(user: User): Promise<WalletSummary> {
 
 export async function reconcileQuickSdkRechargePoints(user: User) {
   const uid = readStringMetadata(user.user_metadata, ["quicksdk_uid", "uid"]);
+  let metadata: UserMetadata = compactAuthMetadata(user.user_metadata);
+  let changed = hasMetadataChanged(user.user_metadata, metadata);
+
+  await migrateMetadataLedgersToDb(user.id, user.user_metadata);
 
   if (!uid) {
-    return user.user_metadata;
+    return changed ? await updateUserMetadata(user.id, metadata, user.user_metadata) : metadata;
   }
 
   const orders = await getQuickSdkUserOrders({ userId: uid, payStatus: "1" }).catch((error) => {
@@ -71,11 +83,8 @@ export async function reconcileQuickSdkRechargePoints(user: User) {
   });
 
   if (orders.length === 0) {
-    return user.user_metadata;
+    return changed ? await updateUserMetadata(user.id, metadata, user.user_metadata) : metadata;
   }
-
-  let metadata: UserMetadata = user.user_metadata ?? {};
-  let changed = false;
 
   for (const order of orders) {
     const orderId = order.productOrderNo || order.orderNo;
@@ -114,9 +123,13 @@ export async function reconcileQuickSdkRechargePoints(user: User) {
         source: "wallet_recharge",
         referenceId: transactionId,
         title: "云币充值积分",
-        description: `订单 ${orderId} 自动补发`,
+        description: `璁㈠崟 ${orderId} 鑷姩琛ュ彂`,
         now: paidAt,
       });
+      const pointTransaction = readLatestPointTransaction(pointAward.metadata);
+      if (pointTransaction) {
+        await insertPointTransaction(user.id, pointTransaction);
+      }
       metadata = pointAward.metadata;
       changed = true;
     }
@@ -130,18 +143,20 @@ export async function reconcileQuickSdkRechargePoints(user: User) {
     }
 
     if (!hasWalletTransaction) {
+      const walletTransaction: WalletTransaction = {
+        id: transactionId,
+        type: "recharge",
+        amount,
+        coins: Math.floor(amount),
+        desc: order.productName || "云币充值",
+        date: paidAt.toISOString().slice(0, 10),
+        payMethod: "",
+        status: "success",
+      };
+      await insertWalletTransaction(user.id, walletTransaction);
       metadata = {
         ...metadata,
-        wallet_transactions: appendWalletTransaction(metadata, {
-          id: transactionId,
-          type: "recharge",
-          amount,
-          coins: Math.floor(amount),
-          desc: order.productName || "云币充值",
-          date: paidAt.toISOString().slice(0, 10),
-          payMethod: "",
-          status: "success",
-        }),
+        wallet_transactions: appendWalletTransaction(metadata, walletTransaction),
       };
       changed = true;
     }
@@ -151,16 +166,24 @@ export async function reconcileQuickSdkRechargePoints(user: User) {
     return metadata;
   }
 
-  const { error } = await supabaseAdmin.auth.admin.updateUserById(user.id, {
+  return updateUserMetadata(user.id, compactAuthMetadata(metadata), user.user_metadata);
+}
+
+async function updateUserMetadata(userId: string, metadata: UserMetadata, fallback: UserMetadata | undefined) {
+  const { error } = await supabaseAdmin.auth.admin.updateUserById(userId, {
     user_metadata: metadata,
   });
 
   if (error) {
     console.error("[QuickSDK wallet reconcile update]", error);
-    return user.user_metadata;
+    return fallback ?? {};
   }
 
   return metadata;
+}
+
+function hasMetadataChanged(before: UserMetadata | undefined, after: UserMetadata) {
+  return JSON.stringify(before ?? {}) !== JSON.stringify(after);
 }
 
 function readPointTransactionTotal(items: unknown[]): number {
@@ -172,6 +195,27 @@ function readPointTransactionTotal(items: unknown[]): number {
     const source = item as Record<string, unknown>;
     return total + readMetadataNumber(source.points ?? source.amount ?? source.value);
   }, 0);
+}
+
+function readLatestPointTransaction(metadata: UserMetadata | undefined) {
+  const transactions = Array.isArray(metadata?.mir_point_transactions)
+    ? metadata.mir_point_transactions
+    : [];
+  const latest = transactions[0];
+
+  if (!latest || typeof latest !== "object") {
+    return null;
+  }
+
+  const source = latest as Record<string, unknown>;
+  return {
+    id: readString(source.id),
+    title: readString(source.title) || "MIR 积分",
+    description: readString(source.description) || readString(source.source) || "-",
+    points: readMetadataNumber(source.points ?? source.amount ?? source.value),
+    createdAt: readString(source.createdAt) || new Date().toISOString(),
+    source: readString(source.source) || readString(source.type) || "point",
+  };
 }
 
 function readMetadataNumber(value: unknown) {
@@ -224,7 +268,7 @@ export function appendWalletTransaction(
   transaction: WalletTransaction
 ) {
   const existing = readWalletTransactions(current).filter((item) => item.id !== transaction.id);
-  return [transaction, ...existing].slice(0, 300);
+  return [transaction, ...existing].slice(0, 20);
 }
 
 async function readQuickSdkWallet(uid: string) {
@@ -308,7 +352,7 @@ function normalizeWalletTransaction(value: unknown): WalletTransaction | null {
     type,
     amount,
     coins,
-    desc: desc || "云币变动",
+    desc: desc || "浜戝竵鍙樺姩",
     date,
     payMethod,
     status,

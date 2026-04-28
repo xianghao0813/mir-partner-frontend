@@ -1,5 +1,6 @@
 import { cookies } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
+import { compactAuthMetadata } from "@/lib/authMetadata";
 import { createClient } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import {
@@ -52,11 +53,11 @@ export async function POST(request: NextRequest) {
   });
 
   const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(user.id, {
-    user_metadata: {
+    user_metadata: compactAuthMetadata({
       ...(user.user_metadata ?? {}),
       boss_last_hit_best_score: nextState.bestScore,
       boss_last_hit_runs: nextState.runs,
-    },
+    }),
   });
 
   if (updateError) {

@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import type { User, UserMetadata } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
+import { compactAuthMetadata } from "@/lib/authMetadata";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import {
   getQuickSdkSyntheticEmail,
@@ -172,7 +173,7 @@ function buildQuickSdkMetadata({
     merged.mobile = mobile.trim();
   }
 
-  return merged;
+  return compactAuthMetadata(merged);
 }
 
 async function createNextPartnerCode() {

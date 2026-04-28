@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
+import { compactAuthMetadata } from "@/lib/authMetadata";
 import { settleMonthlyMirPoints } from "@/lib/mirPoints";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { insertPointTransaction } from "@/lib/userLedgers";
 
 export async function POST(request: Request) {
   const secret = process.env.MIR_POINTS_CRON_SECRET?.trim();
@@ -33,8 +35,19 @@ export async function POST(request: Request) {
     }
 
     const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(user.id, {
-      user_metadata: settlement.metadata,
+      user_metadata: compactAuthMetadata(settlement.metadata),
     });
+
+    if (!updateError && settlement.deductedPoints > 0) {
+      await insertPointTransaction(user.id, {
+        id: `monthly-settlement-${settlement.metadata.mir_monthly_settled_key}-${user.id}`,
+        title: "月度星级结算",
+        description: "未完成升星，按当前星级规则扣减积分",
+        points: -settlement.deductedPoints,
+        createdAt: new Date().toISOString(),
+        source: "monthly_settlement",
+      });
+    }
 
     results.push({
       userId: user.id,

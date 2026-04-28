@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
+import { compactAuthMetadata } from "@/lib/authMetadata";
 import { changeQuickSdkPlatformCoins } from "@/lib/quicksdk";
 import { awardMirPoints } from "@/lib/mirPoints";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { insertPointTransaction, insertWalletTransaction } from "@/lib/userLedgers";
 import { appendWalletTransaction, readCloudCoins, readWalletTransactions } from "@/lib/wallet";
 
 export async function POST(request: NextRequest) {
@@ -84,14 +86,19 @@ export async function POST(request: NextRequest) {
     title: "云币充值积分",
     description: `订单 ${cpOrderNo} 自动发放`,
   });
+  await insertWalletTransaction(userId, transaction);
+  const pointTransaction = readLatestPointTransaction(pointAward.metadata);
+  if (pointTransaction) {
+    await insertPointTransaction(userId, pointTransaction);
+  }
 
   const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(userId, {
-    user_metadata: {
+    user_metadata: compactAuthMetadata({
       ...pointAward.metadata,
       cloud_coins: nextCoins,
       wallet_last_order_no: cpOrderNo,
       wallet_transactions: appendWalletTransaction(pointAward.metadata, transaction),
-    },
+    }),
   });
 
   if (updateError) {
@@ -167,4 +174,25 @@ function isSuccessStatus(value: string) {
 
 function containsPlatformCoin(value: string) {
   return value.includes("平台币");
+}
+
+function readLatestPointTransaction(metadata: Record<string, unknown> | undefined) {
+  const transactions = Array.isArray(metadata?.mir_point_transactions)
+    ? metadata.mir_point_transactions
+    : [];
+  const latest = transactions[0];
+
+  if (!latest || typeof latest !== "object") {
+    return null;
+  }
+
+  const source = latest as Record<string, unknown>;
+  return {
+    id: readString(source.id),
+    title: readString(source.title) || "MIR 积分",
+    description: readString(source.description) || readString(source.source) || "-",
+    points: readNumber(source.points ?? source.amount ?? source.value),
+    createdAt: readString(source.createdAt) || new Date().toISOString(),
+    source: readString(source.source) || readString(source.type) || "point",
+  };
 }

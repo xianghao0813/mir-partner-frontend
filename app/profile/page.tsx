@@ -16,7 +16,7 @@ export default async function ProfilePage() {
   }
 
   const reconciledMetadata = await reconcileQuickSdkRechargePoints(user);
-  const profile = buildPartnerProfileSummary({
+  const profile = await buildPartnerProfileSummary({
     ...user,
     user_metadata: reconciledMetadata,
   });
