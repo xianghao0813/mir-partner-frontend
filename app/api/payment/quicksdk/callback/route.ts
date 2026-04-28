@@ -74,6 +74,9 @@ export async function POST(request: NextRequest) {
     metadata: user.user_metadata,
     points: awardedMirPoints,
     source: "wallet_recharge",
+    referenceId: transactionId,
+    title: "云币充值积分",
+    description: `订单 ${cpOrderNo} 自动发放`,
   });
 
   const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(userId, {

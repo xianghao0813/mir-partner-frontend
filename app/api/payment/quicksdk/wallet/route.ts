@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { buildWalletSummary } from "@/lib/wallet";
+import { buildWalletSummary, reconcileQuickSdkRechargePoints } from "@/lib/wallet";
 
 export async function GET() {
   const supabase = await createClient();
@@ -12,5 +12,12 @@ export async function GET() {
     return NextResponse.json({ message: "请先登录。" }, { status: 401 });
   }
 
-  return NextResponse.json(await buildWalletSummary(user));
+  const reconciledMetadata = await reconcileQuickSdkRechargePoints(user);
+
+  return NextResponse.json(
+    await buildWalletSummary({
+      ...user,
+      user_metadata: reconciledMetadata,
+    })
+  );
 }

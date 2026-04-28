@@ -1,10 +1,12 @@
 import type { User, UserMetadata } from "@supabase/supabase-js";
 import { createPartnerCode } from "@/lib/partnerProfile";
+import { awardMirPoints } from "@/lib/mirPoints";
 import {
   getQuickSdkUserOrders,
   getQuickSdkWalletAmount,
   type QuickSdkOrderData,
 } from "@/lib/quicksdk";
+import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 export type WalletTransaction = {
   id: string;
@@ -54,6 +56,99 @@ export async function buildWalletSummary(user: User): Promise<WalletSummary> {
     cloudCoins: sdkWallet?.amount ?? readCloudCoins(user.user_metadata),
     transactions: mergeWalletTransactions([...localTransactions, ...sdkOrderTransactions]),
   };
+}
+
+export async function reconcileQuickSdkRechargePoints(user: User) {
+  const uid = readStringMetadata(user.user_metadata, ["quicksdk_uid", "uid"]);
+
+  if (!uid) {
+    return user.user_metadata;
+  }
+
+  const orders = await getQuickSdkUserOrders({ userId: uid, payStatus: "1" }).catch((error) => {
+    console.error("[QuickSDK wallet reconcile]", error);
+    return [] as QuickSdkOrderData[];
+  });
+
+  if (orders.length === 0) {
+    return user.user_metadata;
+  }
+
+  let metadata: UserMetadata = user.user_metadata ?? {};
+  let changed = false;
+
+  for (const order of orders) {
+    const orderId = order.productOrderNo || order.orderNo;
+    const amount = order.dealAmount || order.amount;
+
+    if (!orderId || !amount || amount <= 0) {
+      continue;
+    }
+
+    const transactionId = `sdk-order-${orderId}`;
+    const existingWalletTransactions = readWalletTransactions(metadata);
+    const existingPointTransactions = Array.isArray(metadata?.mir_point_transactions)
+      ? metadata.mir_point_transactions
+      : [];
+    const hasWalletTransaction = existingWalletTransactions.some((item) => item.id === transactionId);
+    const hasPointTransaction = existingPointTransactions.some((item) => {
+      if (!item || typeof item !== "object") return false;
+      const source = item as Record<string, unknown>;
+      return source.id === `point-${transactionId}` || source.referenceId === transactionId;
+    });
+
+    if (hasWalletTransaction && hasPointTransaction) {
+      continue;
+    }
+
+    const paidAt = createDateFromSdkTimestamp(order.payTime ?? order.createTime);
+
+    if (!hasPointTransaction) {
+      const pointAward = awardMirPoints({
+        metadata,
+        points: Math.floor(amount * 100),
+        source: "wallet_recharge",
+        referenceId: transactionId,
+        title: "云币充值积分",
+        description: `订单 ${orderId} 自动补发`,
+        now: paidAt,
+      });
+      metadata = pointAward.metadata;
+      changed = true;
+    }
+
+    if (!hasWalletTransaction) {
+      metadata = {
+        ...metadata,
+        wallet_transactions: appendWalletTransaction(metadata, {
+          id: transactionId,
+          type: "recharge",
+          amount,
+          coins: Math.floor(amount),
+          desc: order.productName || "云币充值",
+          date: paidAt.toISOString().slice(0, 10),
+          payMethod: "",
+          status: "success",
+        }),
+      };
+      changed = true;
+    }
+  }
+
+  if (!changed) {
+    return metadata;
+  }
+
+  const { error } = await supabaseAdmin.auth.admin.updateUserById(user.id, {
+    user_metadata: metadata,
+  });
+
+  if (error) {
+    console.error("[QuickSDK wallet reconcile update]", error);
+    return user.user_metadata;
+  }
+
+  return metadata;
 }
 
 export function readCloudCoins(metadata: UserMetadata | undefined) {
@@ -177,12 +272,17 @@ function normalizeWalletTransaction(value: unknown): WalletTransaction | null {
 }
 
 function formatSdkTimestamp(value: number | null) {
+  return createDateFromSdkTimestamp(value).toISOString().slice(0, 10);
+}
+
+function createDateFromSdkTimestamp(value: number | null) {
   if (!value || !Number.isFinite(value)) {
-    return new Date().toISOString().slice(0, 10);
+    return new Date();
   }
 
   const milliseconds = value > 9999999999 ? value : value * 1000;
-  return new Date(milliseconds).toISOString().slice(0, 10);
+  const date = new Date(milliseconds);
+  return Number.isNaN(date.getTime()) ? new Date() : date;
 }
 
 function readString(value: unknown) {

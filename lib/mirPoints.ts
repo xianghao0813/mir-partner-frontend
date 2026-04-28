@@ -113,11 +113,17 @@ export function awardMirPoints({
   metadata,
   points,
   source,
+  referenceId,
+  title,
+  description,
   now = new Date(),
 }: {
   metadata: UserMetadata | undefined;
   points: number;
   source: string;
+  referenceId?: string;
+  title?: string;
+  description?: string;
   now?: Date;
 }) {
   const monthKey = getShanghaiMonthKey(now);
@@ -143,12 +149,13 @@ export function awardMirPoints({
       mir_last_point_award: awardedPoints,
       mir_last_point_awarded_at: now.toISOString(),
       mir_point_transactions: appendPointTransaction(metadata, {
-        id: `point-${now.getTime()}-${source}`,
+        id: referenceId ? `point-${referenceId}` : `point-${now.getTime()}-${source}`,
         type: "earn",
         source,
+        referenceId,
         points: awardedPoints,
-        title: getPointSourceTitle(source),
-        description: getPointSourceDescription(source),
+        title: title || getPointSourceTitle(source),
+        description: description || getPointSourceDescription(source),
         createdAt: now.toISOString(),
       }),
     },
@@ -280,6 +287,7 @@ function appendPointTransaction(
     id: string;
     type: string;
     source: string;
+    referenceId?: string;
     points: number;
     title: string;
     description: string;
