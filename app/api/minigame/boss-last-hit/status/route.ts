@@ -26,7 +26,13 @@ export async function GET() {
   const cookieStore = await cookies();
   const gameState = parseBossLastHitState(cookieStore.get(BOSS_LAST_HIT_COOKIE)?.value);
   const syncedGameState = gameState
-    ? mergeBossLastHitStateWithStoredRuns(gameState, user.user_metadata)
+    ? mergeBossLastHitStateWithStoredRuns(
+        {
+          ...gameState,
+          active: false,
+        },
+        user.user_metadata
+      )
     : null;
 
   return NextResponse.json({

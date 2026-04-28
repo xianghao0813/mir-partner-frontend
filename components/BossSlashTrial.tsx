@@ -747,14 +747,14 @@ export default function BossSlashTrial({
             <button
               type="button"
               onClick={startRunner}
-              disabled={gameActive || isStartingGame}
+              disabled={isStartingGame}
               style={{
                 ...primaryButtonStyle,
-                opacity: gameActive || isStartingGame ? 0.45 : 1,
-                cursor: gameActive || isStartingGame ? "not-allowed" : "pointer",
+                opacity: isStartingGame ? 0.45 : 1,
+                cursor: isStartingGame ? "not-allowed" : "pointer",
               }}
             >
-              {isStartingGame ? "开始中..." : gameFinished || runs.length > 0 ? "再次挑战" : "开始挑战"}
+              {isStartingGame ? "开始中..." : gameActive ? "重新开始" : gameFinished || runs.length > 0 ? "再次挑战" : "开始挑战"}
             </button>
 
             <button
