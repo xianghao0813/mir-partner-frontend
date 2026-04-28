@@ -2,7 +2,7 @@ import crypto from "node:crypto";
 
 export const BOSS_LAST_HIT_COOKIE = "mir-boss-last-hit-state";
 export const BOSS_LAST_HIT_REWARD_POINTS = 50;
-export const RUNNER_REQUIRED_SCORE = 120;
+export const RUNNER_REQUIRED_SCORE = 5000;
 
 export type RunnerRunSummary = {
   score: number;
@@ -96,6 +96,33 @@ export function buildBossLastHitPublicState(state: BossLastHitGameState) {
   };
 }
 
+export function getStoredBossLastHitBestScore(metadata: Record<string, unknown> | undefined) {
+  return readNumber(metadata?.boss_last_hit_best_score);
+}
+
+export function getStoredBossLastHitRuns(metadata: Record<string, unknown> | undefined): RunnerRunSummary[] {
+  const raw = Array.isArray(metadata?.boss_last_hit_runs) ? metadata.boss_last_hit_runs : [];
+
+  return raw
+    .map((item) => normalizeStoredRun(item))
+    .filter((item): item is RunnerRunSummary => item !== null)
+    .slice(0, 6);
+}
+
+export function mergeBossLastHitStateWithStoredRuns(
+  state: BossLastHitGameState,
+  metadata: Record<string, unknown> | undefined
+): BossLastHitGameState {
+  const storedRuns = getStoredBossLastHitRuns(metadata);
+  const storedBestScore = getStoredBossLastHitBestScore(metadata);
+
+  return {
+    ...state,
+    bestScore: Math.max(state.bestScore, storedBestScore),
+    runs: state.runs.length > 0 ? state.runs : storedRuns,
+  };
+}
+
 export function parseBossLastHitState(value?: string | null) {
   if (!value) {
     return null;
@@ -133,6 +160,35 @@ export function readMirPoints(metadata: Record<string, unknown> | undefined) {
     }
   }
 
+  return 0;
+}
+
+function normalizeStoredRun(item: unknown) {
+  if (!item || typeof item !== "object") {
+    return null;
+  }
+
+  const source = item as Record<string, unknown>;
+
+  return {
+    score: readNumber(source.score),
+    distance: readNumber(source.distance),
+    obstaclesCleared: readNumber(source.obstaclesCleared),
+    durationMs: readNumber(source.durationMs),
+    completedAt: readNumber(source.completedAt),
+  };
+}
+
+function readNumber(value: unknown) {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return Math.max(0, Math.floor(value));
+  }
+  if (typeof value === "string") {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) {
+      return Math.max(0, Math.floor(parsed));
+    }
+  }
   return 0;
 }
 

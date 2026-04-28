@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import {
   BOSS_LAST_HIT_COOKIE,
   buildBossLastHitPublicState,
@@ -49,6 +50,15 @@ export async function POST(request: Request) {
     obstaclesCleared: body.obstaclesCleared,
     durationMs: body.durationMs,
   });
+
+  await supabaseAdmin.auth.admin.updateUserById(user.id, {
+    user_metadata: {
+      ...(user.user_metadata ?? {}),
+      boss_last_hit_best_score: nextState.bestScore,
+      boss_last_hit_runs: nextState.runs,
+    },
+  });
+
   const response = NextResponse.json({
     ok: true,
     game: buildBossLastHitPublicState(nextState),

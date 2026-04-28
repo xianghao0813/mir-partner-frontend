@@ -6,6 +6,7 @@ import {
   buildBossLastHitPublicState,
   getTodayRewardClaimed,
   getRewardClaimDateInShanghai,
+  mergeBossLastHitStateWithStoredRuns,
   parseBossLastHitState,
   readMirPoints,
 } from "@/lib/bossLastHit";
@@ -24,11 +25,14 @@ export async function GET() {
   const rewardClaimedDate = getTodayRewardClaimed(user.user_metadata);
   const cookieStore = await cookies();
   const gameState = parseBossLastHitState(cookieStore.get(BOSS_LAST_HIT_COOKIE)?.value);
+  const syncedGameState = gameState
+    ? mergeBossLastHitStateWithStoredRuns(gameState, user.user_metadata)
+    : null;
 
   return NextResponse.json({
     points: readMirPoints(user.user_metadata),
     rewardClaimedToday: rewardClaimedDate === today,
     rewardClaimedDate,
-    game: gameState ? buildBossLastHitPublicState(gameState) : null,
+    game: syncedGameState ? buildBossLastHitPublicState(syncedGameState) : null,
   });
 }

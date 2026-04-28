@@ -56,7 +56,7 @@ const JUMP_FORCE = 15.5;
 const MAX_JUMPS = 2;
 const START_SPEED = 3.6;
 const MAX_SPEED = 13.2;
-const TARGET_SCORE = 120;
+const TARGET_SCORE = 5000;
 const FEVER_INTERVAL_SCORE = 1000;
 const FEVER_DURATION_MS = 5000;
 
