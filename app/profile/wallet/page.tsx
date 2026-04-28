@@ -51,6 +51,7 @@ export default function WalletPage() {
   const [wallet, setWallet] = useState<WalletSummary | null>(null);
   const [selectedTier, setSelectedTier] = useState<CoinTier | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [historyMonth, setHistoryMonth] = useState(getCurrentMonth());
   const [submittingTierId, setSubmittingTierId] = useState<number | null>(null);
   const [message, setMessage] = useState("");
 
@@ -75,6 +76,20 @@ export default function WalletPage() {
       { label: "状态", value: wallet?.status ?? "正常" },
     ],
     [wallet]
+  );
+
+  const visibleTransactions = useMemo(() => {
+    const transactions = wallet?.transactions ?? [];
+    return historyMonth ? transactions.filter((item) => item.date.startsWith(historyMonth)) : transactions;
+  }, [historyMonth, wallet]);
+
+  const historyRechargeTotal = useMemo(
+    () => sumTransactions(visibleTransactions, "recharge"),
+    [visibleTransactions]
+  );
+  const historyConsumeTotal = useMemo(
+    () => Math.abs(sumTransactions(visibleTransactions, "consume")),
+    [visibleTransactions]
   );
 
   async function loadWallet() {
@@ -255,11 +270,27 @@ export default function WalletPage() {
               </button>
             </div>
 
+            <div style={historyToolbarStyle}>
+              <input
+                type="month"
+                value={historyMonth}
+                onChange={(event) => setHistoryMonth(event.target.value)}
+                style={historyMonthInputStyle}
+                aria-label="选择月份"
+              />
+              <button type="button" onClick={() => setHistoryMonth("")} style={historyFilterButtonStyle}>
+                全部
+              </button>
+              <div style={historySummaryStyle}>
+                充值 +{historyRechargeTotal.toLocaleString()} / 使用 {historyConsumeTotal.toLocaleString()}
+              </div>
+            </div>
+
             <div style={historyListStyle}>
-              {(wallet?.transactions ?? []).length === 0 ? (
+              {visibleTransactions.length === 0 ? (
                 <div style={emptyHistoryStyle}>暂无云币使用明细。</div>
               ) : (
-                (wallet?.transactions ?? []).map((item) => (
+                visibleTransactions.map((item) => (
                   <article key={item.id} style={historyItemStyle}>
                     <div>
                       <div style={historyDescStyle}>{item.desc}</div>
@@ -317,6 +348,18 @@ function isWalletSummary(value: unknown): value is WalletSummary {
 function extractAccountUid(account: string) {
   const localPart = account.split("@")[0] ?? account;
   return localPart.replace(/\D/g, "") || localPart.trim() || "-";
+}
+
+function getCurrentMonth() {
+  const now = new Date();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  return `${now.getFullYear()}-${month}`;
+}
+
+function sumTransactions(items: WalletTransaction[], type: WalletTransaction["type"]) {
+  return items
+    .filter((item) => item.type === type)
+    .reduce((total, item) => total + item.coins, 0);
 }
 
 function buildPopupFeatures() {
@@ -716,6 +759,43 @@ const modalTitleStyle: CSSProperties = {
   margin: 0,
   fontSize: "22px",
   color: "#fff",
+};
+
+const historyToolbarStyle: CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: "10px",
+  flexWrap: "wrap",
+  marginBottom: "16px",
+};
+
+const historyMonthInputStyle: CSSProperties = {
+  height: "42px",
+  border: "1px solid rgba(255,255,255,0.14)",
+  borderRadius: "12px",
+  background: "rgba(255,255,255,0.06)",
+  color: "#fff",
+  padding: "0 12px",
+  fontSize: "14px",
+  outline: "none",
+};
+
+const historyFilterButtonStyle: CSSProperties = {
+  border: "1px solid rgba(255,255,255,0.14)",
+  background: "rgba(255,255,255,0.05)",
+  color: "#fff",
+  borderRadius: "12px",
+  height: "42px",
+  padding: "0 14px",
+  fontSize: "14px",
+  fontWeight: 700,
+  cursor: "pointer",
+};
+
+const historySummaryStyle: CSSProperties = {
+  color: "#cbd5e1",
+  fontSize: "14px",
+  marginLeft: "auto",
 };
 
 const historyListStyle: CSSProperties = {

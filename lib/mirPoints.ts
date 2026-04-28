@@ -129,8 +129,21 @@ export function awardMirPoints({
   const monthKey = getShanghaiMonthKey(now);
   const awardedPoints = Math.max(0, Math.floor(points));
   const beforePoints = readMirPoints(metadata);
-  const afterPoints = beforePoints + awardedPoints;
   const beforeTier = getCurrentTier(beforePoints);
+
+  if (awardedPoints <= 0) {
+    return {
+      metadata: metadata ?? {},
+      beforePoints,
+      afterPoints: beforePoints,
+      awardedPoints: 0,
+      beforeTier,
+      afterTier: beforeTier,
+      upgradedThisAward: false,
+    };
+  }
+
+  const afterPoints = beforePoints + awardedPoints;
   const afterTier = getCurrentTier(afterPoints);
   const currentMonthlyPoints = readMonthlyPoints(metadata, monthKey);
   const upgradedThisAward = afterTier.id > beforeTier.id;

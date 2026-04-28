@@ -99,13 +99,15 @@ export async function reconcileQuickSdkRechargePoints(user: User) {
       return source.id === `point-${transactionId}` || source.referenceId === transactionId;
     });
 
-    if (hasWalletTransaction && hasPointTransaction) {
+    const shouldAwardPoints = shouldAwardMirPointsForOrder(order);
+
+    if (hasWalletTransaction && (hasPointTransaction || !shouldAwardPoints)) {
       continue;
     }
 
     const paidAt = createDateFromSdkTimestamp(order.payTime ?? order.createTime);
 
-    if (!hasPointTransaction) {
+    if (shouldAwardPoints && !hasPointTransaction) {
       const pointAward = awardMirPoints({
         metadata,
         points: Math.floor(amount * 100),
@@ -222,7 +224,7 @@ export function appendWalletTransaction(
   transaction: WalletTransaction
 ) {
   const existing = readWalletTransactions(current).filter((item) => item.id !== transaction.id);
-  return [transaction, ...existing].slice(0, 50);
+  return [transaction, ...existing].slice(0, 300);
 }
 
 async function readQuickSdkWallet(uid: string) {
@@ -267,7 +269,15 @@ function mergeWalletTransactions(items: WalletTransaction[]) {
 
   return [...byId.values()]
     .sort((a, b) => b.date.localeCompare(a.date))
-    .slice(0, 50);
+    .slice(0, 300);
+}
+
+function shouldAwardMirPointsForOrder(order: QuickSdkOrderData) {
+  return !containsPlatformCoin(order.productName);
+}
+
+function containsPlatformCoin(value: string | undefined) {
+  return typeof value === "string" && value.includes("平台币");
 }
 
 function normalizeWalletTransaction(value: unknown): WalletTransaction | null {

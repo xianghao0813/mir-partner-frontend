@@ -12,6 +12,11 @@ export async function POST(request: NextRequest) {
   const extrasParams = readString(payload?.extrasParams) || readString(payload?.extras_params);
   const orderStatus = readString(payload?.status) || readString(payload?.orderStatus) || readString(payload?.payStatus);
   const paidAmount = readNumber(payload?.amount) || readNumber(payload?.money) || readNumber(payload?.realAmount);
+  const productName =
+    readString(payload?.productName) ||
+    readString(payload?.goodsName) ||
+    readString(payload?.orderSubject) ||
+    readString(payload?.subject);
 
   const extras = parseExtras(extrasParams);
   const userId = extras?.userId ?? "";
@@ -69,7 +74,8 @@ export async function POST(request: NextRequest) {
     payMethod,
     status: "success" as const,
   };
-  const awardedMirPoints = Math.floor((paidAmount || coins) * 100);
+  const shouldAwardPoints = !containsPlatformCoin(productName);
+  const awardedMirPoints = shouldAwardPoints ? Math.floor((paidAmount || coins) * 100) : 0;
   const pointAward = awardMirPoints({
     metadata: user.user_metadata,
     points: awardedMirPoints,
@@ -157,4 +163,8 @@ function parseExtras(value: string) {
 function isSuccessStatus(value: string) {
   const normalized = value.toLowerCase();
   return normalized === "" || normalized === "1" || normalized === "true" || normalized === "success" || normalized === "paid";
+}
+
+function containsPlatformCoin(value: string) {
+  return value.includes("平台币");
 }
