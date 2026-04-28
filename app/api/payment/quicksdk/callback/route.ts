@@ -19,6 +19,7 @@ export async function POST(request: NextRequest) {
     readString(payload?.goodsName) ||
     readString(payload?.orderSubject) ||
     readString(payload?.subject);
+  const payTypeName = readString(payload?.payTypeName) || readString(payload?.pay_type_name);
 
   const extras = parseExtras(extrasParams);
   const userId = extras?.userId ?? "";
@@ -76,7 +77,7 @@ export async function POST(request: NextRequest) {
     payMethod,
     status: "success" as const,
   };
-  const shouldAwardPoints = !containsPlatformCoin(productName);
+  const shouldAwardPoints = !containsPlatformCoin(productName) && !containsPlatformCoin(payTypeName);
   const awardedMirPoints = shouldAwardPoints ? Math.floor((paidAmount || coins) * 100) : 0;
   const pointAward = awardMirPoints({
     metadata: user.user_metadata,

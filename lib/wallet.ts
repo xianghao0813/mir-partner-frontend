@@ -317,7 +317,7 @@ function mergeWalletTransactions(items: WalletTransaction[]) {
 }
 
 function shouldAwardMirPointsForOrder(order: QuickSdkOrderData) {
-  return !containsPlatformCoin(order.productName);
+  return !containsPlatformCoin(order.productName) && !containsPlatformCoin(order.payTypeName);
 }
 
 function containsPlatformCoin(value: string | undefined) {
