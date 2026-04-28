@@ -113,6 +113,7 @@ export default function BossSlashTrial({
   const feverActiveRef = useRef(false);
   const lastFeverScoreRef = useRef(0);
   const feverUntilRef = useRef(0);
+  const targetSubmittedRef = useRef(false);
 
   const missionCleared = gameFinished && serverScore >= requiredScore;
 
@@ -225,6 +226,7 @@ export default function BossSlashTrial({
     stopLoop();
     activeRef.current = true;
     submittedRef.current = false;
+    targetSubmittedRef.current = false;
     setGameActive(true);
     setGameFinished(false);
     setScore(0);
@@ -338,6 +340,18 @@ export default function BossSlashTrial({
       }
     }
 
+    if (!targetSubmittedRef.current && nextScore >= requiredScore) {
+      targetSubmittedRef.current = true;
+      setGameFinished(true);
+      setStatusMessage("已达到目标分数，成绩已保存。可以继续挑战更高分，或领取今日奖励。");
+      void submitRunResult({
+        score: nextScore,
+        distance: nextDistance,
+        obstaclesCleared: nextCleared,
+        durationMs: Math.max(0, Math.floor(timestamp - startedAtRef.current)),
+      });
+    }
+
     const collided = !feverActiveRef.current && nextObstacles.some((obstacle) => {
       const overlapX =
         obstacle.x < PLAYER_LEFT + PLAYER_WIDTH && obstacle.x + obstacle.width > PLAYER_LEFT + 4;
@@ -432,7 +446,7 @@ export default function BossSlashTrial({
     obstaclesCleared: number;
     durationMs: number;
   }) {
-    if (submittedRef.current) {
+    if (submittedRef.current && result.score <= serverScore) {
       return;
     }
 

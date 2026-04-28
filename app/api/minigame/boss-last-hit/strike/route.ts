@@ -1,5 +1,5 @@
 import { cookies } from "next/headers";
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import {
@@ -9,7 +9,7 @@ import {
   resolveBossLastHitStrike,
 } from "@/lib/bossLastHit";
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   const supabase = await createClient();
   const {
     data: { user },
@@ -51,13 +51,17 @@ export async function POST(request: Request) {
     durationMs: body.durationMs,
   });
 
-  await supabaseAdmin.auth.admin.updateUserById(user.id, {
+  const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(user.id, {
     user_metadata: {
       ...(user.user_metadata ?? {}),
       boss_last_hit_best_score: nextState.bestScore,
       boss_last_hit_runs: nextState.runs,
     },
   });
+
+  if (updateError) {
+    return NextResponse.json({ message: updateError.message }, { status: 500 });
+  }
 
   const response = NextResponse.json({
     ok: true,
@@ -66,7 +70,7 @@ export async function POST(request: Request) {
   response.cookies.set(BOSS_LAST_HIT_COOKIE, JSON.stringify(nextState), {
     httpOnly: true,
     sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
+    secure: request.nextUrl.protocol === "https:",
     path: "/",
     maxAge: 60 * 60 * 6,
   });

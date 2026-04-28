@@ -115,9 +115,14 @@ export function mergeBossLastHitStateWithStoredRuns(
 ): BossLastHitGameState {
   const storedRuns = getStoredBossLastHitRuns(metadata);
   const storedBestScore = getStoredBossLastHitBestScore(metadata);
+  const lastRun = state.runs[0] ?? storedRuns[0];
 
   return {
     ...state,
+    score: state.finished && lastRun ? lastRun.score : state.score,
+    distance: state.finished && lastRun ? lastRun.distance : state.distance,
+    obstaclesCleared: state.finished && lastRun ? lastRun.obstaclesCleared : state.obstaclesCleared,
+    durationMs: state.finished && lastRun ? lastRun.durationMs : state.durationMs,
     bestScore: Math.max(state.bestScore, storedBestScore),
     runs: state.runs.length > 0 ? state.runs : storedRuns,
   };

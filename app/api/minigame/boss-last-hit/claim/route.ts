@@ -1,5 +1,5 @@
 import { cookies } from "next/headers";
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { awardMirPoints } from "@/lib/mirPoints";
@@ -14,7 +14,7 @@ import {
   readMirPoints,
 } from "@/lib/bossLastHit";
 
-export async function POST() {
+export async function POST(request: NextRequest) {
   const supabase = await createClient();
   const {
     data: { user },
@@ -90,7 +90,7 @@ export async function POST() {
   response.cookies.set(BOSS_LAST_HIT_COOKIE, JSON.stringify(nextGameState), {
     httpOnly: true,
     sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
+    secure: request.nextUrl.protocol === "https:",
     path: "/",
     maxAge: 60 * 60 * 6,
   });
