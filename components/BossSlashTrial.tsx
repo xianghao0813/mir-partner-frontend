@@ -53,7 +53,7 @@ const PLAYER_WIDTH = 44;
 const PLAYER_HEIGHT = 58;
 const GRAVITY = 0.95;
 const JUMP_FORCE = 15.5;
-const MAX_JUMPS = 1;
+const MAX_JUMPS = 2;
 const START_SPEED = 3.6;
 const MAX_SPEED = 16.8;
 const TARGET_SCORE = 5000;
@@ -992,6 +992,7 @@ const feverOverlayStyle: React.CSSProperties = {
 
 const sunGlowStyle: React.CSSProperties = {
   position: "absolute",
+  zIndex: 1,
   top: 26,
   right: 48,
   width: 110,
@@ -1015,6 +1016,7 @@ const biomeObjectLayerStyle: React.CSSProperties = {
 const trackRuinLayerStyle: React.CSSProperties = {
   position: "absolute",
   inset: "26px 0 44px",
+  zIndex: 1,
   background:
     "linear-gradient(90deg, transparent 0 6%, rgba(255,255,255,0.08) 6% 7%, transparent 7% 19%, rgba(255,255,255,0.08) 19% 20%, transparent 20% 34%, rgba(255,255,255,0.08) 34% 35%, transparent 35% 50%, rgba(255,255,255,0.08) 50% 51%, transparent 51% 100%)",
   opacity: 0.18,
@@ -1022,6 +1024,7 @@ const trackRuinLayerStyle: React.CSSProperties = {
 
 const obstacleStyle: React.CSSProperties = {
   position: "absolute",
+  zIndex: 4,
   bottom: GROUND_HEIGHT,
   borderRadius: "12px 12px 4px 4px",
   background: "linear-gradient(180deg, #b45309 0%, #7c2d12 100%)",
@@ -1051,6 +1054,7 @@ const highObstacleMarkStyle: React.CSSProperties = {
 
 const playerStyle: React.CSSProperties = {
   position: "absolute",
+  zIndex: 5,
   left: PLAYER_LEFT,
   width: PLAYER_WIDTH,
   height: PLAYER_HEIGHT,
@@ -1204,6 +1208,7 @@ const pixelSwordStyle: React.CSSProperties = {
 
 const groundStyle: React.CSSProperties = {
   position: "absolute",
+  zIndex: 3,
   left: 0,
   right: 0,
   bottom: 0,
