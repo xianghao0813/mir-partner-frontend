@@ -5,6 +5,7 @@ import {
   MIR_PARTNER_TIERS,
   type MirPartnerTier,
 } from "@/lib/mirPoints";
+import { getQuickSdkUserOrders, type QuickSdkOrderData } from "@/lib/quicksdk";
 import { readPointTransactionsFromDb } from "@/lib/userLedgers";
 
 export { MIR_PARTNER_TIERS, type MirPartnerTier };
@@ -42,6 +43,9 @@ export async function buildPartnerProfileSummary(user: User): Promise<PartnerPro
     ]) || createPartnerCode(user.id);
   const pointsSummary = buildMirPointSummary(user.user_metadata);
   const dbPointTransactions = await readPointTransactionsFromDb(user.id);
+  const metadataPointTransactions = readPointTransactions(user.user_metadata);
+  const fallbackPointTransactions =
+    metadataPointTransactions.length > 0 ? metadataPointTransactions : await readQuickSdkPointTransactions(uid);
 
   return {
     partnerCode,
@@ -53,7 +57,7 @@ export async function buildPartnerProfileSummary(user: User): Promise<PartnerPro
     progressPercent: pointsSummary.progressPercent,
     pointsToNextTier: pointsSummary.pointsToNextTier,
     upgradedThisMonth: pointsSummary.upgradedThisMonth,
-    pointTransactions: dbPointTransactions.length > 0 ? dbPointTransactions : readPointTransactions(user.user_metadata),
+    pointTransactions: dbPointTransactions.length > 0 ? dbPointTransactions : fallbackPointTransactions,
   };
 }
 
@@ -104,6 +108,53 @@ function normalizePointTransaction(item: unknown, index: number): PartnerPointTr
     createdAt,
     source: readString(source.source) || readString(source.type) || "point",
   };
+}
+
+async function readQuickSdkPointTransactions(uid: string): Promise<PartnerPointTransaction[]> {
+  if (!uid) {
+    return [];
+  }
+
+  const orders = await getQuickSdkUserOrders({ userId: uid, payStatus: "1" }).catch((error) => {
+    console.error("[QuickSDK point ledger fallback]", error);
+    return [] as QuickSdkOrderData[];
+  });
+
+  return orders
+    .filter((order) => !isPlatformCoinOrder(order))
+    .map((order) => {
+      const orderId = order.productOrderNo || order.orderNo;
+      const amount = order.dealAmount || order.amount;
+
+      return {
+        id: `point-sdk-order-${orderId}`,
+        title: "云币充值积分",
+        description: `订单 ${orderId} 自动发放`,
+        points: Math.floor(amount * 100),
+        createdAt: createDateFromSdkTimestamp(order.payTime ?? order.createTime).toISOString(),
+        source: "wallet_recharge",
+      };
+    })
+    .filter((item) => item.points > 0)
+    .sort((a, b) => (b.createdAt ?? "").localeCompare(a.createdAt ?? ""));
+}
+
+function isPlatformCoinOrder(order: QuickSdkOrderData) {
+  return containsPlatformCoin(order.productName) || containsPlatformCoin(order.payTypeName);
+}
+
+function containsPlatformCoin(value: string | undefined) {
+  return typeof value === "string" && value.includes("平台币");
+}
+
+function createDateFromSdkTimestamp(value: number | null) {
+  if (!value || !Number.isFinite(value)) {
+    return new Date();
+  }
+
+  const milliseconds = value > 9999999999 ? value : value * 1000;
+  const date = new Date(milliseconds);
+  return Number.isNaN(date.getTime()) ? new Date() : date;
 }
 
 function readNumber(value: unknown) {

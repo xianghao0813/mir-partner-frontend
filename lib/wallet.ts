@@ -45,7 +45,9 @@ export async function buildWalletSummary(user: User): Promise<WalletSummary> {
   const sdkWallet = uid ? await readQuickSdkWallet(uid) : null;
   const dbTransactions = await readWalletTransactionsFromDb(user.id);
   const localTransactions = dbTransactions.length > 0 ? dbTransactions : readWalletTransactions(user.user_metadata);
-  const sdkOrderTransactions = sdkWallet?.orders.map(mapOrderToTransaction) ?? [];
+  const sdkOrderTransactions = sdkWallet?.orders
+    .filter((order) => !isPlatformCoinOrder(order))
+    .map(mapOrderToTransaction) ?? [];
 
   return {
     account,
@@ -109,8 +111,9 @@ export async function reconcileQuickSdkRechargePoints(user: User) {
     });
 
     const shouldAwardPoints = shouldAwardMirPointsForOrder(order);
+    const shouldRecordWallet = !isPlatformCoinOrder(order);
 
-    if (hasWalletTransaction && (hasPointTransaction || !shouldAwardPoints)) {
+    if ((hasWalletTransaction || !shouldRecordWallet) && (hasPointTransaction || !shouldAwardPoints)) {
       continue;
     }
 
@@ -142,7 +145,7 @@ export async function reconcileQuickSdkRechargePoints(user: User) {
       changed = true;
     }
 
-    if (!hasWalletTransaction) {
+    if (shouldRecordWallet && !hasWalletTransaction) {
       const walletTransaction: WalletTransaction = {
         id: transactionId,
         type: "recharge",
@@ -317,7 +320,11 @@ function mergeWalletTransactions(items: WalletTransaction[]) {
 }
 
 function shouldAwardMirPointsForOrder(order: QuickSdkOrderData) {
-  return !containsPlatformCoin(order.productName) && !containsPlatformCoin(order.payTypeName);
+  return !isPlatformCoinOrder(order);
+}
+
+function isPlatformCoinOrder(order: QuickSdkOrderData) {
+  return containsPlatformCoin(order.productName) || containsPlatformCoin(order.payTypeName);
 }
 
 function containsPlatformCoin(value: string | undefined) {
