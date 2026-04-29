@@ -1,7 +1,6 @@
 ﻿import type { User, UserMetadata } from "@supabase/supabase-js";
 import { compactAuthMetadata } from "@/lib/authMetadata";
 import { createPartnerCode } from "@/lib/partnerProfile";
-import { awardMirPoints } from "@/lib/mirPoints";
 import {
   getQuickSdkUserOrders,
   getQuickSdkWalletAmount,
@@ -88,6 +87,33 @@ export async function reconcileQuickSdkRechargePoints(user: User) {
     return changed ? await updateUserMetadata(user.id, metadata, user.user_metadata) : metadata;
   }
 
+  const eligibleOrders = orders.filter((order) => shouldAwardMirPointsForOrder(order));
+  const walletRechargePoints = eligibleOrders.reduce((total, order) => {
+    const amount = order.dealAmount || order.amount;
+    return total + Math.floor(amount * 100);
+  }, 0);
+  const walletRechargeMonthPoints = eligibleOrders
+    .filter((order) => formatSdkTimestamp(order.payTime ?? order.createTime).startsWith(getCurrentMonth()))
+    .reduce((total, order) => {
+      const amount = order.dealAmount || order.amount;
+      return total + Math.floor(amount * 100);
+    }, 0);
+  const previousWalletRechargePoints = readMetadataNumber(metadata?.mir_wallet_recharge_points);
+  const currentMirPoints = readMetadataNumber(metadata?.mir_points);
+
+  if (walletRechargePoints !== previousWalletRechargePoints) {
+    metadata = {
+      ...metadata,
+      mir_points: Math.max(0, currentMirPoints - previousWalletRechargePoints + walletRechargePoints),
+      mir_wallet_recharge_points: walletRechargePoints,
+      mir_wallet_recharge_month_key: getCurrentMonth(),
+      mir_wallet_recharge_month_points: walletRechargeMonthPoints,
+      mir_month_key: getCurrentMonth(),
+      mir_month_points: walletRechargeMonthPoints,
+    };
+    changed = true;
+  }
+
   for (const order of orders) {
     const orderId = order.productOrderNo || order.orderNo;
     const amount = order.dealAmount || order.amount;
@@ -101,8 +127,6 @@ export async function reconcileQuickSdkRechargePoints(user: User) {
     const existingPointTransactions = Array.isArray(metadata?.mir_point_transactions)
       ? metadata.mir_point_transactions
       : [];
-    const existingPointTotal = readPointTransactionTotal(existingPointTransactions);
-    const currentMirPoints = readMetadataNumber(metadata?.mir_points);
     const hasWalletTransaction = existingWalletTransactions.some((item) => item.id === transactionId);
     const hasPointTransaction = existingPointTransactions.some((item) => {
       if (!item || typeof item !== "object") return false;
@@ -120,29 +144,14 @@ export async function reconcileQuickSdkRechargePoints(user: User) {
     const paidAt = createDateFromSdkTimestamp(order.payTime ?? order.createTime);
 
     if (shouldAwardPoints && !hasPointTransaction) {
-      const pointAward = awardMirPoints({
-        metadata,
-        points: Math.floor(amount * 100),
-        source: "wallet_recharge",
-        referenceId: transactionId,
+      await insertPointTransaction(user.id, {
+        id: `point-${transactionId}`,
         title: "云币充值积分",
-        description: `璁㈠崟 ${orderId} 鑷姩琛ュ彂`,
-        now: paidAt,
+        description: `订单 ${orderId} 自动发放`,
+        points: Math.floor(amount * 100),
+        createdAt: paidAt.toISOString(),
+        source: "wallet_recharge",
       });
-      const pointTransaction = readLatestPointTransaction(pointAward.metadata);
-      if (pointTransaction) {
-        await insertPointTransaction(user.id, pointTransaction);
-      }
-      metadata = pointAward.metadata;
-      changed = true;
-    }
-
-    if (currentMirPoints < existingPointTotal) {
-      metadata = {
-        ...metadata,
-        mir_points: existingPointTotal,
-      };
-      changed = true;
     }
 
     if (shouldRecordWallet && !hasWalletTransaction) {
@@ -187,38 +196,6 @@ async function updateUserMetadata(userId: string, metadata: UserMetadata, fallba
 
 function hasMetadataChanged(before: UserMetadata | undefined, after: UserMetadata) {
   return JSON.stringify(before ?? {}) !== JSON.stringify(after);
-}
-
-function readPointTransactionTotal(items: unknown[]): number {
-  return items.reduce<number>((total, item) => {
-    if (!item || typeof item !== "object") {
-      return total;
-    }
-
-    const source = item as Record<string, unknown>;
-    return total + readMetadataNumber(source.points ?? source.amount ?? source.value);
-  }, 0);
-}
-
-function readLatestPointTransaction(metadata: UserMetadata | undefined) {
-  const transactions = Array.isArray(metadata?.mir_point_transactions)
-    ? metadata.mir_point_transactions
-    : [];
-  const latest = transactions[0];
-
-  if (!latest || typeof latest !== "object") {
-    return null;
-  }
-
-  const source = latest as Record<string, unknown>;
-  return {
-    id: readString(source.id),
-    title: readString(source.title) || "MIR 积分",
-    description: readString(source.description) || readString(source.source) || "-",
-    points: readMetadataNumber(source.points ?? source.amount ?? source.value),
-    createdAt: readString(source.createdAt) || new Date().toISOString(),
-    source: readString(source.source) || readString(source.type) || "point",
-  };
 }
 
 function readMetadataNumber(value: unknown) {
@@ -368,6 +345,14 @@ function normalizeWalletTransaction(value: unknown): WalletTransaction | null {
 
 function formatSdkTimestamp(value: number | null) {
   return createDateFromSdkTimestamp(value).toISOString().slice(0, 10);
+}
+
+function getCurrentMonth() {
+  return new Intl.DateTimeFormat("sv-SE", {
+    timeZone: "Asia/Shanghai",
+    year: "numeric",
+    month: "2-digit",
+  }).format(new Date());
 }
 
 function createDateFromSdkTimestamp(value: number | null) {
