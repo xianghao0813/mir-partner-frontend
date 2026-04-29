@@ -2,6 +2,8 @@ import crypto from "node:crypto";
 import type { User } from "@supabase/supabase-js";
 import {
   buildMirPointSummary,
+  getCurrentTier,
+  getShanghaiMonthKey,
   MIR_PARTNER_TIERS,
   type MirPartnerTier,
 } from "@/lib/mirPoints";
@@ -41,23 +43,47 @@ export async function buildPartnerProfileSummary(user: User): Promise<PartnerPro
       "partnerCode",
       "mirPartnerCode",
     ]) || createPartnerCode(user.id);
-  const pointsSummary = buildMirPointSummary(user.user_metadata);
   const dbPointTransactions = await readPointTransactionsFromDb(user.id);
   const metadataPointTransactions = readPointTransactions(user.user_metadata);
   const fallbackPointTransactions =
     metadataPointTransactions.length > 0 ? metadataPointTransactions : await readQuickSdkPointTransactions(uid);
+  const pointTransactions = dbPointTransactions.length > 0 ? dbPointTransactions : fallbackPointTransactions;
+  const pointsSummary = buildMirPointSummary(user.user_metadata);
+  const recalculatedPoints = pointTransactions.reduce((sum, entry) => sum + entry.points, 0);
+  const effectivePoints = pointTransactions.length > 0 ? Math.max(0, recalculatedPoints) : pointsSummary.points;
+  const monthKey = getShanghaiMonthKey();
+  const effectiveMonthlyPoints =
+    pointTransactions.length > 0
+      ? pointTransactions
+          .filter((entry) => (entry.createdAt ?? "").startsWith(monthKey))
+          .reduce((sum, entry) => sum + Math.max(0, entry.points), 0)
+      : pointsSummary.monthlyPoints;
+  const currentTier = getCurrentTier(effectivePoints);
+  const nextTier = MIR_PARTNER_TIERS.find((tier) => tier.id === currentTier.id + 1) ?? null;
+  const pointsToNextTier = nextTier ? Math.max(nextTier.minPoints - effectivePoints, 0) : 0;
+  const progressPercent = nextTier
+    ? Math.min(
+        100,
+        Math.max(
+          0,
+          Math.round(
+            ((effectivePoints - currentTier.minPoints) / (nextTier.minPoints - currentTier.minPoints)) * 100
+          )
+        )
+      )
+    : 100;
 
   return {
     partnerCode,
     uid,
-    points: pointsSummary.points,
-    monthlyPoints: pointsSummary.monthlyPoints,
-    currentTier: pointsSummary.currentTier,
-    nextTier: pointsSummary.nextTier,
-    progressPercent: pointsSummary.progressPercent,
-    pointsToNextTier: pointsSummary.pointsToNextTier,
+    points: effectivePoints,
+    monthlyPoints: effectiveMonthlyPoints,
+    currentTier,
+    nextTier,
+    progressPercent,
+    pointsToNextTier,
     upgradedThisMonth: pointsSummary.upgradedThisMonth,
-    pointTransactions: dbPointTransactions.length > 0 ? dbPointTransactions : fallbackPointTransactions,
+    pointTransactions,
   };
 }
 
@@ -140,7 +166,7 @@ async function readQuickSdkPointTransactions(uid: string): Promise<PartnerPointT
 }
 
 function isPlatformCoinOrder(order: QuickSdkOrderData) {
-  return containsPlatformCoin(order.productName) || containsPlatformCoin(order.payTypeName);
+  return order.payType === "173" || containsPlatformCoin(order.productName) || containsPlatformCoin(order.payTypeName);
 }
 
 function containsPlatformCoin(value: string | undefined) {

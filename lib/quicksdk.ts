@@ -51,6 +51,7 @@ export type QuickSdkOrderData = {
   createTime: number | null;
   payTime: number | null;
   payTypeName: string;
+  payType: string;
 };
 
 type QuickSdkPhoneCodePurpose = "login" | "register" | "bind" | "unbind" | "reset-password";
@@ -576,6 +577,7 @@ function normalizeQuickSdkOrder(value: unknown): QuickSdkOrderData | null {
     createTime: readQuickSdkNumber(item, ["createTime"]),
     payTime: readQuickSdkNumber(item, ["payTime"]),
     payTypeName: readQuickSdkString(item, ["payTypeName"]),
+    payType: readQuickSdkString(item, ["payType"]),
   };
 }
 

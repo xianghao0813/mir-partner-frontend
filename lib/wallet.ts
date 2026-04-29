@@ -62,7 +62,7 @@ export async function buildWalletSummary(user: User): Promise<WalletSummary> {
         "partnerCode",
         "mirPartnerCode",
       ]) || createPartnerCode(user.id),
-    status: "姝ｅ父",
+    status: "正常",
     cloudCoins: sdkWallet?.amount ?? readCloudCoins(user.user_metadata),
     transactions: mergeWalletTransactions([...localTransactions, ...sdkOrderTransactions]),
   };
@@ -324,7 +324,7 @@ function shouldAwardMirPointsForOrder(order: QuickSdkOrderData) {
 }
 
 function isPlatformCoinOrder(order: QuickSdkOrderData) {
-  return containsPlatformCoin(order.productName) || containsPlatformCoin(order.payTypeName);
+  return order.payType === "173" || containsPlatformCoin(order.productName) || containsPlatformCoin(order.payTypeName);
 }
 
 function containsPlatformCoin(value: string | undefined) {
