@@ -380,7 +380,7 @@ export default function BossSlashTrial({
 
     const nextDistance = distanceRef.current + speedRef.current * (delta / 16);
     let nextScore = scoreRef.current;
-    const nextSpeed = Math.min(MAX_SPEED, START_SPEED + nextDistance / 390);
+    const nextSpeed = Math.min(MAX_SPEED, START_SPEED + nextDistance / 620);
     const playerVelocity = velocityRef.current - GRAVITY * (delta / 16);
     let nextPlayerY = Math.max(0, playerYRef.current + playerVelocity * (delta / 16));
 
@@ -689,6 +689,18 @@ export default function BossSlashTrial({
           }
         }
 
+        @keyframes coinSpin {
+          0% {
+            transform: rotateY(0deg) scale(1);
+          }
+          50% {
+            transform: rotateY(180deg) scale(0.88);
+          }
+          100% {
+            transform: rotateY(360deg) scale(1);
+          }
+        }
+
         @keyframes pixelRunLeft {
           0%,
           100% {
@@ -718,7 +730,7 @@ export default function BossSlashTrial({
           </p>
         </div>
         <div style={pointsBadgeStyle}>
-          <span style={{ fontSize: 12, opacity: 0.72 }}>褰撳墠 MIR 绉垎</span>
+          <span style={{ fontSize: 12, opacity: 0.72 }}>当前 MIR 积分</span>
           <strong style={{ fontSize: 28 }}>{mirPoints}</strong>
         </div>
       </div>
@@ -845,7 +857,7 @@ export default function BossSlashTrial({
                 cursor: gameActive ? "pointer" : "not-allowed",
               }}
             >
-              璺宠穬
+              跳跃
             </button>
           </div>
 
@@ -1106,6 +1118,8 @@ const coinStyle: React.CSSProperties = {
   fontSize: 11,
   fontWeight: 900,
   boxShadow: "0 0 14px rgba(250,204,21,0.45)",
+  transformStyle: "preserve-3d",
+  animation: "coinSpin 760ms linear infinite",
 };
 
 const highValueCoinStyle: React.CSSProperties = {
@@ -1113,6 +1127,7 @@ const highValueCoinStyle: React.CSSProperties = {
   borderColor: "#ddd6fe",
   color: "#fff",
   boxShadow: "0 0 18px rgba(167,139,250,0.65)",
+  animationDuration: "620ms",
 };
 
 const highObstacleStyle: React.CSSProperties = {
