@@ -7,7 +7,6 @@ import { awardMirPoints } from "@/lib/mirPoints";
 import { insertPointTransaction } from "@/lib/userLedgers";
 import {
   BOSS_LAST_HIT_COOKIE,
-  BOSS_LAST_HIT_REWARD_POINTS,
   buildBossLastHitPublicState,
   createBossLastHitRewardReceipt,
   getRewardClaimDateInShanghai,
@@ -29,8 +28,8 @@ export async function POST(request: NextRequest) {
   const cookieStore = await cookies();
   const gameState = parseBossLastHitState(cookieStore.get(BOSS_LAST_HIT_COOKIE)?.value);
 
-  if (!gameState?.finished || gameState.score < gameState.requiredScore) {
-    return NextResponse.json({ message: "Daily mission not completed." }, { status: 400 });
+  if (!gameState || gameState.dailyBestScore <= 0) {
+    return NextResponse.json({ message: "今日暂无可领取的最高成绩。" }, { status: 400 });
   }
 
   const today = getRewardClaimDateInShanghai();
@@ -47,16 +46,17 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  const awardedPoints = gameState.dailyBestScore;
   const pointAward = awardMirPoints({
     metadata: user.user_metadata,
-    points: BOSS_LAST_HIT_REWARD_POINTS,
+    points: awardedPoints,
     source: "boss_last_hit",
   });
   const nextPoints = pointAward.afterPoints;
   const receipt = createBossLastHitRewardReceipt({
     userId: user.id,
     claimedDate: today,
-    awardedPoints: BOSS_LAST_HIT_REWARD_POINTS,
+    awardedPoints,
   });
 
   const { error } = await supabaseAdmin.auth.admin.updateUserById(user.id, {
@@ -95,7 +95,7 @@ export async function POST(request: NextRequest) {
   const response = NextResponse.json({
     ok: true,
     points: nextPoints,
-    awardedPoints: BOSS_LAST_HIT_REWARD_POINTS,
+    awardedPoints,
     rewardClaimedToday: true,
     rewardClaimedDate: today,
     receipt,

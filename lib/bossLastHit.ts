@@ -1,8 +1,7 @@
 import crypto from "node:crypto";
 
 export const BOSS_LAST_HIT_COOKIE = "mir-boss-last-hit-state";
-export const BOSS_LAST_HIT_REWARD_POINTS = 50;
-export const RUNNER_REQUIRED_SCORE = 5000;
+export const RUNNER_DAILY_ATTEMPT_LIMIT = 5;
 
 export type RunnerRunSummary = {
   score: number;
@@ -22,11 +21,15 @@ export type BossLastHitGameState = {
   durationMs: number;
   requiredScore: number;
   rewardClaimedDate?: string;
+  dailyKey: string;
+  dailyRunCount: number;
+  dailyBestScore: number;
   startedAt: number | null;
   runs: RunnerRunSummary[];
 };
 
 export function createInitialBossLastHitState(rewardClaimedDate?: string): BossLastHitGameState {
+  const dailyKey = getRewardClaimDateInShanghai();
   return {
     active: true,
     finished: false,
@@ -35,8 +38,11 @@ export function createInitialBossLastHitState(rewardClaimedDate?: string): BossL
     distance: 0,
     obstaclesCleared: 0,
     durationMs: 0,
-    requiredScore: RUNNER_REQUIRED_SCORE,
+    requiredScore: 0,
     rewardClaimedDate,
+    dailyKey,
+    dailyRunCount: 0,
+    dailyBestScore: 0,
     startedAt: Date.now(),
     runs: [],
   };
@@ -66,6 +72,9 @@ export function resolveBossLastHitStrike(
     },
     ...state.runs,
   ].slice(0, 6);
+  const rewardClaimedToday = state.rewardClaimedDate === getRewardClaimDateInShanghai();
+  const dailyRunCount = rewardClaimedToday ? state.dailyRunCount : Math.min(RUNNER_DAILY_ATTEMPT_LIMIT, state.dailyRunCount + 1);
+  const dailyBestScore = rewardClaimedToday ? state.dailyBestScore : Math.max(state.dailyBestScore, score);
 
   return {
     ...state,
@@ -73,6 +82,8 @@ export function resolveBossLastHitStrike(
     finished: true,
     score,
     bestScore: Math.max(state.bestScore, score),
+    dailyRunCount,
+    dailyBestScore,
     distance,
     obstaclesCleared,
     durationMs,
@@ -93,6 +104,10 @@ export function buildBossLastHitPublicState(state: BossLastHitGameState) {
     gameFinished: state.finished,
     gameActive: state.active,
     rewardClaimedDate: state.rewardClaimedDate ?? "",
+    dailyKey: state.dailyKey,
+    dailyRunCount: state.dailyRunCount,
+    dailyBestScore: state.dailyBestScore,
+    dailyAttemptLimit: RUNNER_DAILY_ATTEMPT_LIMIT,
   };
 }
 
@@ -128,6 +143,23 @@ export function mergeBossLastHitStateWithStoredRuns(
   };
 }
 
+export function normalizeDailyRunnerState(
+  state: BossLastHitGameState,
+  rewardClaimedDate?: string,
+  now = new Date()
+): BossLastHitGameState {
+  const dailyKey = getRewardClaimDateInShanghai(now);
+  const sameDay = state.dailyKey === dailyKey;
+
+  return {
+    ...state,
+    dailyKey,
+    rewardClaimedDate,
+    dailyRunCount: sameDay ? state.dailyRunCount : 0,
+    dailyBestScore: sameDay ? state.dailyBestScore : 0,
+  };
+}
+
 export function parseBossLastHitState(value?: string | null) {
   if (!value) {
     return null;
@@ -141,12 +173,13 @@ export function parseBossLastHitState(value?: string | null) {
 }
 
 export function getRewardClaimDateInShanghai(now = new Date()) {
+  const resetAdjusted = new Date(now.getTime() - 5 * 60 * 60 * 1000);
   return new Intl.DateTimeFormat("en-CA", {
     timeZone: "Asia/Shanghai",
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
-  }).format(now);
+  }).format(resetAdjusted);
 }
 
 export function readMirPoints(metadata: Record<string, unknown> | undefined) {

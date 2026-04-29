@@ -7,6 +7,7 @@ import {
   getTodayRewardClaimed,
   getRewardClaimDateInShanghai,
   mergeBossLastHitStateWithStoredRuns,
+  normalizeDailyRunnerState,
   parseBossLastHitState,
   readMirPoints,
 } from "@/lib/bossLastHit";
@@ -26,13 +27,13 @@ export async function GET() {
   const cookieStore = await cookies();
   const gameState = parseBossLastHitState(cookieStore.get(BOSS_LAST_HIT_COOKIE)?.value);
   const syncedGameState = gameState
-    ? mergeBossLastHitStateWithStoredRuns(
+      ? normalizeDailyRunnerState(mergeBossLastHitStateWithStoredRuns(
         {
           ...gameState,
           active: false,
         },
         user.user_metadata
-      )
+      ), rewardClaimedDate)
     : null;
 
   return NextResponse.json({

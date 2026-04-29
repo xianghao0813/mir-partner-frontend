@@ -6,6 +6,9 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import {
   BOSS_LAST_HIT_COOKIE,
   buildBossLastHitPublicState,
+  getRewardClaimDateInShanghai,
+  getTodayRewardClaimed,
+  normalizeDailyRunnerState,
   parseBossLastHitState,
   resolveBossLastHitStrike,
 } from "@/lib/bossLastHit";
@@ -45,7 +48,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ message: "Invalid run result." }, { status: 400 });
   }
 
-  const nextState = resolveBossLastHitStrike(state, {
+  const rewardClaimedDate = getTodayRewardClaimed(user.user_metadata);
+  const nextState = resolveBossLastHitStrike(normalizeDailyRunnerState(state, rewardClaimedDate), {
     score: body.score,
     distance: body.distance,
     obstaclesCleared: body.obstaclesCleared,
@@ -56,7 +60,9 @@ export async function POST(request: NextRequest) {
     user_metadata: compactAuthMetadata({
       ...(user.user_metadata ?? {}),
       boss_last_hit_best_score: nextState.bestScore,
-      boss_last_hit_runs: nextState.runs,
+      boss_last_hit_day_key: getRewardClaimDateInShanghai(),
+      boss_last_hit_daily_runs: nextState.dailyRunCount,
+      boss_last_hit_daily_best_score: nextState.dailyBestScore,
     }),
   });
 

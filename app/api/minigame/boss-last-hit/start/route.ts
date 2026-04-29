@@ -3,10 +3,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import {
   BOSS_LAST_HIT_COOKIE,
+  RUNNER_DAILY_ATTEMPT_LIMIT,
   buildBossLastHitPublicState,
   createInitialBossLastHitState,
+  getRewardClaimDateInShanghai,
   getTodayRewardClaimed,
   mergeBossLastHitStateWithStoredRuns,
+  normalizeDailyRunnerState,
   parseBossLastHitState,
 } from "@/lib/bossLastHit";
 
@@ -21,16 +24,27 @@ export async function POST(request: NextRequest) {
   }
 
   const rewardClaimedDate = getTodayRewardClaimed(user.user_metadata);
+  const today = getRewardClaimDateInShanghai();
   const cookieStore = await cookies();
   const previousState = parseBossLastHitState(cookieStore.get(BOSS_LAST_HIT_COOKIE)?.value);
-  const storedState = mergeBossLastHitStateWithStoredRuns(
+  const storedState = normalizeDailyRunnerState(mergeBossLastHitStateWithStoredRuns(
     previousState ?? createInitialBossLastHitState(rewardClaimedDate),
     user.user_metadata
-  );
+  ), rewardClaimedDate);
+
+  if (rewardClaimedDate !== today && storedState.dailyRunCount >= RUNNER_DAILY_ATTEMPT_LIMIT) {
+    return NextResponse.json(
+      { message: "今日挑战次数已用完，请先领取最高成绩奖励或明日再试。", game: buildBossLastHitPublicState(storedState) },
+      { status: 400 }
+    );
+  }
+
   const gameState = {
-    ...createInitialBossLastHitState(rewardClaimedDate),
+    ...normalizeDailyRunnerState(createInitialBossLastHitState(rewardClaimedDate), rewardClaimedDate),
     bestScore: storedState.bestScore,
     runs: storedState.runs,
+    dailyRunCount: storedState.dailyRunCount,
+    dailyBestScore: storedState.dailyBestScore,
   };
   const response = NextResponse.json({
     ok: true,

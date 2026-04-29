@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
 
@@ -21,6 +21,9 @@ type BossGamePayload = {
   gameFinished: boolean;
   gameActive: boolean;
   rewardClaimedDate: string;
+  dailyRunCount: number;
+  dailyBestScore: number;
+  dailyAttemptLimit: number;
 };
 
 type BossSlashTrialProps = {
@@ -45,6 +48,14 @@ type RunnerObstacle = {
   passed: boolean;
 };
 
+type RunnerCoin = {
+  id: number;
+  x: number;
+  y: number;
+  value: 2 | 5;
+  collected: boolean;
+};
+
 const TRACK_WIDTH = 520;
 const TRACK_HEIGHT = 250;
 const GROUND_HEIGHT = 44;
@@ -59,6 +70,7 @@ const MAX_SPEED = 16.8;
 const TARGET_SCORE = 5000;
 const FEVER_INTERVAL_SCORE = 1000;
 const FEVER_DURATION_MS = 3000;
+const COIN_SIZE = 22;
 
 type RunnerBiome = {
   label: string;
@@ -71,7 +83,7 @@ type RunnerBiome = {
 const BIOME_DISTANCE = 10000;
 const RUNNER_BIOMES: RunnerBiome[] = [
   {
-    label: "森林",
+    label: "妫灄",
     track:
       "linear-gradient(180deg, #24462d 0%, #152819 68%, #0d1710 100%), repeating-linear-gradient(90deg, rgba(74,222,128,0.14) 0 12px, transparent 12px 38px)",
     skyline:
@@ -82,7 +94,7 @@ const RUNNER_BIOMES: RunnerBiome[] = [
       "linear-gradient(180deg, #31572c 0%, #1f2f16 100%), repeating-linear-gradient(90deg, rgba(190,242,100,0.18) 0 8px, transparent 8px 24px)",
   },
   {
-    label: "沙漠",
+    label: "娌欐紶",
     track:
       "linear-gradient(180deg, #8a5a2b 0%, #51301a 62%, #22140b 100%), repeating-linear-gradient(90deg, rgba(254,215,170,0.14) 0 18px, transparent 18px 54px)",
     skyline:
@@ -93,7 +105,7 @@ const RUNNER_BIOMES: RunnerBiome[] = [
       "linear-gradient(180deg, #b7792f 0%, #6b3f1d 100%), repeating-linear-gradient(90deg, rgba(255,237,213,0.22) 0 14px, transparent 14px 34px)",
   },
   {
-    label: "岩石",
+    label: "宀╃煶",
     track:
       "linear-gradient(180deg, #475569 0%, #263241 64%, #111827 100%), repeating-linear-gradient(90deg, rgba(203,213,225,0.12) 0 10px, transparent 10px 34px)",
     skyline:
@@ -104,7 +116,7 @@ const RUNNER_BIOMES: RunnerBiome[] = [
       "linear-gradient(180deg, #64748b 0%, #334155 100%), repeating-linear-gradient(90deg, rgba(226,232,240,0.16) 0 11px, transparent 11px 29px)",
   },
   {
-    label: "熔岩",
+    label: "鐔斿博",
     track:
       "linear-gradient(180deg, #5f1717 0%, #2a0c0c 62%, #09090b 100%), repeating-linear-gradient(90deg, rgba(248,113,113,0.16) 0 8px, transparent 8px 30px)",
     skyline:
@@ -115,7 +127,7 @@ const RUNNER_BIOMES: RunnerBiome[] = [
       "linear-gradient(180deg, #7f1d1d 0%, #1f0808 100%), repeating-linear-gradient(90deg, rgba(251,146,60,0.32) 0 7px, transparent 7px 23px)",
   },
   {
-    label: "云端",
+    label: "浜戠",
     track:
       "linear-gradient(180deg, #5b7bbd 0%, #334f8c 58%, #172554 100%), repeating-linear-gradient(90deg, rgba(255,255,255,0.14) 0 18px, transparent 18px 52px)",
     skyline:
@@ -149,8 +161,11 @@ export default function BossSlashTrial({
   const [rewardClaimedToday, setRewardClaimedToday] = useState(false);
   const [rewardClaimedDate, setRewardClaimedDate] = useState("");
   const [runs, setRuns] = useState<RunnerRun[]>([]);
+  const [dailyRunCount, setDailyRunCount] = useState(0);
+  const [dailyBestScore, setDailyBestScore] = useState(0);
+  const [dailyAttemptLimit, setDailyAttemptLimit] = useState(5);
   const [statusMessage, setStatusMessage] = useState(
-    "冲刺穿越遗迹，跳过障碍，达到目标分数后即可领取今日奖励。"
+    "收集道路上的 MIR 硬币。每天最多 5 局，可领取最高分的一局。"
   );
   const [isStartingGame, setIsStartingGame] = useState(false);
   const [isSubmittingRun, setIsSubmittingRun] = useState(false);
@@ -166,12 +181,15 @@ export default function BossSlashTrial({
   const [feverActive, setFeverActive] = useState(false);
   const [feverRemainingMs, setFeverRemainingMs] = useState(0);
   const [obstacles, setObstacles] = useState<RunnerObstacle[]>([]);
+  const [coins, setCoins] = useState<RunnerCoin[]>([]);
 
   const rafRef = useRef<number | null>(null);
   const lastFrameRef = useRef(0);
   const startedAtRef = useRef(0);
   const velocityRef = useRef(0);
   const obstacleIdRef = useRef(0);
+  const coinIdRef = useRef(0);
+  const nextCoinSpawnRef = useRef(620);
   const nextSpawnRef = useRef(900);
   const activeRef = useRef(false);
   const submittedRef = useRef(false);
@@ -181,13 +199,14 @@ export default function BossSlashTrial({
   const speedRef = useRef(START_SPEED);
   const playerYRef = useRef(0);
   const obstacleStateRef = useRef<RunnerObstacle[]>([]);
+  const coinStateRef = useRef<RunnerCoin[]>([]);
   const jumpCountRef = useRef(0);
   const feverActiveRef = useRef(false);
   const lastFeverScoreRef = useRef(0);
   const feverUntilRef = useRef(0);
   const targetSubmittedRef = useRef(false);
 
-  const missionCleared = gameFinished && serverScore >= requiredScore;
+  const canClaimReward = dailyBestScore > 0 && !rewardClaimedToday;
 
   useEffect(() => {
     setMirPoints(initialPoints);
@@ -218,6 +237,10 @@ export default function BossSlashTrial({
   }, [obstacles]);
 
   useEffect(() => {
+    coinStateRef.current = coins;
+  }, [coins]);
+
+  useEffect(() => {
     void fetchRunnerStatus();
   }, [initialPoints]);
 
@@ -242,7 +265,7 @@ export default function BossSlashTrial({
     };
   }, []);
 
-  const progress = useMemo(() => Math.min(1, score / requiredScore), [requiredScore, score]);
+  const progress = useMemo(() => Math.min(1, dailyRunCount / Math.max(1, dailyAttemptLimit)), [dailyAttemptLimit, dailyRunCount]);
   const currentBiome = getBiomeForDistance(distance);
 
   async function fetchRunnerStatus() {
@@ -286,7 +309,7 @@ export default function BossSlashTrial({
       resetLocalRun();
       syncGameStateFromApi(payload.game, { preserveActive: true });
       beginLoop();
-      setStatusMessage("挑战开始。按空格、W，或点击跳跃来越过障碍。支持二段跳。");
+      setStatusMessage("挑战开始。收集 2 分金币和需要二段跳的 5 分金币。");
     } catch (error) {
       console.error(error);
       setStatusMessage("无法开始挑战。");
@@ -312,15 +335,19 @@ export default function BossSlashTrial({
     setFeverActive(false);
     setFeverRemainingMs(0);
     setObstacles([]);
+    setCoins([]);
     velocityRef.current = 0;
     obstacleIdRef.current = 0;
+    coinIdRef.current = 0;
     nextSpawnRef.current = 900;
+    nextCoinSpawnRef.current = 620;
     scoreRef.current = 0;
     distanceRef.current = 0;
     obstaclesRef.current = 0;
     speedRef.current = START_SPEED;
     playerYRef.current = 0;
     obstacleStateRef.current = [];
+    coinStateRef.current = [];
     jumpCountRef.current = 0;
     feverActiveRef.current = false;
     lastFeverScoreRef.current = 0;
@@ -352,7 +379,7 @@ export default function BossSlashTrial({
     }
 
     const nextDistance = distanceRef.current + speedRef.current * (delta / 16);
-    const nextScore = Math.floor(nextDistance / 7) + obstaclesRef.current * 12;
+    let nextScore = scoreRef.current;
     const nextSpeed = Math.min(MAX_SPEED, START_SPEED + nextDistance / 390);
     const playerVelocity = velocityRef.current - GRAVITY * (delta / 16);
     let nextPlayerY = Math.max(0, playerYRef.current + playerVelocity * (delta / 16));
@@ -380,6 +407,17 @@ export default function BossSlashTrial({
       nextSpawnRef.current = Math.max(460, 1180 + Math.random() * 560 - nextSpeed * 34);
     }
 
+    nextCoinSpawnRef.current -= delta;
+    let nextCoins = coinStateRef.current.map((coin) => ({
+      ...coin,
+      x: coin.x - nextSpeed * (delta / 16),
+    }));
+
+    if (nextCoinSpawnRef.current <= 0) {
+      nextCoins.push(createCoin());
+      nextCoinSpawnRef.current = 520 + Math.random() * 520;
+    }
+
     let nextCleared = obstaclesRef.current;
     nextObstacles = nextObstacles
       .map((obstacle) => {
@@ -401,7 +439,7 @@ export default function BossSlashTrial({
       feverActiveRef.current = true;
       feverUntilRef.current = timestamp + FEVER_DURATION_MS;
       setFeverActive(true);
-      setStatusMessage("疾风模式已触发！5 秒内无敌。");
+      setStatusMessage("疾风模式触发，3 秒内无敌。");
     }
 
     if (feverActiveRef.current) {
@@ -413,17 +451,18 @@ export default function BossSlashTrial({
       }
     }
 
-    if (!targetSubmittedRef.current && nextScore >= requiredScore) {
-      targetSubmittedRef.current = true;
-      setGameFinished(true);
-      setStatusMessage("已达到目标分数，成绩已保存。可以继续挑战更高分，或领取今日奖励。");
-      void submitRunResult({
-        score: nextScore,
-        distance: nextDistance,
-        obstaclesCleared: nextCleared,
-        durationMs: Math.max(0, Math.floor(timestamp - startedAtRef.current)),
-      }, { preserveActive: true });
-    }
+    nextCoins = nextCoins
+      .map((coin) => {
+        const overlapX = coin.x < PLAYER_LEFT + PLAYER_WIDTH && coin.x + COIN_SIZE > PLAYER_LEFT;
+        const overlapY = nextPlayerY + PLAYER_HEIGHT > coin.y && nextPlayerY < coin.y + COIN_SIZE;
+        if (!coin.collected && overlapX && overlapY) {
+          nextScore += coin.value;
+          return { ...coin, collected: true };
+        }
+        return coin;
+      })
+      .filter((coin) => !coin.collected && coin.x + COIN_SIZE > -40);
+
 
     const collided = !feverActiveRef.current && nextObstacles.some((obstacle) => {
       const overlapX =
@@ -437,6 +476,7 @@ export default function BossSlashTrial({
     setPlayerY(nextPlayerY);
     setObstaclesCleared(nextCleared);
     setObstacles(nextObstacles);
+    setCoins(nextCoins);
 
     scoreRef.current = nextScore;
     distanceRef.current = nextDistance;
@@ -444,16 +484,13 @@ export default function BossSlashTrial({
     speedRef.current = nextSpeed;
     playerYRef.current = nextPlayerY;
     obstacleStateRef.current = nextObstacles;
+    coinStateRef.current = nextCoins;
 
     if (collided) {
       stopLoop();
       setGameActive(false);
       setGameFinished(true);
-      setStatusMessage(
-        nextScore >= requiredScore
-          ? "挑战完成，已达到目标分数，现在可以领取今日奖励。"
-          : "挑战结束，距离今日目标分数还差一点。"
-      );
+      setStatusMessage("本局结束，已保存本局收集到的 MIR 积分。今日可领取最高分的一局。");
       void submitRunResult({
         score: nextScore,
         distance: nextDistance,
@@ -502,6 +539,19 @@ export default function BossSlashTrial({
     };
   }
 
+  function createCoin(): RunnerCoin {
+    coinIdRef.current += 1;
+    const isHighValue = Math.random() < 0.32;
+
+    return {
+      id: coinIdRef.current,
+      x: TRACK_WIDTH + 24,
+      y: isHighValue ? 112 + Math.random() * 28 : 48 + Math.random() * 18,
+      value: isHighValue ? 5 : 2,
+      collected: false,
+    };
+  }
+
   function jump() {
     if (!activeRef.current || jumpCountRef.current >= MAX_JUMPS) {
       return;
@@ -539,21 +589,21 @@ export default function BossSlashTrial({
       const payload = await response.json();
 
       if (!response.ok) {
-        setStatusMessage(payload.message ?? "无法保存本次成绩。");
+        setStatusMessage(payload.message ?? "无法保存本局成绩。");
         return;
       }
 
       syncGameStateFromApi(payload.game, options);
     } catch (error) {
       console.error(error);
-      setStatusMessage("无法保存本次成绩。");
+      setStatusMessage("无法保存本局成绩。");
     } finally {
       setIsSubmittingRun(false);
     }
   }
 
   async function claimDailyReward() {
-    if (!missionCleared || rewardClaimedToday) {
+    if (!canClaimReward) {
       return;
     }
 
@@ -579,7 +629,7 @@ export default function BossSlashTrial({
       if (payload.game) {
         syncGameStateFromApi(payload.game);
       }
-      setStatusMessage(`奖励已领取，已增加 ${payload.awardedPoints ?? 50} 点 MIR 积分。`);
+      setStatusMessage(`奖励已领取，增加 ${payload.awardedPoints ?? 0} 点 MIR 积分。`);
     } catch (error) {
       console.error(error);
       setStatusMessage("无法领取奖励。");
@@ -600,6 +650,9 @@ export default function BossSlashTrial({
     setServerObstacles(game.obstaclesCleared);
     setServerDuration(game.durationMs);
     setRuns(game.runs);
+    setDailyRunCount(game.dailyRunCount ?? 0);
+    setDailyBestScore(game.dailyBestScore ?? 0);
+    setDailyAttemptLimit(game.dailyAttemptLimit ?? 5);
     setGameFinished(game.gameFinished);
     setGameActive(options?.preserveActive ? activeRef.current : game.gameActive);
     setRewardClaimedDate(game.rewardClaimedDate ?? "");
@@ -661,11 +714,11 @@ export default function BossSlashTrial({
           <p style={eyebrowStyle}>小游戏挑战</p>
           <h2 style={titleStyle}>遗迹冲刺</h2>
           <p style={subtitleStyle}>
-            穿越遗迹道路，达到 {requiredScore} 分后即可领取今日 MIR 积分奖励。
+            收集道路上的 MIR 硬币获得积分。普通硬币 2 分，高位紫色硬币 5 分，每天最多 5 局，领取最高分的一局。
           </p>
         </div>
         <div style={pointsBadgeStyle}>
-          <span style={{ fontSize: 12, opacity: 0.72 }}>当前 MIR 积分</span>
+          <span style={{ fontSize: 12, opacity: 0.72 }}>褰撳墠 MIR 绉垎</span>
           <strong style={{ fontSize: 28 }}>{mirPoints}</strong>
         </div>
       </div>
@@ -674,16 +727,16 @@ export default function BossSlashTrial({
         <div style={arenaCardStyle}>
           <div style={arenaTopBarStyle}>
             <div>
-              <div style={statLabelStyle}>本局分数</div>
+              <div style={statLabelStyle}>本局积分</div>
               <div style={statValueStyle}>{score}</div>
             </div>
             <div>
-              <div style={statLabelStyle}>目标</div>
-              <div style={statValueStyle}>{requiredScore}</div>
+              <div style={statLabelStyle}>今日局数</div>
+              <div style={statValueStyle}>{dailyRunCount}/{dailyAttemptLimit}</div>
             </div>
             <div>
-              <div style={statLabelStyle}>最佳</div>
-              <div style={statValueStyle}>{bestScore}</div>
+              <div style={statLabelStyle}>今日最高</div>
+              <div style={statValueStyle}>{dailyBestScore}</div>
             </div>
           </div>
 
@@ -703,6 +756,19 @@ export default function BossSlashTrial({
             {feverActive ? <div style={feverOverlayStyle} /> : null}
             <div style={{ ...biomeObjectLayerStyle, background: currentBiome.objects }} />
             <div style={trackRuinLayerStyle} />
+            {coins.map((coin) => (
+              <div
+                key={coin.id}
+                style={{
+                  ...coinStyle,
+                  ...(coin.value === 5 ? highValueCoinStyle : null),
+                  left: coin.x,
+                  bottom: GROUND_HEIGHT + coin.y,
+                }}
+              >
+                {coin.value}
+              </div>
+            ))}
             {obstacles.map((obstacle) => (
               <div
                 key={obstacle.id}
@@ -779,19 +845,14 @@ export default function BossSlashTrial({
                 cursor: gameActive ? "pointer" : "not-allowed",
               }}
             >
-              跳跃
+              璺宠穬
             </button>
           </div>
 
           <div style={hintRowStyle}>
             <span>操作：空格 / W / 方向上 / 点击跳跃</span>
             <span>跳跃次数：{jumpCount}/{MAX_JUMPS}</span>
-            <span>
-              疾风模式：
-              {feverActive
-                ? `${Math.ceil(feverRemainingMs / 1000)} 秒`
-                : `${Math.max(FEVER_INTERVAL_SCORE, (Math.floor(score / FEVER_INTERVAL_SCORE) + 1) * FEVER_INTERVAL_SCORE)} 分触发`}
-            </span>
+            <span>疾风模式：{feverActive ? `${Math.ceil(feverRemainingMs / 1000)} 秒` : `${Math.max(FEVER_INTERVAL_SCORE, (Math.floor(score / FEVER_INTERVAL_SCORE) + 1) * FEVER_INTERVAL_SCORE)} 分触发`}</span>
             <span>距离 {Math.floor(distance)} 米</span>
             <span>越过 {obstaclesCleared}</span>
             <span>速度 x{speed.toFixed(1)}</span>
@@ -804,8 +865,8 @@ export default function BossSlashTrial({
             <p style={summaryTextStyle}>{statusMessage}</p>
 
             <div style={summaryGridStyle}>
-              <SummaryStat label="上次分数" value={serverScore} />
-              <SummaryStat label="上次距离" value={`${serverDistance} 米`} />
+              <SummaryStat label="上局积分" value={serverScore} />
+              <SummaryStat label="上局距离" value={`${serverDistance} 米`} />
               <SummaryStat label="越过障碍" value={serverObstacles} />
               <SummaryStat label="用时" value={`${(serverDuration / 1000).toFixed(1)} 秒`} />
             </div>
@@ -813,21 +874,21 @@ export default function BossSlashTrial({
             <button
               type="button"
               onClick={claimDailyReward}
-              disabled={!missionCleared || rewardClaimedToday || isClaimingReward}
+              disabled={!canClaimReward || isClaimingReward}
               style={{
                 ...claimButtonStyle,
-                opacity: missionCleared && !rewardClaimedToday && !isClaimingReward ? 1 : 0.45,
+                opacity: canClaimReward && !isClaimingReward ? 1 : 0.45,
                 cursor:
-                  missionCleared && !rewardClaimedToday && !isClaimingReward ? "pointer" : "not-allowed",
+                  canClaimReward && !isClaimingReward ? "pointer" : "not-allowed",
               }}
             >
-              {rewardClaimedToday ? "今日已领取" : isClaimingReward ? "领取中..." : "领取 50 MIR"}
+              {rewardClaimedToday ? "今日已领取" : isClaimingReward ? "领取中..." : `领取 ${dailyBestScore} MIR`}
             </button>
 
             <div style={footnoteStyle}>
               {rewardClaimedToday
                 ? `今日奖励已锁定${rewardClaimedDate ? `（${rewardClaimedDate}）` : ""}。`
-                : `达到 ${requiredScore} 分后解锁今日奖励。`}
+                : `今日还可挑战 ${Math.max(0, dailyAttemptLimit - dailyRunCount)} 局，奖励按最高单局积分发放。`}
             </div>
           </div>
 
@@ -1029,6 +1090,29 @@ const obstacleStyle: React.CSSProperties = {
   borderRadius: "12px 12px 4px 4px",
   background: "linear-gradient(180deg, #b45309 0%, #7c2d12 100%)",
   boxShadow: "0 6px 18px rgba(0,0,0,0.28)",
+};
+
+const coinStyle: React.CSSProperties = {
+  position: "absolute",
+  zIndex: 4,
+  width: COIN_SIZE,
+  height: COIN_SIZE,
+  borderRadius: "50%",
+  display: "grid",
+  placeItems: "center",
+  background: "radial-gradient(circle at 35% 32%, #fff7ad, #facc15 48%, #b45309 100%)",
+  border: "2px solid #fde68a",
+  color: "#78350f",
+  fontSize: 11,
+  fontWeight: 900,
+  boxShadow: "0 0 14px rgba(250,204,21,0.45)",
+};
+
+const highValueCoinStyle: React.CSSProperties = {
+  background: "radial-gradient(circle at 35% 32%, #f5f3ff, #a78bfa 52%, #5b21b6 100%)",
+  borderColor: "#ddd6fe",
+  color: "#fff",
+  boxShadow: "0 0 18px rgba(167,139,250,0.65)",
 };
 
 const highObstacleStyle: React.CSSProperties = {
