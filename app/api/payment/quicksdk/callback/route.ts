@@ -35,7 +35,15 @@ export async function POST(request: NextRequest) {
     });
   }
 
-  const expectedAmount = await resolveExpectedPaidAmount(extras, userId, cpOrderNo);
+  const orderVerification = await verifyCallbackOrder({
+    extras,
+    userId,
+    cpOrderNo,
+    paidAmount,
+    payload,
+  });
+  const expectedAmount = orderVerification.expectedAmount;
+
   if (expectedAmount <= 0 || paidAmount <= 0 || !isSameMoney(paidAmount, expectedAmount)) {
     console.error("[QuickSDK callback amount mismatch]", {
       cpOrderNo,
@@ -48,6 +56,13 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       message: "amount_mismatch",
+    });
+  }
+
+  if (orderVerification.alreadyPaid) {
+    return NextResponse.json({
+      success: true,
+      message: "duplicate",
     });
   }
 
@@ -76,6 +91,35 @@ export async function POST(request: NextRequest) {
       success: false,
       message: "missing_quicksdk_uid",
     });
+  }
+
+  if (orderVerification.paymentOrderId) {
+    const { data: claimedOrder, error: claimError } = await supabaseAdmin
+      .from("payment_orders")
+      .update({
+        status: "paid",
+        paid_amount: paidAmount,
+        paid_at: new Date().toISOString(),
+        raw_callback: payload ?? {},
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", orderVerification.paymentOrderId)
+      .eq("status", "pending")
+      .select("id")
+      .maybeSingle();
+
+    if (claimError || !claimedOrder) {
+      console.error("[QuickSDK callback payment order claim failed]", {
+        cpOrderNo,
+        paymentOrderId: orderVerification.paymentOrderId,
+        error: claimError?.message,
+      });
+
+      return NextResponse.json({
+        success: true,
+        message: "duplicate_or_order_claim_failed",
+      });
+    }
   }
 
   const nextSdkAmount = await changeQuickSdkPlatformCoins({
@@ -269,6 +313,99 @@ async function resolveExpectedPaidAmount(
   return isPackageApplicable(couponRecord, selectedPackage)
     ? applyCouponDiscount(readNumber(selectedPackage.amount), couponRecord)
     : 0;
+}
+
+async function verifyCallbackOrder({
+  extras,
+  userId,
+  cpOrderNo,
+  paidAmount,
+  payload,
+}: {
+  extras: ReturnType<typeof parseExtras>;
+  userId: string;
+  cpOrderNo: string;
+  paidAmount: number;
+  payload: Record<string, unknown> | null;
+}) {
+  const couponId = readString(extras?.couponId);
+
+  if (couponId) {
+    return {
+      expectedAmount: await resolveExpectedPaidAmount(extras, userId, cpOrderNo),
+      paymentOrderId: "",
+      alreadyPaid: false,
+    };
+  }
+
+  const { data: order, error } = await supabaseAdmin
+    .from("payment_orders")
+    .select("*")
+    .eq("cp_order_no", cpOrderNo)
+    .maybeSingle();
+
+  if (error || !order) {
+    console.error("[QuickSDK callback payment order lookup failed]", {
+      cpOrderNo,
+      userId,
+      error: error?.message,
+    });
+    return {
+      expectedAmount: 0,
+      paymentOrderId: "",
+      alreadyPaid: false,
+    };
+  }
+
+  const source = order as Record<string, unknown>;
+  const paymentOrderId = readString(source.id);
+  const orderUserId = readString(source.user_id);
+  const orderStatus = readString(source.status);
+  const orderPackageId = Math.floor(readNumber(source.package_id));
+  const orderCoins = Math.floor(readNumber(source.coins));
+  const expectedAmount = readNumber(source.expected_amount);
+  const extrasPackageId = Math.floor(Number(extras?.packageId ?? 0));
+  const extrasCoins = Math.floor(Number(extras?.coins ?? 0));
+
+  if (orderStatus === "paid") {
+    return {
+      expectedAmount,
+      paymentOrderId,
+      alreadyPaid: true,
+    };
+  }
+
+  if (
+    orderStatus !== "pending" ||
+    orderUserId !== userId ||
+    orderPackageId !== extrasPackageId ||
+    orderCoins !== extrasCoins
+  ) {
+    console.error("[QuickSDK callback payment order mismatch]", {
+      cpOrderNo,
+      orderUserId,
+      userId,
+      orderStatus,
+      orderPackageId,
+      extrasPackageId,
+      orderCoins,
+      extrasCoins,
+      paidAmount,
+      expectedAmount,
+      payload,
+    });
+    return {
+      expectedAmount: 0,
+      paymentOrderId: "",
+      alreadyPaid: false,
+    };
+  }
+
+  return {
+    expectedAmount,
+    paymentOrderId,
+    alreadyPaid: false,
+  };
 }
 
 function isSameMoney(actual: number, expected: number) {

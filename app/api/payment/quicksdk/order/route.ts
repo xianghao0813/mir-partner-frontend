@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getCloudCoinPackage } from "@/lib/cloudCoinPackages";
 import { createQuickSdkPayUrl, getQuickSdkPublicBaseUrl } from "@/lib/quicksdk";
 import { createClient } from "@/lib/supabase/server";
+import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 export async function POST(request: NextRequest) {
   try {
@@ -45,6 +46,28 @@ export async function POST(request: NextRequest) {
     const successUrl = new URL("/profile/wallet?payment=success", publicBaseUrl).toString();
     const cancelUrl = new URL("/profile/wallet?payment=cancel", publicBaseUrl).toString();
     const cpOrderNo = buildOrderNo(user.id, selectedPackage.id);
+
+    const { error: orderInsertError } = await supabaseAdmin.from("payment_orders").insert({
+      cp_order_no: cpOrderNo,
+      user_id: user.id,
+      package_id: selectedPackage.id,
+      coins: selectedPackage.coins,
+      expected_amount: Number(selectedPackage.amount),
+      pay_method: payMethod,
+      status: "pending",
+    });
+
+    if (orderInsertError) {
+      return NextResponse.json(
+        {
+          message: orderInsertError.code === "42P01"
+            ? "支付订单表尚未初始化，请先执行 payment_orders SQL。"
+            : orderInsertError.message,
+        },
+        { status: 500 }
+      );
+    }
+
     const extrasParams = Buffer.from(
       JSON.stringify({
         packageId: selectedPackage.id,
