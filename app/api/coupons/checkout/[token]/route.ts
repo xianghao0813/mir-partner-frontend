@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { CLOUD_COIN_PACKAGES } from "@/lib/cloudCoinPackages";
 import {
   applyCouponDiscount,
+  expireCouponCheckoutSessions,
   formatMoney,
   getCouponStatus,
   isPackageApplicable,
@@ -23,6 +24,8 @@ export async function GET(
   if (!user) {
     return NextResponse.json({ message: "请先登录。" }, { status: 401 });
   }
+
+  await expireCouponCheckoutSessions(supabaseAdmin);
 
   const { token } = await context.params;
   const { data: session, error } = await supabaseAdmin

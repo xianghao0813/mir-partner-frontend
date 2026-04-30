@@ -10,6 +10,7 @@ create table if not exists public.payment_orders (
   paid_amount numeric(12, 2),
   paid_at timestamptz,
   raw_callback jsonb,
+  expires_at timestamptz not null default (now() + interval '1 minute'),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -17,6 +18,7 @@ create table if not exists public.payment_orders (
 create index if not exists idx_payment_orders_user_id on public.payment_orders(user_id);
 create index if not exists idx_payment_orders_status on public.payment_orders(status);
 create index if not exists idx_payment_orders_created_at on public.payment_orders(created_at);
+create index if not exists idx_payment_orders_expires_at on public.payment_orders(expires_at);
 
 alter table public.payment_orders enable row level security;
 

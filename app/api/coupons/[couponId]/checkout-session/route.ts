@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
   createCouponSessionToken,
+  expireCouponCheckoutSessions,
   getCouponSessionExpiry,
   getCouponStatus,
   type UserCouponRecord,
@@ -20,6 +21,8 @@ export async function POST(
   if (!user) {
     return NextResponse.json({ message: "请先登录。" }, { status: 401 });
   }
+
+  await expireCouponCheckoutSessions(supabaseAdmin);
 
   const { couponId } = await context.params;
   const { data: coupon, error } = await supabaseAdmin

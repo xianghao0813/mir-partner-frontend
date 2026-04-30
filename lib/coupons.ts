@@ -1,4 +1,5 @@
 import crypto from "crypto";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import type { CloudCoinPackage } from "@/lib/cloudCoinPackages";
 
 export type CouponDiscountType = "amount" | "percent";
@@ -62,7 +63,36 @@ export function createCouponSessionToken() {
 }
 
 export function getCouponSessionExpiry() {
-  return new Date(Date.now() + 10 * 60 * 1000).toISOString();
+  return new Date(Date.now() + 60 * 1000).toISOString();
+}
+
+export async function expireCouponCheckoutSessions(supabaseAdmin: SupabaseClient, now = new Date()) {
+  const nowIso = now.toISOString();
+  const { data } = await supabaseAdmin
+    .from("coupon_checkout_sessions")
+    .select("id,coupon_id,cp_order_no,status")
+    .in("status", ["open", "consumed"])
+    .lte("expires_at", nowIso);
+
+  const expiredSessions = Array.isArray(data) ? data as Record<string, unknown>[] : [];
+
+  await supabaseAdmin
+    .from("coupon_checkout_sessions")
+    .update({ status: "expired" })
+    .in("status", ["open", "consumed"])
+    .lte("expires_at", nowIso);
+
+  await Promise.all(
+    expiredSessions
+      .filter((session) => typeof session.coupon_id === "string" && typeof session.cp_order_no === "string")
+      .map((session) =>
+        supabaseAdmin
+          .from("user_coupons")
+          .update({ used_at: null, used_order_no: null })
+          .eq("id", session.coupon_id)
+          .eq("used_order_no", session.cp_order_no)
+      )
+  );
 }
 
 export function isPackageApplicable(coupon: Pick<UserCouponRecord, "applicable_package_ids" | "min_amount">, item: CloudCoinPackage) {

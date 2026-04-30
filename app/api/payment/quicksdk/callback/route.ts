@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { compactAuthMetadata } from "@/lib/authMetadata";
 import { getCloudCoinPackage } from "@/lib/cloudCoinPackages";
-import { applyCouponDiscount, getCouponStatus, isPackageApplicable, type UserCouponRecord } from "@/lib/coupons";
+import { applyCouponDiscount, expireCouponCheckoutSessions, getCouponStatus, isPackageApplicable, type UserCouponRecord } from "@/lib/coupons";
 import { changeQuickSdkPlatformCoins } from "@/lib/quicksdk";
 import { awardMirPoints } from "@/lib/mirPoints";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
@@ -9,6 +9,8 @@ import { insertPointTransaction, insertWalletTransaction } from "@/lib/userLedge
 import { appendWalletTransaction, readCloudCoins, readWalletTransactions } from "@/lib/wallet";
 
 export async function POST(request: NextRequest) {
+  await expireCouponCheckoutSessions(supabaseAdmin);
+
   const payload = await readCallbackPayload(request);
   console.log("[QuickSDK callback]", payload);
 
@@ -277,7 +279,7 @@ async function resolveExpectedPaidAmount(
   if (sessionToken) {
     const { data: session, error: sessionError } = await supabaseAdmin
       .from("coupon_checkout_sessions")
-      .select("id,session_token,user_id,coupon_id,status,cp_order_no")
+      .select("id,session_token,user_id,coupon_id,status,cp_order_no,expires_at")
       .eq("session_token", sessionToken)
       .eq("user_id", userId)
       .eq("coupon_id", couponId)
@@ -295,6 +297,12 @@ async function resolveExpectedPaidAmount(
 
     const source = session as Record<string, unknown>;
     if (readString(source.status) !== "consumed") {
+      return 0;
+    }
+
+    const expiresAt = new Date(readString(source.expires_at)).getTime();
+    if (!Number.isFinite(expiresAt) || expiresAt <= Date.now()) {
+      await expireCouponCheckoutSessions(supabaseAdmin);
       return 0;
     }
   }
@@ -364,6 +372,7 @@ async function verifyCallbackOrder({
   const orderPackageId = Math.floor(readNumber(source.package_id));
   const orderCoins = Math.floor(readNumber(source.coins));
   const expectedAmount = readNumber(source.expected_amount);
+  const expiresAt = new Date(readString(source.expires_at)).getTime();
   const extrasPackageId = Math.floor(Number(extras?.packageId ?? 0));
   const extrasCoins = Math.floor(Number(extras?.coins ?? 0));
 
@@ -377,6 +386,8 @@ async function verifyCallbackOrder({
 
   if (
     orderStatus !== "pending" ||
+    !Number.isFinite(expiresAt) ||
+    expiresAt <= Date.now() ||
     orderUserId !== userId ||
     orderPackageId !== extrasPackageId ||
     orderCoins !== extrasCoins

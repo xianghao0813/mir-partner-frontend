@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getCouponStatus, shouldKeepArchivedCoupon, type UserCouponRecord } from "@/lib/coupons";
+import { expireCouponCheckoutSessions, getCouponStatus, shouldKeepArchivedCoupon, type UserCouponRecord } from "@/lib/coupons";
 import { createClient } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
@@ -12,6 +12,8 @@ export async function GET() {
   if (!user) {
     return NextResponse.json({ message: "请先登录。" }, { status: 401 });
   }
+
+  await expireCouponCheckoutSessions(supabaseAdmin);
 
   const now = new Date();
   const cleanupBefore = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();

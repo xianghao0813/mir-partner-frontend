@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { expireCouponCheckoutSessions } from "@/lib/coupons";
 import { createClient } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
@@ -14,6 +15,8 @@ export async function POST(
   if (!user) {
     return NextResponse.json({ success: true });
   }
+
+  await expireCouponCheckoutSessions(supabaseAdmin);
 
   const { token } = await context.params;
   await supabaseAdmin

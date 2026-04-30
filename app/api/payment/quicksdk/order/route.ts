@@ -46,6 +46,7 @@ export async function POST(request: NextRequest) {
     const successUrl = new URL("/profile/wallet?payment=success", publicBaseUrl).toString();
     const cancelUrl = new URL("/profile/wallet?payment=cancel", publicBaseUrl).toString();
     const cpOrderNo = buildOrderNo(user.id, selectedPackage.id);
+    const expiresAt = new Date(Date.now() + 60 * 1000).toISOString();
 
     const { error: orderInsertError } = await supabaseAdmin.from("payment_orders").insert({
       cp_order_no: cpOrderNo,
@@ -55,6 +56,7 @@ export async function POST(request: NextRequest) {
       expected_amount: Number(selectedPackage.amount),
       pay_method: payMethod,
       status: "pending",
+      expires_at: expiresAt,
     });
 
     if (orderInsertError) {
@@ -103,6 +105,7 @@ export async function POST(request: NextRequest) {
       amount: selectedPackage.amount,
       coins: selectedPackage.coins,
       payMethod,
+      expiresAt,
       message: "支付页面已生成。",
     });
   } catch (error) {

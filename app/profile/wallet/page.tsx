@@ -75,6 +75,7 @@ const emptyCouponGroups: CouponGroups = {
 
 export default function WalletPage() {
   const rechargeRef = useRef<HTMLDivElement | null>(null);
+  const messageClearTimerRef = useRef<number | null>(null);
   const [wallet, setWallet] = useState<WalletSummary | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [couponOpen, setCouponOpen] = useState(false);
@@ -88,6 +89,11 @@ export default function WalletPage() {
   useEffect(() => {
     void loadWallet();
     void loadCoupons();
+    return () => {
+      if (messageClearTimerRef.current) {
+        window.clearTimeout(messageClearTimerRef.current);
+      }
+    };
   }, []);
 
   useEffect(() => {
@@ -168,6 +174,49 @@ export default function WalletPage() {
     rechargeRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
+  function showTemporaryMessage(text: string, durationMs = 5000) {
+    if (messageClearTimerRef.current) {
+      window.clearTimeout(messageClearTimerRef.current);
+    }
+
+    setMessage(text);
+    messageClearTimerRef.current = window.setTimeout(() => {
+      setMessage((current) => (current === text ? "" : current));
+      messageClearTimerRef.current = null;
+    }, durationMs);
+  }
+
+  function watchPopupClose(popup: Window, messageText: string) {
+    const intervalId = window.setInterval(() => {
+      if (!popup.closed) {
+        return;
+      }
+
+      window.clearInterval(intervalId);
+      setMessage((current) => (current === messageText ? "" : current));
+      void loadWallet();
+      void loadCoupons();
+    }, 1000);
+
+    window.setTimeout(() => window.clearInterval(intervalId), 10 * 60 * 1000);
+  }
+
+  function schedulePaymentExpiry(popup: Window, messageText: string, onExpire: () => Promise<void>) {
+    window.setTimeout(() => {
+      void (async () => {
+        await onExpire();
+
+        if (!popup.closed) {
+          popup.close();
+        }
+
+        setMessage((current) => (current === messageText ? "支付窗口已超过 1 分钟有效期，订单已取消。" : current));
+        void loadWallet();
+        void loadCoupons();
+      })();
+    }, 60 * 1000);
+  }
+
   async function startPayment(payMethod: PayMethod, tierArg?: CoinTier) {
     const tier = tierArg ?? null;
     if (!tier) {
@@ -192,7 +241,7 @@ export default function WalletPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ packageId: tier.id, payMethod }),
       });
-      const payload = (await response.json().catch(() => null)) as { message?: string; payUrl?: string } | null;
+      const payload = (await response.json().catch(() => null)) as { message?: string; payUrl?: string; cpOrderNo?: string } | null;
 
       if (!response.ok || !payload?.payUrl) {
         popup.close();
@@ -200,7 +249,17 @@ export default function WalletPage() {
         return;
       }
 
-      setMessage("支付弹窗已打开。");
+      showTemporaryMessage("支付弹窗已打开。");
+      watchPopupClose(popup, "支付弹窗已打开。");
+      if (payload.cpOrderNo) {
+        schedulePaymentExpiry(popup, "支付弹窗已打开。", async () => {
+          await fetch("/api/payment/quicksdk/order/cancel", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ cpOrderNo: payload.cpOrderNo }),
+          }).catch(() => null);
+        });
+      }
       popup.location.replace(payload.payUrl);
     } catch {
       popup.close();
@@ -234,7 +293,14 @@ export default function WalletPage() {
       }
 
       popup.location.replace(payload.checkoutUrl);
-      setMessage("优惠券专用支付窗口已打开。");
+      showTemporaryMessage("优惠券专用支付窗口已打开。");
+      watchPopupClose(popup, "优惠券专用支付窗口已打开。");
+      schedulePaymentExpiry(popup, "优惠券专用支付窗口已打开。", async () => {
+        const closeUrl = payload.checkoutUrl?.replace("/coupon/checkout/", "/api/coupons/checkout/");
+        if (closeUrl) {
+          await fetch(`${closeUrl}/close`, { method: "POST" }).catch(() => null);
+        }
+      });
       void loadCoupons();
     } catch {
       popup.close();
