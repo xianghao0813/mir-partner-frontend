@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { compactAuthMetadata } from "@/lib/authMetadata";
+import { getCloudCoinPackage } from "@/lib/cloudCoinPackages";
 import { changeQuickSdkPlatformCoins } from "@/lib/quicksdk";
 import { awardMirPoints } from "@/lib/mirPoints";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
@@ -30,6 +31,22 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       message: "ignored",
+    });
+  }
+
+  const expectedAmount = resolveExpectedPaidAmount(extras);
+  if (expectedAmount <= 0 || paidAmount <= 0 || !isSameMoney(paidAmount, expectedAmount)) {
+    console.error("[QuickSDK callback amount mismatch]", {
+      cpOrderNo,
+      paidAmount,
+      expectedAmount,
+      extras,
+      payload,
+    });
+
+    return NextResponse.json({
+      success: true,
+      message: "amount_mismatch",
     });
   }
 
@@ -160,12 +177,47 @@ function parseExtras(value: string) {
     const decoded = Buffer.from(value, "base64").toString("utf8");
     return JSON.parse(decoded) as {
       userId?: string;
+      packageId?: number;
       coins?: number;
       payMethod?: "wechat" | "alipay";
+      originalAmount?: string | number;
+      discountAmount?: string | number;
+      expectedAmount?: string | number;
     };
   } catch {
     return null;
   }
+}
+
+function resolveExpectedPaidAmount(
+  extras: ReturnType<typeof parseExtras>
+) {
+  if (!extras) {
+    return 0;
+  }
+
+  const explicitExpected = readNumber(extras.expectedAmount);
+  if (explicitExpected > 0) {
+    return roundMoney(explicitExpected);
+  }
+
+  const originalAmount = readNumber(extras.originalAmount);
+  const discountAmount = readNumber(extras.discountAmount);
+  if (originalAmount > 0) {
+    return roundMoney(Math.max(0.01, originalAmount - Math.max(0, discountAmount)));
+  }
+
+  const packageId = Math.floor(Number(extras.packageId ?? 0));
+  const selectedPackage = getCloudCoinPackage(packageId);
+  return selectedPackage ? readNumber(selectedPackage.amount) : 0;
+}
+
+function isSameMoney(actual: number, expected: number) {
+  return Math.abs(roundMoney(actual) - roundMoney(expected)) <= 0.01;
+}
+
+function roundMoney(value: number) {
+  return Math.round(value * 100) / 100;
 }
 
 function isSuccessStatus(value: string) {
