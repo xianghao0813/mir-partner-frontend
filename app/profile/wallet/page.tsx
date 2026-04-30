@@ -1,6 +1,6 @@
 "use client";
 
-import type { CSSProperties } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 type CoinTier = {
@@ -13,6 +13,7 @@ type CoinTier = {
 };
 
 type PayMethod = "wechat" | "alipay";
+type CouponTab = "unused" | "expired" | "used";
 
 type WalletTransaction = {
   id: string;
@@ -35,6 +36,28 @@ type WalletSummary = {
   transactions: WalletTransaction[];
 };
 
+type CouponItem = {
+  id: string;
+  code: string;
+  title: string;
+  description: string;
+  discountType: "amount" | "percent";
+  discountValue: number;
+  minAmount: number;
+  applicablePackageIds: number[];
+  startsAt: string;
+  expiresAt: string;
+  usedAt: string | null;
+  usedOrderNo: string | null;
+  status: CouponTab;
+};
+
+type CouponGroups = {
+  unused: CouponItem[];
+  expired: CouponItem[];
+  used: CouponItem[];
+};
+
 const coinTiers: CoinTier[] = [
   { id: 1, coins: 100, priceLabel: "¥100", label: "入门", bonus: "", image: "/cloud-coins/tier-1.png" },
   { id: 2, coins: 300, priceLabel: "¥300", label: "推荐", bonus: "+20 云币", image: "/cloud-coins/tier-2.png" },
@@ -46,17 +69,28 @@ const coinTiers: CoinTier[] = [
   { id: 8, coins: 30000, priceLabel: "¥30,000", label: "至尊", bonus: "+7000 云币", image: "/cloud-coins/tier-8.png" },
 ];
 
+const emptyCouponGroups: CouponGroups = {
+  unused: [],
+  expired: [],
+  used: [],
+};
+
 export default function WalletPage() {
   const rechargeRef = useRef<HTMLDivElement | null>(null);
   const [wallet, setWallet] = useState<WalletSummary | null>(null);
   const [selectedTier, setSelectedTier] = useState<CoinTier | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [couponOpen, setCouponOpen] = useState(false);
+  const [couponTab, setCouponTab] = useState<CouponTab>("unused");
+  const [coupons, setCoupons] = useState<CouponGroups>(emptyCouponGroups);
   const [historyMonth, setHistoryMonth] = useState(getCurrentMonth());
   const [submittingTierId, setSubmittingTierId] = useState<number | null>(null);
+  const [submittingCouponId, setSubmittingCouponId] = useState<string | null>(null);
   const [message, setMessage] = useState("");
 
   useEffect(() => {
     void loadWallet();
+    void loadCoupons();
   }, []);
 
   useEffect(() => {
@@ -64,8 +98,10 @@ export default function WalletPage() {
     if (paymentState === "success") {
       setMessage("支付已完成，请等待服务器到账通知。");
       void loadWallet();
+      void loadCoupons();
     } else if (paymentState === "cancel") {
       setMessage("你已取消本次支付。");
+      void loadCoupons();
     }
   }, []);
 
@@ -94,23 +130,40 @@ export default function WalletPage() {
 
   async function loadWallet() {
     try {
-      const response = await fetch("/api/payment/quicksdk/wallet", {
-        cache: "no-store",
-      });
+      const response = await fetch("/api/payment/quicksdk/wallet", { cache: "no-store" });
       const payload = (await response.json().catch(() => null)) as WalletSummary | { message?: string } | null;
 
       if (!response.ok || !isWalletSummary(payload)) {
-        setMessage(
-          payload && typeof payload === "object" && "message" in payload
-            ? payload.message ?? "钱包数据加载失败。"
-            : "钱包数据加载失败。"
-        );
+        setMessage(payload && "message" in payload ? payload.message ?? "钱包数据加载失败。" : "钱包数据加载失败。");
         return;
       }
 
       setWallet(payload);
     } catch {
       setMessage("钱包数据加载失败。");
+    }
+  }
+
+  async function loadCoupons() {
+    try {
+      const response = await fetch("/api/coupons", { cache: "no-store" });
+      const payload = (await response.json().catch(() => null)) as Partial<CouponGroups> & { message?: string } | null;
+
+      if (!response.ok || !payload) {
+        return;
+      }
+
+      setCoupons({
+        unused: Array.isArray(payload.unused) ? payload.unused : [],
+        expired: Array.isArray(payload.expired) ? payload.expired : [],
+        used: Array.isArray(payload.used) ? payload.used : [],
+      });
+
+      if (payload.message) {
+        setMessage(payload.message);
+      }
+    } catch {
+      // Coupon tables may not be initialized yet; wallet should still work.
     }
   }
 
@@ -133,7 +186,6 @@ export default function WalletPage() {
     }
 
     popup.document.write("<title>正在打开支付页面...</title><body style='margin:0;background:#07070a;color:#fff;font-family:Microsoft YaHei,sans-serif;display:grid;place-items:center;height:100vh;'>正在打开支付页面...</body>");
-
     setSubmittingTierId(tier.id);
     setSelectedTier(tier);
     setMessage("正在生成支付链接...");
@@ -141,21 +193,10 @@ export default function WalletPage() {
     try {
       const response = await fetch("/api/payment/quicksdk/order", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          packageId: tier.id,
-          payMethod,
-        }),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ packageId: tier.id, payMethod }),
       });
-
-      const payload = (await response.json().catch(() => null)) as
-        | {
-            message?: string;
-            payUrl?: string;
-          }
-        | null;
+      const payload = (await response.json().catch(() => null)) as { message?: string; payUrl?: string } | null;
 
       if (!response.ok || !payload?.payUrl) {
         popup.close();
@@ -173,6 +214,40 @@ export default function WalletPage() {
     }
   }
 
+  async function useCoupon(coupon: CouponItem) {
+    const popup = window.open("", "coupon-checkout", buildPopupFeatures());
+    if (!popup) {
+      setMessage("浏览器拦截了优惠券使用窗口，请允许弹窗后重试。");
+      return;
+    }
+
+    popup.document.write("<title>正在打开优惠券...</title><body style='margin:0;background:#07070a;color:#fff;font-family:Microsoft YaHei,sans-serif;display:grid;place-items:center;height:100vh;'>正在打开优惠券专用支付页...</body>");
+    setSubmittingCouponId(coupon.id);
+    setMessage("正在生成一次性优惠券链接...");
+
+    try {
+      const response = await fetch(`/api/coupons/${coupon.id}/checkout-session`, {
+        method: "POST",
+      });
+      const payload = (await response.json().catch(() => null)) as { checkoutUrl?: string; message?: string } | null;
+
+      if (!response.ok || !payload?.checkoutUrl) {
+        popup.close();
+        setMessage(payload?.message || "优惠券链接生成失败。");
+        return;
+      }
+
+      popup.location.replace(payload.checkoutUrl);
+      setMessage("优惠券专用支付窗口已打开。");
+      void loadCoupons();
+    } catch {
+      popup.close();
+      setMessage("优惠券链接生成失败。");
+    } finally {
+      setSubmittingCouponId(null);
+    }
+  }
+
   return (
     <main className="hide-scrollbar" style={pageStyle}>
       <div className="auth-bg" />
@@ -183,10 +258,8 @@ export default function WalletPage() {
           <div style={heroHeaderStyle}>
             <div>
               <div style={eyebrowStyle}>WALLET</div>
-              <h1 style={titleStyle}>钱包</h1>
-              <p style={subtitleStyle}>
-                查看账户状态、云币余额与充值记录。充值将跳转到 QuickSDK 外部支付页面继续完成。
-              </p>
+              <h1 style={titleStyle}>我的钱包</h1>
+              <p style={subtitleStyle}>查看账号状态、云币余额、充值记录与优惠券。充值会跳转到 QuickSDK 外部支付页面继续完成。</p>
             </div>
 
             <div style={balanceBadgeStyle}>
@@ -194,6 +267,8 @@ export default function WalletPage() {
               <div style={balanceValueStyle}>{(wallet?.cloudCoins ?? 0).toLocaleString()} 云币</div>
             </div>
           </div>
+
+          {message ? <div style={messageStyle}>{message}</div> : null}
 
           <div style={infoGridStyle}>
             {accountInfo.map((item) => (
@@ -208,11 +283,13 @@ export default function WalletPage() {
             <button type="button" onClick={() => setHistoryOpen(true)} style={secondaryButtonStyle}>
               使用明细
             </button>
+            <button type="button" onClick={() => setCouponOpen(true)} style={secondaryButtonStyle}>
+              优惠券
+            </button>
             <button type="button" onClick={moveToRecharge} style={primaryButtonStyle}>
               充值
             </button>
           </div>
-
         </section>
 
         <section ref={rechargeRef} style={rechargeCardStyle}>
@@ -220,39 +297,29 @@ export default function WalletPage() {
             <div>
               <div style={eyebrowStyle}>CHARGE</div>
               <h2 style={sectionTitleStyle}>云币充值</h2>
-              <p style={sectionTextStyle}>点击整张卡片即可直接前往充值，不再显示单独的支付方式区域。</p>
+              <p style={sectionTextStyle}>点击卡片即可直接前往充值。优惠券请先从“优惠券”弹窗进入专用支付页使用。</p>
             </div>
 
-            <div style={selectedBadgeStyle}>{selectedTier ? `${selectedTier.coins.toLocaleString()} 云币 / ${selectedTier.priceLabel}` : "点击卡片立即充值"}</div>
+            <div style={selectedBadgeStyle}>
+              {selectedTier ? `${selectedTier.coins.toLocaleString()} 云币 / ${selectedTier.priceLabel}` : "点击卡片立即充值"}
+            </div>
           </div>
 
           <div style={tierGridStyle}>
             {coinTiers.map((tier) => {
               const active = selectedTier?.id === tier.id;
               return (
-                <button
-                  key={tier.id}
-                  type="button"
-                  onClick={() => void startPayment("wechat", tier)}
-                  style={tierCardButtonStyle}
-                  className="wallet-tier-button"
-                >
-                <article style={tierCardStyle(active)} className="wallet-tier-card">
-                  <div className="wallet-tier-glow" />
-                  <div style={tierTopStyle}>
+                <button key={tier.id} type="button" onClick={() => void startPayment("wechat", tier)} style={tierCardButtonStyle}>
+                  <article style={tierCardStyle(active)}>
                     <div style={tierTagStyle(active)}>{tier.label}</div>
-                  </div>
-
-                  <div style={tierImageWrapStyle}>
-                    <img src={tier.image} alt={`${tier.coins} 云币`} style={tierImageStyle} />
-                  </div>
-
-                  <div style={tierCoinsStyle}>{tier.coins.toLocaleString()} 云币</div>
-                  <div style={tierBonusStyle}>{tier.bonus || "标准档位"}</div>
-                  <div style={tierPriceCenterStyle}>{tier.priceLabel}</div>
-
-                  {submittingTierId === tier.id ? <div style={tierLoadingStyle}>跳转中...</div> : null}
-                </article>
+                    <div style={tierImageWrapStyle}>
+                      <img src={tier.image} alt={`${tier.coins} 云币`} style={tierImageStyle} />
+                    </div>
+                    <div style={tierCoinsStyle}>{tier.coins.toLocaleString()} 云币</div>
+                    <div style={tierBonusStyle}>{tier.bonus || "标准档位"}</div>
+                    <div style={tierPriceCenterStyle}>{tier.priceLabel}</div>
+                    {submittingTierId === tier.id ? <div style={tierLoadingStyle}>跳转中...</div> : null}
+                  </article>
                 </button>
               );
             })}
@@ -261,57 +328,92 @@ export default function WalletPage() {
       </div>
 
       {historyOpen ? (
-        <div style={overlayStyle} onClick={() => setHistoryOpen(false)}>
-          <div style={modalStyle} onClick={(event) => event.stopPropagation()}>
-            <div style={modalHeaderStyle}>
-              <h3 style={modalTitleStyle}>使用明细</h3>
-              <button type="button" onClick={() => setHistoryOpen(false)} style={secondaryButtonStyle}>
-                关闭
-              </button>
-            </div>
-
-            <div style={historyToolbarStyle}>
-              <input
-                type="month"
-                value={historyMonth}
-                onChange={(event) => setHistoryMonth(event.target.value)}
-                style={historyMonthInputStyle}
-                aria-label="选择月份"
-              />
-              <button type="button" onClick={() => setHistoryMonth("")} style={historyFilterButtonStyle}>
-                全部
-              </button>
-              <div style={historySummaryStyle}>
-                充值 +{historyRechargeTotal.toLocaleString()} / 使用 {historyConsumeTotal.toLocaleString()}
-              </div>
-            </div>
-
-            <div style={historyListStyle}>
-              {visibleTransactions.length === 0 ? (
-                <div style={emptyHistoryStyle}>暂无云币使用明细。</div>
-              ) : (
-                visibleTransactions.map((item) => (
-                  <article key={item.id} style={historyItemStyle}>
-                    <div>
-                      <div style={historyDescStyle}>{item.desc}</div>
-                      <div style={historyMetaStyle}>
-                        {item.date}
-                        {item.payMethod ? ` · ${item.payMethod === "wechat" ? "微信" : "支付宝"}` : ""}
-                        {item.status ? ` · ${renderStatus(item.status)}` : ""}
-                      </div>
-                    </div>
-                    <div style={historyValueStyle(item.coins >= 0)}>
-                      {item.coins >= 0 ? "+" : ""}
-                      {item.coins}
-                    </div>
-                  </article>
-                ))
-              )}
-            </div>
+        <Modal title="使用明细" onClose={() => setHistoryOpen(false)}>
+          <div style={historyToolbarStyle}>
+            <input type="month" value={historyMonth} onChange={(event) => setHistoryMonth(event.target.value)} style={historyMonthInputStyle} aria-label="选择月份" />
+            <button type="button" onClick={() => setHistoryMonth("")} style={historyFilterButtonStyle}>全部</button>
+            <div style={historySummaryStyle}>充值 +{historyRechargeTotal.toLocaleString()} / 使用 {historyConsumeTotal.toLocaleString()}</div>
           </div>
-        </div>
+
+          <div style={historyListStyle}>
+            {visibleTransactions.length === 0 ? (
+              <div style={emptyHistoryStyle}>暂无云币使用明细。</div>
+            ) : (
+              visibleTransactions.map((item) => (
+                <article key={item.id} style={historyItemStyle}>
+                  <div>
+                    <div style={historyDescStyle}>{item.desc}</div>
+                    <div style={historyMetaStyle}>
+                      {item.date}
+                      {item.payMethod ? ` · ${item.payMethod === "wechat" ? "微信" : "支付宝"}` : ""}
+                      {item.status ? ` · ${renderStatus(item.status)}` : ""}
+                    </div>
+                  </div>
+                  <div style={historyValueStyle(item.coins >= 0)}>
+                    {item.coins >= 0 ? "+" : ""}
+                    {item.coins}
+                  </div>
+                </article>
+              ))
+            )}
+          </div>
+        </Modal>
+      ) : null}
+
+      {couponOpen ? (
+        <Modal title="我的优惠券" onClose={() => setCouponOpen(false)}>
+          <div style={couponTabRowStyle}>
+            {(["unused", "expired", "used"] as CouponTab[]).map((tab) => (
+              <button key={tab} type="button" onClick={() => setCouponTab(tab)} style={couponTabStyle(couponTab === tab)}>
+                {renderCouponTab(tab)} ({coupons[tab].length})
+              </button>
+            ))}
+          </div>
+
+          <div style={couponListStyle}>
+            {coupons[couponTab].length === 0 ? (
+              <div style={emptyHistoryStyle}>暂无{renderCouponTab(couponTab)}优惠券。</div>
+            ) : (
+              coupons[couponTab].map((coupon) => (
+                <article key={coupon.id} style={couponCardStyle}>
+                  <div>
+                    <div style={couponTitleStyle}>{coupon.title}</div>
+                    <div style={couponCodeStyle}>券码 {coupon.code}</div>
+                    <div style={couponMetaStyle}>
+                      {renderCouponDiscount(coupon)} · 满 ¥{coupon.minAmount.toLocaleString()} 可用 · 有效期至 {formatDate(coupon.expiresAt)}
+                    </div>
+                    {coupon.description ? <p style={couponDescriptionStyle}>{coupon.description}</p> : null}
+                    {coupon.usedOrderNo ? <div style={couponMetaStyle}>订单号 {coupon.usedOrderNo}</div> : null}
+                  </div>
+
+                  {coupon.status === "unused" ? (
+                    <button type="button" onClick={() => void useCoupon(coupon)} disabled={submittingCouponId === coupon.id} style={primaryButtonStyle}>
+                      {submittingCouponId === coupon.id ? "生成中..." : "立即使用"}
+                    </button>
+                  ) : (
+                    <div style={couponStatusBadgeStyle}>{renderCouponTab(coupon.status)}</div>
+                  )}
+                </article>
+              ))
+            )}
+          </div>
+        </Modal>
       ) : null}
     </main>
+  );
+}
+
+function Modal({ title, children, onClose }: { title: string; children: ReactNode; onClose: () => void }) {
+  return (
+    <div style={overlayStyle} onClick={onClose}>
+      <div style={modalStyle} onClick={(event) => event.stopPropagation()}>
+        <div style={modalHeaderStyle}>
+          <h3 style={modalTitleStyle}>{title}</h3>
+          <button type="button" onClick={onClose} style={secondaryButtonStyle}>关闭</button>
+        </div>
+        {children}
+      </div>
+    </div>
   );
 }
 
@@ -326,6 +428,20 @@ function renderStatus(status: WalletTransaction["status"]) {
     default:
       return "未知";
   }
+}
+
+function renderCouponTab(tab: CouponTab) {
+  if (tab === "unused") {
+    return "未使用";
+  }
+  if (tab === "expired") {
+    return "已过期";
+  }
+  return "已使用";
+}
+
+function renderCouponDiscount(coupon: CouponItem) {
+  return coupon.discountType === "percent" ? `${coupon.discountValue}% 折扣` : `立减 ¥${coupon.discountValue}`;
 }
 
 function isWalletSummary(value: unknown): value is WalletSummary {
@@ -357,17 +473,23 @@ function getCurrentMonth() {
 }
 
 function sumTransactions(items: WalletTransaction[], type: WalletTransaction["type"]) {
-  return items
-    .filter((item) => item.type === type)
-    .reduce((total, item) => total + item.coins, 0);
+  return items.filter((item) => item.type === type).reduce((total, item) => total + item.coins, 0);
 }
 
 function buildPopupFeatures() {
-  const width = 520;
+  const width = 560;
   const height = 760;
   const left = Math.max(0, window.screenX + Math.round((window.outerWidth - width) / 2));
   const top = Math.max(0, window.screenY + Math.round((window.outerHeight - height) / 2));
   return `popup=yes,width=${width},height=${height},left=${left},top=${top},resizable=yes,scrollbars=yes`;
+}
+
+function formatDate(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+  return date.toLocaleString("zh-CN", { hour12: false });
 }
 
 const pageStyle: CSSProperties = {
@@ -400,17 +522,8 @@ const baseCardStyle: CSSProperties = {
   padding: "28px",
 };
 
-const heroCardStyle: CSSProperties = {
-  ...baseCardStyle,
-  display: "grid",
-  gap: "22px",
-};
-
-const rechargeCardStyle: CSSProperties = {
-  ...baseCardStyle,
-  display: "grid",
-  gap: "22px",
-};
+const heroCardStyle: CSSProperties = { ...baseCardStyle, display: "grid", gap: "22px" };
+const rechargeCardStyle: CSSProperties = { ...baseCardStyle, display: "grid", gap: "22px" };
 
 const eyebrowStyle: CSSProperties = {
   color: "#c4b5fd",
@@ -420,27 +533,9 @@ const eyebrowStyle: CSSProperties = {
   marginBottom: "10px",
 };
 
-const titleStyle: CSSProperties = {
-  margin: 0,
-  fontSize: "32px",
-  color: "#fff",
-};
-
-const subtitleStyle: CSSProperties = {
-  marginTop: "8px",
-  marginBottom: 0,
-  color: "#b8b8c5",
-  fontSize: "14px",
-  lineHeight: 1.6,
-};
-
-const heroHeaderStyle: CSSProperties = {
-  display: "flex",
-  justifyContent: "space-between",
-  alignItems: "flex-start",
-  gap: "16px",
-  flexWrap: "wrap",
-};
+const titleStyle: CSSProperties = { margin: 0, fontSize: "32px", color: "#fff" };
+const subtitleStyle: CSSProperties = { marginTop: "8px", marginBottom: 0, color: "#b8b8c5", fontSize: "14px", lineHeight: 1.6 };
+const heroHeaderStyle: CSSProperties = { display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "16px", flexWrap: "wrap" };
 
 const balanceBadgeStyle: CSSProperties = {
   minWidth: "240px",
@@ -450,50 +545,13 @@ const balanceBadgeStyle: CSSProperties = {
   border: "1px solid rgba(196,181,253,0.25)",
 };
 
-const balanceLabelStyle: CSSProperties = {
-  color: "#cbd5e1",
-  fontSize: "13px",
-};
-
-const balanceValueStyle: CSSProperties = {
-  marginTop: "8px",
-  fontSize: "30px",
-  fontWeight: 700,
-  color: "#fff",
-};
-
-const infoGridStyle: CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-  gap: "14px",
-};
-
-const infoCardStyle: CSSProperties = {
-  padding: "18px",
-  borderRadius: "16px",
-  background: "rgba(255,255,255,0.04)",
-  border: "1px solid rgba(255,255,255,0.06)",
-  display: "grid",
-  gap: "8px",
-};
-
-const infoLabelStyle: CSSProperties = {
-  color: "#9ca3af",
-  fontSize: "13px",
-};
-
-const infoValueStyle: CSSProperties = {
-  fontSize: "20px",
-  fontWeight: 700,
-  color: "#fff",
-  wordBreak: "break-word",
-};
-
-const heroActionRowStyle: CSSProperties = {
-  display: "flex",
-  gap: "12px",
-  flexWrap: "wrap",
-};
+const balanceLabelStyle: CSSProperties = { color: "#cbd5e1", fontSize: "13px" };
+const balanceValueStyle: CSSProperties = { marginTop: "8px", fontSize: "30px", fontWeight: 700, color: "#fff" };
+const infoGridStyle: CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "14px" };
+const infoCardStyle: CSSProperties = { padding: "18px", borderRadius: "16px", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)", display: "grid", gap: "8px" };
+const infoLabelStyle: CSSProperties = { color: "#9ca3af", fontSize: "13px" };
+const infoValueStyle: CSSProperties = { fontSize: "20px", fontWeight: 700, color: "#fff", wordBreak: "break-word" };
+const heroActionRowStyle: CSSProperties = { display: "flex", gap: "12px", flexWrap: "wrap" };
 
 const primaryButtonStyle: CSSProperties = {
   border: "1px solid rgba(139,92,246,0.4)",
@@ -526,317 +584,42 @@ const messageStyle: CSSProperties = {
   fontSize: "14px",
 };
 
-const sectionHeaderStyle: CSSProperties = {
-  display: "flex",
-  justifyContent: "space-between",
-  alignItems: "flex-start",
-  gap: "16px",
-  flexWrap: "wrap",
-};
+const sectionHeaderStyle: CSSProperties = { display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "16px", flexWrap: "wrap" };
+const sectionTitleStyle: CSSProperties = { margin: 0, fontSize: "28px", color: "#fff" };
+const sectionTextStyle: CSSProperties = { marginTop: "8px", marginBottom: 0, color: "#b8b8c5", fontSize: "14px", lineHeight: 1.6 };
+const selectedBadgeStyle: CSSProperties = { padding: "10px 14px", borderRadius: "999px", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)", color: "#e5e7eb", fontSize: "14px", fontWeight: 700 };
+const tierGridStyle: CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "14px" };
+const tierCardButtonStyle: CSSProperties = { appearance: "none", border: "none", background: "transparent", padding: 0, margin: 0, textAlign: "left", cursor: "pointer" };
+const tierCardStyle = (active: boolean): CSSProperties => ({ borderRadius: "18px", padding: "18px", background: active ? "rgba(139,92,246,0.16)" : "rgba(255,255,255,0.04)", border: active ? "1px solid rgba(196,181,253,0.42)" : "1px solid rgba(255,255,255,0.06)", display: "grid", gap: "12px" });
+const tierTagStyle = (active: boolean): CSSProperties => ({ display: "inline-flex", alignItems: "center", justifyContent: "center", minHeight: "28px", padding: "0 10px", borderRadius: "999px", background: active ? "rgba(167,139,250,0.22)" : "rgba(255,255,255,0.08)", color: active ? "#f5d0fe" : "#e5e7eb", fontSize: "12px", fontWeight: 700 });
+const tierImageWrapStyle: CSSProperties = { height: "146px", display: "flex", alignItems: "center", justifyContent: "center", padding: "8px 0 2px" };
+const tierImageStyle: CSSProperties = { maxWidth: "100%", maxHeight: "100%", objectFit: "contain", filter: "drop-shadow(0 14px 28px rgba(0,0,0,0.35))" };
+const tierCoinsStyle: CSSProperties = { color: "#fff", fontSize: "28px", fontWeight: 700, textAlign: "center" };
+const tierBonusStyle: CSSProperties = { color: "#facc15", fontSize: "14px", fontWeight: 800, minHeight: "18px", textAlign: "center" };
+const tierPriceCenterStyle: CSSProperties = { color: "#f8fafc", fontWeight: 800, fontSize: "20px", textAlign: "center" };
+const tierLoadingStyle: CSSProperties = { marginTop: "4px", color: "#c4b5fd", fontSize: "13px", fontWeight: 700, textAlign: "center" };
 
-const sectionTitleStyle: CSSProperties = {
-  margin: 0,
-  fontSize: "28px",
-  color: "#fff",
-};
+const overlayStyle: CSSProperties = { position: "fixed", inset: 0, background: "rgba(0,0,0,0.72)", display: "grid", placeItems: "center", padding: "24px", zIndex: 20 };
+const modalStyle: CSSProperties = { width: "100%", maxWidth: "800px", maxHeight: "82vh", overflowY: "auto", borderRadius: "24px", background: "#11111a", border: "1px solid rgba(255,255,255,0.08)", boxShadow: "0 20px 40px rgba(0,0,0,0.4)", padding: "24px" };
+const modalHeaderStyle: CSSProperties = { display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px", marginBottom: "18px", flexWrap: "wrap" };
+const modalTitleStyle: CSSProperties = { margin: 0, fontSize: "22px", color: "#fff" };
+const historyToolbarStyle: CSSProperties = { display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap", marginBottom: "16px" };
+const historyMonthInputStyle: CSSProperties = { height: "42px", border: "1px solid rgba(255,255,255,0.14)", borderRadius: "12px", background: "rgba(255,255,255,0.06)", color: "#fff", padding: "0 12px", fontSize: "14px", outline: "none" };
+const historyFilterButtonStyle: CSSProperties = { border: "1px solid rgba(255,255,255,0.14)", background: "rgba(255,255,255,0.05)", color: "#fff", borderRadius: "12px", height: "42px", padding: "0 14px", fontSize: "14px", fontWeight: 700, cursor: "pointer" };
+const historySummaryStyle: CSSProperties = { color: "#cbd5e1", fontSize: "14px", marginLeft: "auto" };
+const historyListStyle: CSSProperties = { display: "grid", gap: "12px" };
+const emptyHistoryStyle: CSSProperties = { padding: "22px", borderRadius: "16px", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)", color: "#9ca3af", textAlign: "center" };
+const historyItemStyle: CSSProperties = { padding: "16px", borderRadius: "16px", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)", display: "flex", justifyContent: "space-between", alignItems: "center", gap: "14px" };
+const historyDescStyle: CSSProperties = { color: "#fff", fontWeight: 700 };
+const historyMetaStyle: CSSProperties = { marginTop: "6px", color: "#9ca3af", fontSize: "13px" };
+const historyValueStyle = (positive: boolean): CSSProperties => ({ color: positive ? "#86efac" : "#fca5a5", fontWeight: 700, fontSize: "22px", whiteSpace: "nowrap" });
 
-const sectionTextStyle: CSSProperties = {
-  marginTop: "8px",
-  marginBottom: 0,
-  color: "#b8b8c5",
-  fontSize: "14px",
-  lineHeight: 1.6,
-};
-
-const selectedBadgeStyle: CSSProperties = {
-  padding: "10px 14px",
-  borderRadius: "999px",
-  background: "rgba(255,255,255,0.05)",
-  border: "1px solid rgba(255,255,255,0.08)",
-  color: "#e5e7eb",
-  fontSize: "14px",
-  fontWeight: 700,
-};
-
-const tierGridStyle: CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-  gap: "14px",
-};
-
-const tierCardButtonStyle: CSSProperties = {
-  appearance: "none",
-  border: "none",
-  background: "transparent",
-  padding: 0,
-  margin: 0,
-  textAlign: "left",
-  cursor: "pointer",
-};
-
-const tierCardStyle = (active: boolean): CSSProperties => ({
-  borderRadius: "18px",
-  padding: "18px",
-  background: active ? "rgba(139,92,246,0.16)" : "rgba(255,255,255,0.04)",
-  border: active ? "1px solid rgba(196,181,253,0.42)" : "1px solid rgba(255,255,255,0.06)",
-  display: "grid",
-  gap: "12px",
-});
-
-const tierTopStyle: CSSProperties = {
-  display: "flex",
-  justifyContent: "space-between",
-  alignItems: "center",
-  gap: "8px",
-};
-
-const tierTagStyle = (active: boolean): CSSProperties => ({
-  display: "inline-flex",
-  alignItems: "center",
-  justifyContent: "center",
-  minHeight: "28px",
-  padding: "0 10px",
-  borderRadius: "999px",
-  background: active ? "rgba(167,139,250,0.22)" : "rgba(255,255,255,0.08)",
-  color: active ? "#f5d0fe" : "#e5e7eb",
-  fontSize: "12px",
-  fontWeight: 700,
-});
-
-const tierPriceStyle: CSSProperties = {
-  color: "#f8fafc",
-  fontWeight: 700,
-};
-
-const tierCoinsStyle: CSSProperties = {
-  color: "#fff",
-  fontSize: "28px",
-  fontWeight: 700,
-  textAlign: "center",
-};
-
-const tierImageWrapStyle: CSSProperties = {
-  height: "146px",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  padding: "8px 0 2px",
-};
-
-const tierImageStyle: CSSProperties = {
-  maxWidth: "100%",
-  maxHeight: "100%",
-  objectFit: "contain",
-  filter: "drop-shadow(0 14px 28px rgba(0,0,0,0.35))",
-};
-
-const tierPriceCenterStyle: CSSProperties = {
-  color: "#f8fafc",
-  fontWeight: 800,
-  fontSize: "20px",
-  textAlign: "center",
-};
-
-const tierBonusStyle: CSSProperties = {
-  color: "#facc15",
-  fontSize: "14px",
-  fontWeight: 800,
-  minHeight: "18px",
-  textAlign: "center",
-};
-
-const tierActionsStyle: CSSProperties = {
-  display: "flex",
-  gap: "10px",
-  flexWrap: "wrap",
-};
-
-const tierLoadingStyle: CSSProperties = {
-  marginTop: "4px",
-  color: "#c4b5fd",
-  fontSize: "13px",
-  fontWeight: 700,
-  textAlign: "center",
-};
-
-const tierSelectButtonStyle = (active: boolean): CSSProperties => ({
-  border: "1px solid rgba(255,255,255,0.12)",
-  background: active ? "rgba(255,255,255,0.12)" : "transparent",
-  color: "#fff",
-  borderRadius: "12px",
-  padding: "10px 12px",
-  fontSize: "13px",
-  fontWeight: 700,
-  cursor: "pointer",
-  flex: "1 1 110px",
-});
-
-const tierPayButtonStyle = (color: string): CSSProperties => ({
-  border: "none",
-  background: color,
-  color: "#fff",
-  borderRadius: "12px",
-  padding: "10px 12px",
-  fontSize: "13px",
-  fontWeight: 700,
-  cursor: "pointer",
-  flex: "1 1 110px",
-});
-
-const checkoutPanelStyle: CSSProperties = {
-  borderRadius: "18px",
-  padding: "20px",
-  background: "rgba(255,255,255,0.04)",
-  border: "1px solid rgba(255,255,255,0.06)",
-  display: "grid",
-  gap: "14px",
-};
-
-const checkoutTitleStyle: CSSProperties = {
-  margin: 0,
-  fontSize: "18px",
-  color: "#fff",
-};
-
-const checkoutHintStyle: CSSProperties = {
-  marginTop: "8px",
-  marginBottom: 0,
-  color: "#9ca3af",
-  fontSize: "13px",
-  lineHeight: 1.6,
-};
-
-const checkoutButtonsStyle: CSSProperties = {
-  display: "flex",
-  gap: "12px",
-  flexWrap: "wrap",
-};
-
-const payMethodButtonStyle = (color: string): CSSProperties => ({
-  border: "none",
-  background: color,
-  color: "#fff",
-  borderRadius: "14px",
-  padding: "14px 20px",
-  minWidth: "180px",
-  fontSize: "14px",
-  fontWeight: 700,
-  cursor: "pointer",
-});
-
-const overlayStyle: CSSProperties = {
-  position: "fixed",
-  inset: 0,
-  background: "rgba(0,0,0,0.72)",
-  display: "grid",
-  placeItems: "center",
-  padding: "24px",
-  zIndex: 20,
-};
-
-const modalStyle: CSSProperties = {
-  width: "100%",
-  maxWidth: "760px",
-  maxHeight: "80vh",
-  overflowY: "auto",
-  borderRadius: "24px",
-  background: "#11111a",
-  border: "1px solid rgba(255,255,255,0.08)",
-  boxShadow: "0 20px 40px rgba(0,0,0,0.4)",
-  padding: "24px",
-};
-
-const modalHeaderStyle: CSSProperties = {
-  display: "flex",
-  justifyContent: "space-between",
-  alignItems: "center",
-  gap: "12px",
-  marginBottom: "18px",
-  flexWrap: "wrap",
-};
-
-const modalTitleStyle: CSSProperties = {
-  margin: 0,
-  fontSize: "22px",
-  color: "#fff",
-};
-
-const historyToolbarStyle: CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  gap: "10px",
-  flexWrap: "wrap",
-  marginBottom: "16px",
-};
-
-const historyMonthInputStyle: CSSProperties = {
-  height: "42px",
-  border: "1px solid rgba(255,255,255,0.14)",
-  borderRadius: "12px",
-  background: "rgba(255,255,255,0.06)",
-  color: "#fff",
-  padding: "0 12px",
-  fontSize: "14px",
-  outline: "none",
-};
-
-const historyFilterButtonStyle: CSSProperties = {
-  border: "1px solid rgba(255,255,255,0.14)",
-  background: "rgba(255,255,255,0.05)",
-  color: "#fff",
-  borderRadius: "12px",
-  height: "42px",
-  padding: "0 14px",
-  fontSize: "14px",
-  fontWeight: 700,
-  cursor: "pointer",
-};
-
-const historySummaryStyle: CSSProperties = {
-  color: "#cbd5e1",
-  fontSize: "14px",
-  marginLeft: "auto",
-};
-
-const historyListStyle: CSSProperties = {
-  display: "grid",
-  gap: "12px",
-};
-
-const emptyHistoryStyle: CSSProperties = {
-  padding: "22px",
-  borderRadius: "16px",
-  background: "rgba(255,255,255,0.04)",
-  border: "1px solid rgba(255,255,255,0.06)",
-  color: "#9ca3af",
-  textAlign: "center",
-};
-
-const historyItemStyle: CSSProperties = {
-  padding: "16px",
-  borderRadius: "16px",
-  background: "rgba(255,255,255,0.04)",
-  border: "1px solid rgba(255,255,255,0.06)",
-  display: "flex",
-  justifyContent: "space-between",
-  alignItems: "center",
-  gap: "14px",
-};
-
-const historyDescStyle: CSSProperties = {
-  color: "#fff",
-  fontWeight: 700,
-};
-
-const historyMetaStyle: CSSProperties = {
-  marginTop: "6px",
-  color: "#9ca3af",
-  fontSize: "13px",
-};
-
-const historyValueStyle = (positive: boolean): CSSProperties => ({
-  color: positive ? "#86efac" : "#fca5a5",
-  fontWeight: 700,
-  fontSize: "22px",
-  whiteSpace: "nowrap",
-});
+const couponTabRowStyle: CSSProperties = { display: "flex", gap: "10px", flexWrap: "wrap", marginBottom: "16px" };
+const couponTabStyle = (active: boolean): CSSProperties => ({ border: active ? "1px solid rgba(250,204,21,0.42)" : "1px solid rgba(255,255,255,0.12)", background: active ? "rgba(250,204,21,0.12)" : "rgba(255,255,255,0.05)", color: "#fff", borderRadius: "999px", padding: "10px 14px", cursor: "pointer", fontWeight: 800 });
+const couponListStyle: CSSProperties = { display: "grid", gap: "12px" };
+const couponCardStyle: CSSProperties = { padding: "18px", borderRadius: "18px", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", display: "flex", justifyContent: "space-between", gap: "16px", alignItems: "center", flexWrap: "wrap" };
+const couponTitleStyle: CSSProperties = { color: "#fff", fontSize: "18px", fontWeight: 900 };
+const couponCodeStyle: CSSProperties = { marginTop: "6px", color: "#facc15", fontSize: "13px", fontWeight: 800 };
+const couponMetaStyle: CSSProperties = { marginTop: "8px", color: "#cbd5e1", fontSize: "13px", lineHeight: 1.6 };
+const couponDescriptionStyle: CSSProperties = { margin: "8px 0 0", color: "#9ca3af", fontSize: "13px", lineHeight: 1.6 };
+const couponStatusBadgeStyle: CSSProperties = { padding: "10px 14px", borderRadius: "999px", background: "rgba(255,255,255,0.08)", color: "#cbd5e1", fontSize: "13px", fontWeight: 800 };
