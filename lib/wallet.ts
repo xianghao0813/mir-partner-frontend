@@ -43,7 +43,9 @@ export async function buildWalletSummary(user: User): Promise<WalletSummary> {
   const uid = readStringMetadata(user.user_metadata, ["quicksdk_uid", "uid"]) || extractAccountUid(account);
   const sdkWallet = uid ? await readQuickSdkWallet(uid) : null;
   const dbTransactions = await readWalletTransactionsFromDb(user.id);
-  const localTransactions = dbTransactions.length > 0 ? dbTransactions : readWalletTransactions(user.user_metadata);
+  const metadataTransactions = readWalletTransactions(user.user_metadata);
+  const localTransactions = mergeWalletTransactions([...dbTransactions, ...metadataTransactions]);
+  const localCloudCoins = readCloudCoins(user.user_metadata);
   const sdkOrderTransactions = sdkWallet?.orders
     .filter((order) => !isPlatformCoinOrder(order))
     .map(mapOrderToTransaction) ?? [];
@@ -62,7 +64,7 @@ export async function buildWalletSummary(user: User): Promise<WalletSummary> {
         "mirPartnerCode",
       ]) || createPartnerCode(user.id),
     status: "正常",
-    cloudCoins: sdkWallet?.amount ?? readCloudCoins(user.user_metadata),
+    cloudCoins: Math.max(sdkWallet?.amount ?? 0, localCloudCoins),
     transactions: mergeWalletTransactions([...localTransactions, ...sdkOrderTransactions]),
   };
 }
