@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { compactAuthMetadata } from "@/lib/authMetadata";
 import { getCloudCoinPackage } from "@/lib/cloudCoinPackages";
+import { applyCouponDiscount, getCouponStatus, isPackageApplicable, type UserCouponRecord } from "@/lib/coupons";
 import { changeQuickSdkPlatformCoins } from "@/lib/quicksdk";
 import { awardMirPoints } from "@/lib/mirPoints";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
@@ -34,7 +35,7 @@ export async function POST(request: NextRequest) {
     });
   }
 
-  const expectedAmount = resolveExpectedPaidAmount(extras);
+  const expectedAmount = await resolveExpectedPaidAmount(extras, userId, cpOrderNo);
   if (expectedAmount <= 0 || paidAmount <= 0 || !isSameMoney(paidAmount, expectedAmount)) {
     console.error("[QuickSDK callback amount mismatch]", {
       cpOrderNo,
@@ -180,6 +181,8 @@ function parseExtras(value: string) {
       packageId?: number;
       coins?: number;
       payMethod?: "wechat" | "alipay";
+      couponId?: string;
+      couponSessionToken?: string;
       originalAmount?: string | number;
       discountAmount?: string | number;
       expectedAmount?: string | number;
@@ -189,27 +192,83 @@ function parseExtras(value: string) {
   }
 }
 
-function resolveExpectedPaidAmount(
-  extras: ReturnType<typeof parseExtras>
+async function resolveExpectedPaidAmount(
+  extras: ReturnType<typeof parseExtras>,
+  userId: string,
+  cpOrderNo: string
 ) {
   if (!extras) {
     return 0;
   }
 
-  const explicitExpected = readNumber(extras.expectedAmount);
-  if (explicitExpected > 0) {
-    return roundMoney(explicitExpected);
-  }
-
-  const originalAmount = readNumber(extras.originalAmount);
-  const discountAmount = readNumber(extras.discountAmount);
-  if (originalAmount > 0) {
-    return roundMoney(Math.max(0.01, originalAmount - Math.max(0, discountAmount)));
-  }
-
   const packageId = Math.floor(Number(extras.packageId ?? 0));
   const selectedPackage = getCloudCoinPackage(packageId);
-  return selectedPackage ? readNumber(selectedPackage.amount) : 0;
+  if (!selectedPackage) {
+    return 0;
+  }
+
+  const couponId = readString(extras.couponId);
+  if (!couponId) {
+    return readNumber(selectedPackage.amount);
+  }
+
+  const { data: coupon, error } = await supabaseAdmin
+    .from("user_coupons")
+    .select("*")
+    .eq("id", couponId)
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (error || !coupon) {
+    console.error("[QuickSDK callback coupon lookup failed]", {
+      couponId,
+      userId,
+      error: error?.message,
+    });
+    return 0;
+  }
+
+  const couponRecord = coupon as UserCouponRecord;
+  const sessionToken = readString(extras.couponSessionToken);
+  if (sessionToken) {
+    const { data: session, error: sessionError } = await supabaseAdmin
+      .from("coupon_checkout_sessions")
+      .select("id,session_token,user_id,coupon_id,status,cp_order_no")
+      .eq("session_token", sessionToken)
+      .eq("user_id", userId)
+      .eq("coupon_id", couponId)
+      .maybeSingle();
+
+    if (sessionError || !session) {
+      console.error("[QuickSDK callback coupon session lookup failed]", {
+        couponId,
+        userId,
+        sessionToken,
+        error: sessionError?.message,
+      });
+      return 0;
+    }
+
+    const source = session as Record<string, unknown>;
+    if (readString(source.status) !== "consumed") {
+      return 0;
+    }
+  }
+
+  if (getCouponStatus(couponRecord) !== "used" || couponRecord.used_order_no !== cpOrderNo) {
+    console.error("[QuickSDK callback coupon order mismatch]", {
+      couponId,
+      userId,
+      cpOrderNo,
+      couponOrderNo: couponRecord.used_order_no,
+      status: getCouponStatus(couponRecord),
+    });
+    return 0;
+  }
+
+  return isPackageApplicable(couponRecord, selectedPackage)
+    ? applyCouponDiscount(readNumber(selectedPackage.amount), couponRecord)
+    : 0;
 }
 
 function isSameMoney(actual: number, expected: number) {
