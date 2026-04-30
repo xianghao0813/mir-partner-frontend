@@ -30,6 +30,20 @@ export default function ProfileContent({ profile }: ProfileContentProps) {
   const currentTier = getTierForPoints(currentPoints);
   const nextTier = getNextTier(currentTier.id);
   const pointsToNextTier = nextTier ? Math.max(nextTier.minPoints - currentPoints, 0) : 0;
+  const retentionPenalty = currentTier.id > 1 ? Math.floor(currentTier.minPoints * 0.2) : 0;
+  const retentionTarget = currentTier.minPoints + retentionPenalty;
+  const retentionPointsLeft = Math.max(0, retentionTarget - currentPoints);
+  const retentionAchieved = currentTier.id === 1 || profile.upgradedThisMonth || retentionPointsLeft === 0;
+  const retentionMarkerPercent =
+    nextTier && currentTier.id > 1
+      ? Math.min(
+          100,
+          Math.max(
+            0,
+            ((retentionTarget - currentTier.minPoints) / (nextTier.minPoints - currentTier.minPoints)) * 100
+          )
+        )
+      : null;
   const progressPercent = nextTier
     ? Math.min(
         100,
@@ -83,10 +97,23 @@ export default function ProfileContent({ profile }: ProfileContentProps) {
                 </div>
                 <div style={progressRailStyle}>
                   <div style={{ ...progressFillStyle(currentTier.accent), width: `${progressPercent}%` }} />
+                  {retentionMarkerPercent !== null ? (
+                    <div style={{ ...retentionMarkerStyle, left: `${retentionMarkerPercent}%` }}>
+                      <span style={retentionMarkerDotStyle} />
+                      <span style={retentionMarkerLabelStyle}>保级</span>
+                    </div>
+                  ) : null}
                 </div>
                 <div style={tierProgressHeaderStyle}>
                   <span>当前累计 {currentPoints.toLocaleString()} 分</span>
                   <span>{nextTier ? `目标 ${nextTier.label}` : "已达最高等级"}</span>
+                </div>
+                <div style={retentionStatusStyle(retentionAchieved, currentTier.accent)}>
+                  {currentTier.id === 1
+                    ? "米尔新星暂无保级要求"
+                    : retentionAchieved
+                      ? `已达保级线，月底预计可保持 ${currentTier.label}`
+                      : `距离保级还需 ${retentionPointsLeft.toLocaleString()} 分，月底未升级将扣除 ${retentionPenalty.toLocaleString()} 分`}
                 </div>
               </div>
             </article>
@@ -97,6 +124,22 @@ export default function ProfileContent({ profile }: ProfileContentProps) {
                 value={`${currentMonthlyPoints.toLocaleString()} 分`}
                 accent="#86efac"
                 progress={Math.min(100, Math.round((currentMonthlyPoints / 100000) * 100))}
+              />
+              <MetricCard
+                label="保级状态"
+                value={
+                  currentTier.id === 1
+                    ? "暂无要求"
+                    : retentionAchieved
+                      ? "已达成"
+                      : `还需 ${retentionPointsLeft.toLocaleString()} 分`
+                }
+                accent={retentionAchieved ? "#86efac" : "#fca5a5"}
+                progress={
+                  currentTier.id === 1
+                    ? 100
+                    : Math.min(100, Math.max(0, Math.round((currentPoints / retentionTarget) * 100)))
+                }
               />
               <MetricCard
                 label="升级还需"
@@ -480,16 +523,57 @@ const tierProgressHeaderStyle: React.CSSProperties = {
 };
 
 const progressRailStyle: React.CSSProperties = {
+  position: "relative",
   height: "10px",
   borderRadius: "999px",
   background: "rgba(255,255,255,0.08)",
-  overflow: "hidden",
+  overflow: "visible",
 };
 
 const progressFillStyle = (accent: string): React.CSSProperties => ({
   height: "100%",
   borderRadius: "999px",
   background: `linear-gradient(90deg, ${accent}, #facc15)`,
+});
+
+const retentionMarkerStyle: React.CSSProperties = {
+  position: "absolute",
+  top: "-8px",
+  transform: "translateX(-50%)",
+  display: "grid",
+  justifyItems: "center",
+  gap: "4px",
+  zIndex: 2,
+};
+
+const retentionMarkerDotStyle: React.CSSProperties = {
+  width: "4px",
+  height: "24px",
+  borderRadius: "999px",
+  background: "#f8fafc",
+  boxShadow: "0 0 12px rgba(248,250,252,0.65)",
+};
+
+const retentionMarkerLabelStyle: React.CSSProperties = {
+  padding: "3px 7px",
+  borderRadius: "999px",
+  background: "rgba(15,23,42,0.92)",
+  border: "1px solid rgba(255,255,255,0.14)",
+  color: "#f8fafc",
+  fontSize: "11px",
+  fontWeight: 900,
+  whiteSpace: "nowrap",
+};
+
+const retentionStatusStyle = (achieved: boolean, accent: string): React.CSSProperties => ({
+  padding: "10px 12px",
+  borderRadius: "14px",
+  background: achieved ? `${accent}1f` : "rgba(239,68,68,0.12)",
+  border: achieved ? `1px solid ${accent}55` : "1px solid rgba(248,113,113,0.28)",
+  color: achieved ? "#e5e7eb" : "#fecaca",
+  fontSize: "13px",
+  fontWeight: 800,
+  lineHeight: 1.5,
 });
 
 const infoCardStyle: React.CSSProperties = {
