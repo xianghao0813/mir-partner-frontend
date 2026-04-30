@@ -125,7 +125,10 @@ export async function reconcileQuickSdkRechargePoints(user: User) {
     }
 
     const transactionId = `sdk-order-${orderId}`;
-    const existingWalletTransactions = readWalletTransactions(metadata);
+    const existingWalletTransactions = [
+      ...readWalletTransactions(metadata),
+      ...(await readWalletTransactionsFromDb(user.id)),
+    ];
     const existingPointTransactions = Array.isArray(metadata?.mir_point_transactions)
       ? metadata.mir_point_transactions
       : [];
