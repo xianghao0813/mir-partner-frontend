@@ -215,7 +215,7 @@ export default function WalletPage() {
   }
 
   async function useCoupon(coupon: CouponItem) {
-    const popup = window.open("", "coupon-checkout", buildPopupFeatures());
+    const popup = window.open("", `coupon-checkout-${coupon.id}-${Date.now()}`, buildPopupFeatures());
     if (!popup) {
       setMessage("浏览器拦截了优惠券使用窗口，请允许弹窗后重试。");
       return;
@@ -283,7 +283,7 @@ export default function WalletPage() {
             <button type="button" onClick={() => setHistoryOpen(true)} style={secondaryButtonStyle}>
               使用明细
             </button>
-            <button type="button" onClick={() => setCouponOpen(true)} style={secondaryButtonStyle}>
+            <button type="button" onClick={() => { setCouponOpen(true); void loadCoupons(); }} style={secondaryButtonStyle}>
               优惠券
             </button>
             <button type="button" onClick={moveToRecharge} style={primaryButtonStyle}>

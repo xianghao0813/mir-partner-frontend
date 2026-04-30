@@ -41,6 +41,13 @@ export async function POST(
     return NextResponse.json({ message: "该优惠券当前不可使用。" }, { status: 400 });
   }
 
+  await supabaseAdmin
+    .from("coupon_checkout_sessions")
+    .update({ status: "closed" })
+    .eq("user_id", user.id)
+    .eq("coupon_id", couponId)
+    .eq("status", "open");
+
   const sessionToken = createCouponSessionToken();
   const expiresAt = getCouponSessionExpiry();
 
