@@ -7,8 +7,6 @@ type CoinTier = {
   id: number;
   coins: number;
   priceLabel: string;
-  label: string;
-  bonus: string;
   image: string;
 };
 
@@ -59,14 +57,14 @@ type CouponGroups = {
 };
 
 const coinTiers: CoinTier[] = [
-  { id: 1, coins: 100, priceLabel: "¥100", label: "入门", bonus: "", image: "/cloud-coins/tier-1.png" },
-  { id: 2, coins: 300, priceLabel: "¥300", label: "推荐", bonus: "+20 云币", image: "/cloud-coins/tier-2.png" },
-  { id: 3, coins: 500, priceLabel: "¥500", label: "热卖", bonus: "+50 云币", image: "/cloud-coins/tier-3.png" },
-  { id: 4, coins: 1000, priceLabel: "¥1,000", label: "BEST", bonus: "+120 云币", image: "/cloud-coins/tier-4.png" },
-  { id: 5, coins: 5000, priceLabel: "¥5,000", label: "超值", bonus: "+800 云币", image: "/cloud-coins/tier-5.png" },
-  { id: 6, coins: 10000, priceLabel: "¥10,000", label: "豪华", bonus: "+1800 云币", image: "/cloud-coins/tier-6.png" },
-  { id: 7, coins: 20000, priceLabel: "¥20,000", label: "尊享", bonus: "+4200 云币", image: "/cloud-coins/tier-7.png" },
-  { id: 8, coins: 30000, priceLabel: "¥30,000", label: "至尊", bonus: "+7000 云币", image: "/cloud-coins/tier-8.png" },
+  { id: 1, coins: 100, priceLabel: "¥100", image: "/cloud-coins/tier-1.png" },
+  { id: 2, coins: 300, priceLabel: "¥300", image: "/cloud-coins/tier-2.png" },
+  { id: 3, coins: 500, priceLabel: "¥500", image: "/cloud-coins/tier-3.png" },
+  { id: 4, coins: 1000, priceLabel: "¥1,000", image: "/cloud-coins/tier-4.png" },
+  { id: 5, coins: 5000, priceLabel: "¥5,000", image: "/cloud-coins/tier-5.png" },
+  { id: 6, coins: 10000, priceLabel: "¥10,000", image: "/cloud-coins/tier-6.png" },
+  { id: 7, coins: 20000, priceLabel: "¥20,000", image: "/cloud-coins/tier-7.png" },
+  { id: 8, coins: 30000, priceLabel: "¥30,000", image: "/cloud-coins/tier-8.png" },
 ];
 
 const emptyCouponGroups: CouponGroups = {
@@ -78,7 +76,6 @@ const emptyCouponGroups: CouponGroups = {
 export default function WalletPage() {
   const rechargeRef = useRef<HTMLDivElement | null>(null);
   const [wallet, setWallet] = useState<WalletSummary | null>(null);
-  const [selectedTier, setSelectedTier] = useState<CoinTier | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [couponOpen, setCouponOpen] = useState(false);
   const [couponTab, setCouponTab] = useState<CouponTab>("unused");
@@ -172,7 +169,7 @@ export default function WalletPage() {
   }
 
   async function startPayment(payMethod: PayMethod, tierArg?: CoinTier) {
-    const tier = tierArg ?? selectedTier;
+    const tier = tierArg ?? null;
     if (!tier) {
       setMessage("请先选择充值档位。");
       moveToRecharge();
@@ -187,7 +184,6 @@ export default function WalletPage() {
 
     popup.document.write("<title>正在打开支付页面...</title><body style='margin:0;background:#07070a;color:#fff;font-family:Microsoft YaHei,sans-serif;display:grid;place-items:center;height:100vh;'>正在打开支付页面...</body>");
     setSubmittingTierId(tier.id);
-    setSelectedTier(tier);
     setMessage("正在生成支付链接...");
 
     try {
@@ -250,8 +246,8 @@ export default function WalletPage() {
 
   return (
     <main className="hide-scrollbar" style={pageStyle}>
-      <div className="auth-bg" />
-      <div className="auth-overlay" />
+      <div className="auth-bg" style={fixedBackgroundStyle} />
+      <div className="auth-overlay" style={fixedOverlayStyle} />
 
       <div style={shellStyle}>
         <section style={heroCardStyle}>
@@ -265,6 +261,9 @@ export default function WalletPage() {
             <div style={balanceBadgeStyle}>
               <div style={balanceLabelStyle}>当前持有</div>
               <div style={balanceValueStyle}>{(wallet?.cloudCoins ?? 0).toLocaleString()} 云币</div>
+              <button type="button" onClick={() => setHistoryOpen(true)} style={balanceDetailButtonStyle}>
+                使用明细
+              </button>
             </div>
           </div>
 
@@ -280,10 +279,7 @@ export default function WalletPage() {
           </div>
 
           <div style={heroActionRowStyle}>
-            <button type="button" onClick={() => setHistoryOpen(true)} style={secondaryButtonStyle}>
-              使用明细
-            </button>
-            <button type="button" onClick={() => { setCouponOpen(true); void loadCoupons(); }} style={secondaryButtonStyle}>
+            <button type="button" onClick={() => { setCouponOpen(true); void loadCoupons(); }} style={couponButtonStyle}>
               优惠券
             </button>
             <button type="button" onClick={moveToRecharge} style={primaryButtonStyle}>
@@ -300,23 +296,17 @@ export default function WalletPage() {
               <p style={sectionTextStyle}>点击卡片即可直接前往充值。优惠券请先从“优惠券”弹窗进入专用支付页使用。</p>
             </div>
 
-            <div style={selectedBadgeStyle}>
-              {selectedTier ? `${selectedTier.coins.toLocaleString()} 云币 / ${selectedTier.priceLabel}` : "点击卡片立即充值"}
-            </div>
           </div>
 
           <div style={tierGridStyle}>
             {coinTiers.map((tier) => {
-              const active = selectedTier?.id === tier.id;
               return (
                 <button key={tier.id} type="button" onClick={() => void startPayment("wechat", tier)} style={tierCardButtonStyle}>
-                  <article style={tierCardStyle(active)}>
-                    <div style={tierTagStyle(active)}>{tier.label}</div>
+                  <article style={tierCardStyle(false)}>
                     <div style={tierImageWrapStyle}>
                       <img src={tier.image} alt={`${tier.coins} 云币`} style={tierImageStyle} />
                     </div>
                     <div style={tierCoinsStyle}>{tier.coins.toLocaleString()} 云币</div>
-                    <div style={tierBonusStyle}>{tier.bonus || "标准档位"}</div>
                     <div style={tierPriceCenterStyle}>{tier.priceLabel}</div>
                     {submittingTierId === tier.id ? <div style={tierLoadingStyle}>跳转中...</div> : null}
                   </article>
@@ -504,6 +494,20 @@ const pageStyle: CSSProperties = {
   padding: "72px 24px 120px",
 };
 
+const fixedBackgroundStyle: CSSProperties = {
+  position: "fixed",
+  inset: 0,
+  zIndex: 0,
+  pointerEvents: "none",
+};
+
+const fixedOverlayStyle: CSSProperties = {
+  position: "fixed",
+  inset: 0,
+  zIndex: 0,
+  pointerEvents: "none",
+};
+
 const shellStyle: CSSProperties = {
   position: "relative",
   zIndex: 1,
@@ -547,6 +551,18 @@ const balanceBadgeStyle: CSSProperties = {
 
 const balanceLabelStyle: CSSProperties = { color: "#cbd5e1", fontSize: "13px" };
 const balanceValueStyle: CSSProperties = { marginTop: "8px", fontSize: "30px", fontWeight: 700, color: "#fff" };
+const balanceDetailButtonStyle: CSSProperties = {
+  marginTop: "14px",
+  width: "100%",
+  border: "1px solid rgba(255,255,255,0.16)",
+  background: "rgba(255,255,255,0.08)",
+  color: "#fff",
+  borderRadius: "12px",
+  padding: "10px 12px",
+  fontSize: "13px",
+  fontWeight: 800,
+  cursor: "pointer",
+};
 const infoGridStyle: CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "14px" };
 const infoCardStyle: CSSProperties = { padding: "18px", borderRadius: "16px", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)", display: "grid", gap: "8px" };
 const infoLabelStyle: CSSProperties = { color: "#9ca3af", fontSize: "13px" };
@@ -562,6 +578,18 @@ const primaryButtonStyle: CSSProperties = {
   fontSize: "14px",
   fontWeight: 700,
   cursor: "pointer",
+};
+
+const couponButtonStyle: CSSProperties = {
+  border: "1px solid rgba(250,204,21,0.5)",
+  background: "linear-gradient(135deg, rgba(250,204,21,0.95), rgba(245,158,11,0.92))",
+  color: "#111827",
+  borderRadius: "999px",
+  padding: "12px 18px",
+  fontSize: "14px",
+  fontWeight: 900,
+  cursor: "pointer",
+  boxShadow: "0 12px 24px rgba(245,158,11,0.2)",
 };
 
 const secondaryButtonStyle: CSSProperties = {
@@ -587,15 +615,12 @@ const messageStyle: CSSProperties = {
 const sectionHeaderStyle: CSSProperties = { display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "16px", flexWrap: "wrap" };
 const sectionTitleStyle: CSSProperties = { margin: 0, fontSize: "28px", color: "#fff" };
 const sectionTextStyle: CSSProperties = { marginTop: "8px", marginBottom: 0, color: "#b8b8c5", fontSize: "14px", lineHeight: 1.6 };
-const selectedBadgeStyle: CSSProperties = { padding: "10px 14px", borderRadius: "999px", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)", color: "#e5e7eb", fontSize: "14px", fontWeight: 700 };
 const tierGridStyle: CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "14px" };
 const tierCardButtonStyle: CSSProperties = { appearance: "none", border: "none", background: "transparent", padding: 0, margin: 0, textAlign: "left", cursor: "pointer" };
 const tierCardStyle = (active: boolean): CSSProperties => ({ borderRadius: "18px", padding: "18px", background: active ? "rgba(139,92,246,0.16)" : "rgba(255,255,255,0.04)", border: active ? "1px solid rgba(196,181,253,0.42)" : "1px solid rgba(255,255,255,0.06)", display: "grid", gap: "12px" });
-const tierTagStyle = (active: boolean): CSSProperties => ({ display: "inline-flex", alignItems: "center", justifyContent: "center", minHeight: "28px", padding: "0 10px", borderRadius: "999px", background: active ? "rgba(167,139,250,0.22)" : "rgba(255,255,255,0.08)", color: active ? "#f5d0fe" : "#e5e7eb", fontSize: "12px", fontWeight: 700 });
 const tierImageWrapStyle: CSSProperties = { height: "146px", display: "flex", alignItems: "center", justifyContent: "center", padding: "8px 0 2px" };
 const tierImageStyle: CSSProperties = { maxWidth: "100%", maxHeight: "100%", objectFit: "contain", filter: "drop-shadow(0 14px 28px rgba(0,0,0,0.35))" };
 const tierCoinsStyle: CSSProperties = { color: "#fff", fontSize: "28px", fontWeight: 700, textAlign: "center" };
-const tierBonusStyle: CSSProperties = { color: "#facc15", fontSize: "14px", fontWeight: 800, minHeight: "18px", textAlign: "center" };
 const tierPriceCenterStyle: CSSProperties = { color: "#f8fafc", fontWeight: 800, fontSize: "20px", textAlign: "center" };
 const tierLoadingStyle: CSSProperties = { marginTop: "4px", color: "#c4b5fd", fontSize: "13px", fontWeight: 700, textAlign: "center" };
 
