@@ -44,6 +44,22 @@ export async function POST(
     return NextResponse.json({ message: "该优惠券当前不可使用。" }, { status: 400 });
   }
 
+  const { data: pendingGift, error: pendingGiftError } = await supabaseAdmin
+    .from("coupon_gift_transfers")
+    .select("id")
+    .eq("coupon_id", couponId)
+    .eq("status", "pending")
+    .gt("expires_at", new Date().toISOString())
+    .maybeSingle();
+
+  if (pendingGiftError && pendingGiftError.code !== "42P01") {
+    return NextResponse.json({ message: pendingGiftError.message }, { status: 500 });
+  }
+
+  if (pendingGift) {
+    return NextResponse.json({ message: "该优惠券正在赠送中，请先撤回后再使用。" }, { status: 400 });
+  }
+
   await supabaseAdmin
     .from("coupon_checkout_sessions")
     .update({ status: "closed" })

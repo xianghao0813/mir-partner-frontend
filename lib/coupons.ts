@@ -4,6 +4,7 @@ import type { CloudCoinPackage } from "@/lib/cloudCoinPackages";
 
 export type CouponDiscountType = "amount" | "percent";
 export type CouponStatus = "unused" | "expired" | "used";
+export type CouponGiftTransferStatus = "pending" | "claimed" | "expired" | "cancelled";
 
 export type UserCouponRecord = {
   id: string;
@@ -35,6 +36,19 @@ export type CouponCheckoutSessionRecord = {
   expires_at: string;
 };
 
+export type CouponGiftTransferRecord = {
+  id: string;
+  coupon_id: string;
+  from_user_id: string;
+  to_user_id: string | null;
+  transfer_token: string;
+  status: CouponGiftTransferStatus;
+  expires_at: string;
+  claimed_at: string | null;
+  cancelled_at: string | null;
+  created_at: string;
+};
+
 export function getCouponStatus(coupon: Pick<UserCouponRecord, "starts_at" | "expires_at" | "used_at">, now = new Date()): CouponStatus {
   if (coupon.used_at) {
     return "used";
@@ -62,8 +76,16 @@ export function createCouponSessionToken() {
   return crypto.randomBytes(32).toString("base64url");
 }
 
+export function createCouponGiftToken() {
+  return crypto.randomBytes(32).toString("base64url");
+}
+
 export function getCouponSessionExpiry() {
   return new Date(Date.now() + 60 * 1000).toISOString();
+}
+
+export function getCouponGiftExpiry() {
+  return new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
 }
 
 export async function expireCouponCheckoutSessions(supabaseAdmin: SupabaseClient, now = new Date()) {
@@ -93,6 +115,31 @@ export async function expireCouponCheckoutSessions(supabaseAdmin: SupabaseClient
           .eq("used_order_no", session.cp_order_no)
       )
   );
+}
+
+export async function expireCouponGiftTransfers(supabaseAdmin: SupabaseClient, now = new Date()) {
+  await supabaseAdmin
+    .from("coupon_gift_transfers")
+    .update({ status: "expired" })
+    .eq("status", "pending")
+    .lte("expires_at", now.toISOString());
+}
+
+export function getShanghaiMonthRange(now = new Date()) {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Shanghai",
+    year: "numeric",
+    month: "2-digit",
+  }).formatToParts(now);
+  const year = Number(parts.find((part) => part.type === "year")?.value ?? now.getUTCFullYear());
+  const month = Number(parts.find((part) => part.type === "month")?.value ?? now.getUTCMonth() + 1);
+  const start = new Date(Date.UTC(year, month - 1, 1, -8, 0, 0, 0));
+  const end = new Date(Date.UTC(month === 12 ? year + 1 : year, month === 12 ? 0 : month, 1, -8, 0, 0, 0));
+
+  return {
+    startIso: start.toISOString(),
+    endIso: end.toISOString(),
+  };
 }
 
 export function isPackageApplicable(coupon: Pick<UserCouponRecord, "applicable_package_ids" | "min_amount">, item: CloudCoinPackage) {

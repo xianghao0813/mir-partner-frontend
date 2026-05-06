@@ -47,6 +47,13 @@ type CouponItem = {
   expiresAt: string;
   usedAt: string | null;
   usedOrderNo: string | null;
+  giftTransfer: {
+    id: string;
+    status: "pending";
+    giftUrl: string;
+    expiresAt: string;
+  } | null;
+  giftClaimed: boolean;
   status: CouponTab;
 };
 
@@ -84,6 +91,7 @@ export default function WalletPage() {
   const [historyMonth, setHistoryMonth] = useState(getCurrentMonth());
   const [submittingTierId, setSubmittingTierId] = useState<number | null>(null);
   const [submittingCouponId, setSubmittingCouponId] = useState<string | null>(null);
+  const [giftingCouponId, setGiftingCouponId] = useState<string | null>(null);
   const [message, setMessage] = useState("");
 
   useEffect(() => {
@@ -270,6 +278,11 @@ export default function WalletPage() {
   }
 
   async function useCoupon(coupon: CouponItem) {
+    if (coupon.giftTransfer) {
+      setMessage("该优惠券正在赠送中，请先撤回后再使用。");
+      return;
+    }
+
     const popup = window.open("", `coupon-checkout-${coupon.id}-${Date.now()}`, buildPopupFeatures());
     if (!popup) {
       setMessage("浏览器拦截了优惠券使用窗口，请允许弹窗后重试。");
@@ -308,6 +321,60 @@ export default function WalletPage() {
     } finally {
       setSubmittingCouponId(null);
     }
+  }
+
+  async function giftCoupon(coupon: CouponItem) {
+    setGiftingCouponId(coupon.id);
+    setMessage("正在生成赠送链接...");
+
+    try {
+      const response = await fetch(`/api/coupons/${coupon.id}/gift`, {
+        method: "POST",
+      });
+      const payload = (await response.json().catch(() => null)) as { giftUrl?: string; message?: string; expiresAt?: string } | null;
+
+      if (!response.ok || !payload?.giftUrl) {
+        setMessage(payload?.message || "赠送链接生成失败。");
+        return;
+      }
+
+      await copyGiftLink(payload.giftUrl);
+      setMessage("赠送链接已生成并复制，24 小时内有效。");
+      void loadCoupons();
+    } catch {
+      setMessage("赠送链接生成失败。");
+    } finally {
+      setGiftingCouponId(null);
+    }
+  }
+
+  async function cancelGiftCoupon(coupon: CouponItem) {
+    setGiftingCouponId(coupon.id);
+    setMessage("正在撤回赠送链接...");
+
+    try {
+      const response = await fetch(`/api/coupons/${coupon.id}/gift`, {
+        method: "DELETE",
+      });
+      const payload = (await response.json().catch(() => null)) as { message?: string } | null;
+
+      if (!response.ok) {
+        setMessage(payload?.message || "撤回失败。");
+        return;
+      }
+
+      setMessage("已撤回赠送链接，优惠券恢复可用。");
+      void loadCoupons();
+    } catch {
+      setMessage("撤回失败。");
+    } finally {
+      setGiftingCouponId(null);
+    }
+  }
+
+  async function copyGiftLink(giftUrl: string) {
+    const fullUrl = giftUrl.startsWith("http") ? giftUrl : `${window.location.origin}${giftUrl}`;
+    await navigator.clipboard.writeText(fullUrl);
   }
 
   return (
@@ -443,9 +510,30 @@ export default function WalletPage() {
                   </div>
 
                   {coupon.status === "unused" ? (
-                    <button type="button" onClick={() => void useCoupon(coupon)} disabled={submittingCouponId === coupon.id} style={primaryButtonStyle}>
-                      {submittingCouponId === coupon.id ? "生成中..." : "立即使用"}
-                    </button>
+                    <div style={couponActionGroupStyle}>
+                      {coupon.giftTransfer ? (
+                        <>
+                          <div style={couponStatusBadgeStyle}>赠送中</div>
+                          <button type="button" onClick={() => void copyGiftLink(coupon.giftTransfer!.giftUrl).then(() => setMessage("赠送链接已复制。"))} style={secondarySmallButtonStyle}>
+                            复制链接
+                          </button>
+                          <button type="button" onClick={() => void cancelGiftCoupon(coupon)} disabled={giftingCouponId === coupon.id} style={dangerSmallButtonStyle}>
+                            {giftingCouponId === coupon.id ? "撤回中..." : "撤回"}
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <button type="button" onClick={() => void useCoupon(coupon)} disabled={submittingCouponId === coupon.id} style={primaryButtonStyle}>
+                            {submittingCouponId === coupon.id ? "生成中..." : "立即使用"}
+                          </button>
+                          <button type="button" onClick={() => void giftCoupon(coupon)} disabled={giftingCouponId === coupon.id || coupon.giftClaimed} style={secondarySmallButtonStyle}>
+                            {giftingCouponId === coupon.id ? "生成中..." : coupon.giftClaimed ? "已赠送" : "赠送"}
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  ) : coupon.giftClaimed ? (
+                    <div style={couponStatusBadgeStyle}>已赠送</div>
                   ) : (
                     <div style={couponStatusBadgeStyle}>{renderCouponTab(coupon.status)}</div>
                   )}
@@ -714,3 +802,6 @@ const couponCodeStyle: CSSProperties = { marginTop: "6px", color: "#facc15", fon
 const couponMetaStyle: CSSProperties = { marginTop: "8px", color: "#cbd5e1", fontSize: "13px", lineHeight: 1.6 };
 const couponDescriptionStyle: CSSProperties = { margin: "8px 0 0", color: "#9ca3af", fontSize: "13px", lineHeight: 1.6 };
 const couponStatusBadgeStyle: CSSProperties = { padding: "10px 14px", borderRadius: "999px", background: "rgba(255,255,255,0.08)", color: "#cbd5e1", fontSize: "13px", fontWeight: 800 };
+const couponActionGroupStyle: CSSProperties = { display: "flex", alignItems: "center", justifyContent: "flex-end", gap: "8px", flexWrap: "wrap" };
+const secondarySmallButtonStyle: CSSProperties = { border: "1px solid rgba(255,255,255,0.16)", background: "rgba(255,255,255,0.06)", color: "#fff", borderRadius: "999px", padding: "10px 14px", cursor: "pointer", fontWeight: 800 };
+const dangerSmallButtonStyle: CSSProperties = { border: "1px solid rgba(248,113,113,0.35)", background: "rgba(248,113,113,0.12)", color: "#fecaca", borderRadius: "999px", padding: "10px 14px", cursor: "pointer", fontWeight: 800 };
