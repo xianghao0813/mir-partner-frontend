@@ -93,6 +93,7 @@ export default function WalletPage() {
   const [submittingCouponId, setSubmittingCouponId] = useState<string | null>(null);
   const [giftingCouponId, setGiftingCouponId] = useState<string | null>(null);
   const [message, setMessage] = useState("");
+  const [couponMessage, setCouponMessage] = useState("");
 
   useEffect(() => {
     void loadWallet();
@@ -279,7 +280,7 @@ export default function WalletPage() {
 
   async function useCoupon(coupon: CouponItem) {
     if (coupon.giftTransfer) {
-      setMessage("该优惠券正在赠送中，请先撤回后再使用。");
+      setCouponMessage("该优惠券正在赠送中，请先撤回后再使用。");
       return;
     }
 
@@ -300,24 +301,18 @@ export default function WalletPage() {
       const payload = (await response.json().catch(() => null)) as { checkoutUrl?: string; message?: string } | null;
 
       if (!response.ok || !payload?.checkoutUrl) {
-        popup.close();
-        setMessage(payload?.message || "优惠券链接生成失败。");
+        popup.document.body.innerHTML = `<div style="padding:24px;color:#fff;background:#07070a;font-family:Microsoft YaHei,sans-serif;line-height:1.7;">${payload?.message || "优惠券链接生成失败。"}</div>`;
+        setCouponMessage(payload?.message || "优惠券链接生成失败。");
         return;
       }
 
       popup.location.replace(payload.checkoutUrl);
       showTemporaryMessage("优惠券专用支付窗口已打开。");
       watchPopupClose(popup, "优惠券专用支付窗口已打开。");
-      schedulePaymentExpiry(popup, "优惠券专用支付窗口已打开。", async () => {
-        const closeUrl = payload.checkoutUrl?.replace("/coupon/checkout/", "/api/coupons/checkout/");
-        if (closeUrl) {
-          await fetch(`${closeUrl}/close`, { method: "POST" }).catch(() => null);
-        }
-      });
       void loadCoupons();
     } catch {
-      popup.close();
-      setMessage("优惠券链接生成失败。");
+      popup.document.body.innerHTML = "<div style='padding:24px;color:#fff;background:#07070a;font-family:Microsoft YaHei,sans-serif;line-height:1.7;'>优惠券链接生成失败。</div>";
+      setCouponMessage("优惠券链接生成失败。");
     } finally {
       setSubmittingCouponId(null);
     }
@@ -325,7 +320,7 @@ export default function WalletPage() {
 
   async function giftCoupon(coupon: CouponItem) {
     setGiftingCouponId(coupon.id);
-    setMessage("正在生成赠送链接...");
+    setCouponMessage("正在生成赠送链接...");
 
     try {
       const response = await fetch(`/api/coupons/${coupon.id}/gift`, {
@@ -334,15 +329,15 @@ export default function WalletPage() {
       const payload = (await response.json().catch(() => null)) as { giftUrl?: string; message?: string; expiresAt?: string } | null;
 
       if (!response.ok || !payload?.giftUrl) {
-        setMessage(payload?.message || "赠送链接生成失败。");
+        setCouponMessage(payload?.message || "赠送链接生成失败。");
         return;
       }
 
       await copyGiftLink(payload.giftUrl);
-      setMessage("赠送链接已生成并复制，24 小时内有效。");
+      setCouponMessage("赠送链接已生成并复制，24 小时内有效。");
       void loadCoupons();
     } catch {
-      setMessage("赠送链接生成失败。");
+      setCouponMessage("赠送链接生成失败。");
     } finally {
       setGiftingCouponId(null);
     }
@@ -350,7 +345,7 @@ export default function WalletPage() {
 
   async function cancelGiftCoupon(coupon: CouponItem) {
     setGiftingCouponId(coupon.id);
-    setMessage("正在撤回赠送链接...");
+    setCouponMessage("正在撤回赠送链接...");
 
     try {
       const response = await fetch(`/api/coupons/${coupon.id}/gift`, {
@@ -359,14 +354,14 @@ export default function WalletPage() {
       const payload = (await response.json().catch(() => null)) as { message?: string } | null;
 
       if (!response.ok) {
-        setMessage(payload?.message || "撤回失败。");
+        setCouponMessage(payload?.message || "撤回失败。");
         return;
       }
 
-      setMessage("已撤回赠送链接，优惠券恢复可用。");
+      setCouponMessage("已撤回赠送链接，优惠券恢复可用。");
       void loadCoupons();
     } catch {
-      setMessage("撤回失败。");
+      setCouponMessage("撤回失败。");
     } finally {
       setGiftingCouponId(null);
     }
@@ -412,7 +407,7 @@ export default function WalletPage() {
           </div>
 
           <div style={heroActionRowStyle}>
-            <button type="button" onClick={() => { setCouponOpen(true); void loadCoupons(); }} style={couponButtonStyle}>
+            <button type="button" onClick={() => { setCouponOpen(true); setCouponMessage(""); void loadCoupons(); }} style={couponButtonStyle}>
               优惠券
             </button>
             <button type="button" onClick={moveToRecharge} style={primaryButtonStyle}>
@@ -492,6 +487,7 @@ export default function WalletPage() {
               </button>
             ))}
           </div>
+          {couponMessage ? <div style={couponMessageStyle}>{couponMessage}</div> : null}
 
           <div style={couponListStyle}>
             {coupons[couponTab].length === 0 ? (
@@ -514,7 +510,7 @@ export default function WalletPage() {
                       {coupon.giftTransfer ? (
                         <>
                           <div style={couponStatusBadgeStyle}>赠送中</div>
-                          <button type="button" onClick={() => void copyGiftLink(coupon.giftTransfer!.giftUrl).then(() => setMessage("赠送链接已复制。"))} style={secondarySmallButtonStyle}>
+                          <button type="button" onClick={() => void copyGiftLink(coupon.giftTransfer!.giftUrl).then(() => setCouponMessage("赠送链接已复制。"))} style={secondarySmallButtonStyle}>
                             复制链接
                           </button>
                           <button type="button" onClick={() => void cancelGiftCoupon(coupon)} disabled={giftingCouponId === coupon.id} style={dangerSmallButtonStyle}>
@@ -550,7 +546,7 @@ export default function WalletPage() {
 function Modal({ title, children, onClose }: { title: string; children: ReactNode; onClose: () => void }) {
   return (
     <div style={overlayStyle} onClick={onClose}>
-      <div style={modalStyle} onClick={(event) => event.stopPropagation()}>
+      <div className="hide-scrollbar" style={modalStyle} onClick={(event) => event.stopPropagation()}>
         <div style={modalHeaderStyle}>
           <h3 style={modalTitleStyle}>{title}</h3>
           <button type="button" onClick={onClose} style={secondaryButtonStyle}>关闭</button>
@@ -795,6 +791,7 @@ const historyValueStyle = (positive: boolean): CSSProperties => ({ color: positi
 
 const couponTabRowStyle: CSSProperties = { display: "flex", gap: "10px", flexWrap: "wrap", marginBottom: "16px" };
 const couponTabStyle = (active: boolean): CSSProperties => ({ border: active ? "1px solid rgba(250,204,21,0.42)" : "1px solid rgba(255,255,255,0.12)", background: active ? "rgba(250,204,21,0.12)" : "rgba(255,255,255,0.05)", color: "#fff", borderRadius: "999px", padding: "10px 14px", cursor: "pointer", fontWeight: 800 });
+const couponMessageStyle: CSSProperties = { marginBottom: "16px", padding: "12px 14px", borderRadius: "14px", background: "rgba(250,204,21,0.12)", border: "1px solid rgba(250,204,21,0.24)", color: "#fde68a", fontSize: "14px", lineHeight: 1.6 };
 const couponListStyle: CSSProperties = { display: "grid", gap: "12px" };
 const couponCardStyle: CSSProperties = { padding: "18px", borderRadius: "18px", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", display: "flex", justifyContent: "space-between", gap: "16px", alignItems: "center", flexWrap: "wrap" };
 const couponTitleStyle: CSSProperties = { color: "#fff", fontSize: "18px", fontWeight: 900 };
