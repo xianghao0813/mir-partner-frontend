@@ -235,7 +235,7 @@ export default function ProfileContent({ profile }: ProfileContentProps) {
                       ))}
                     </div>
                     <div style={tierBenefitListStyle}>
-                      {getTierBenefits(tier.label).map((benefit) => (
+                      {getTierBenefits(tier.id, tier.label).map((benefit) => (
                         <div key={benefit} style={tierBenefitItemStyle}>
                           {benefit}
                         </div>
@@ -383,13 +383,12 @@ function getCouponBenefitsForTier(tierId: number) {
   ];
 }
 
-function getTierBenefits(tierLabel: string) {
-  return [
-    `${tierLabel} 专属身份标识`,
-    "月度活动优先参与资格",
-    "云币任务奖励加成（待定）",
-    "合伙人数据看板权限（待定）",
-  ];
+function getTierBenefits(tierId: number, tierLabel: string) {
+  const benefits = [`${tierLabel} 专属身份标识`];
+  if (tierId >= 5) {
+    benefits.push("优惠券赠送功能");
+  }
+  return benefits;
 }
 
 function getCurrentMonth() {
