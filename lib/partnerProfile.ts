@@ -8,6 +8,7 @@ import {
   type MirPartnerTier,
 } from "@/lib/mirPoints";
 import { getQuickSdkUserOrders, type QuickSdkOrderData } from "@/lib/quicksdk";
+import { getTierCouponBenefits, getTierCouponClaimState, type TierCouponBenefit } from "@/lib/tierCoupons";
 import { readPointTransactionsFromDb } from "@/lib/userLedgers";
 
 export { MIR_PARTNER_TIERS, type MirPartnerTier };
@@ -23,6 +24,14 @@ export type PartnerProfileSummary = {
   pointsToNextTier: number;
   upgradedThisMonth: boolean;
   pointTransactions: PartnerPointTransaction[];
+  couponBenefits: TierCouponBenefit[];
+  tierCouponClaim: {
+    monthKey: string;
+    currentTierId: number;
+    grantedTierId: number;
+    pendingCount: number;
+    claimable: boolean;
+  };
 };
 
 export type PartnerPointTransaction = {
@@ -84,6 +93,8 @@ export async function buildPartnerProfileSummary(user: User): Promise<PartnerPro
     pointsToNextTier,
     upgradedThisMonth: pointsSummary.upgradedThisMonth,
     pointTransactions,
+    couponBenefits: getTierCouponBenefits(currentTier.id),
+    tierCouponClaim: getTierCouponClaimState(user.user_metadata, effectivePoints),
   };
 }
 

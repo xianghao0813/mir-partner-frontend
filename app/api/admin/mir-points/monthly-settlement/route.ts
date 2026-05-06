@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { compactAuthMetadata } from "@/lib/authMetadata";
 import { settleMonthlyMirPoints } from "@/lib/mirPoints";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { grantTierCoupons } from "@/lib/tierCoupons";
 import { insertPointTransaction } from "@/lib/userLedgers";
 
 export async function POST(request: Request) {
@@ -34,8 +35,27 @@ export async function POST(request: Request) {
       continue;
     }
 
+    let nextMetadata = settlement.metadata;
+    let couponGrant = null;
+
+    try {
+      couponGrant = await grantTierCoupons({
+        supabaseAdmin,
+        userId: user.id,
+        metadata: nextMetadata,
+        targetTierId: settlement.afterTier.id,
+        reason: "monthly_settlement",
+      });
+      nextMetadata = couponGrant.metadata;
+    } catch (couponError) {
+      console.error("[monthly settlement tier coupons]", {
+        userId: user.id,
+        error: couponError instanceof Error ? couponError.message : couponError,
+      });
+    }
+
     const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(user.id, {
-      user_metadata: compactAuthMetadata(settlement.metadata),
+      user_metadata: compactAuthMetadata(nextMetadata),
     });
 
     if (!updateError && settlement.deductedPoints > 0) {
@@ -57,6 +77,7 @@ export async function POST(request: Request) {
       deductedPoints: settlement.deductedPoints,
       beforeTier: settlement.beforeTier.label,
       afterTier: settlement.afterTier.label,
+      couponsIssued: couponGrant?.couponsIssued ?? 0,
       error: updateError?.message,
     });
   }

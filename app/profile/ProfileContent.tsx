@@ -24,6 +24,9 @@ export default function ProfileContent({ profile }: ProfileContentProps) {
   const [currentMonthlyPoints, setCurrentMonthlyPoints] = useState(profile.monthlyPoints);
   const [ledgerMonth, setLedgerMonth] = useState(getCurrentMonth());
   const [pointTransactions, setPointTransactions] = useState(profile.pointTransactions);
+  const [tierCouponClaim, setTierCouponClaim] = useState(profile.tierCouponClaim);
+  const [claimingTierCoupons, setClaimingTierCoupons] = useState(false);
+  const [tierCouponMessage, setTierCouponMessage] = useState("");
   const [activeTierIndex, setActiveTierIndex] = useState(
     Math.max(0, profileTierList.findIndex((tier) => tier.id === profile.currentTier.id))
   );
@@ -63,6 +66,34 @@ export default function ProfileContent({ profile }: ProfileContentProps) {
     ledgerMonth ? (entry.createdAt ?? "").startsWith(ledgerMonth) : true
   );
   const filteredPointTotal = filteredPointTransactions.reduce((sum, entry) => sum + entry.points, 0);
+
+  async function claimTierUpgradeCoupons() {
+    setClaimingTierCoupons(true);
+    setTierCouponMessage("");
+
+    try {
+      const response = await fetch("/api/coupons/tier-upgrade-claim", {
+        method: "POST",
+      });
+      const payload = (await response.json().catch(() => null)) as { message?: string; couponsIssued?: number; toTierId?: number } | null;
+
+      if (!response.ok) {
+        throw new Error(payload?.message || "领取失败。");
+      }
+
+      setTierCouponClaim((current) => ({
+        ...current,
+        grantedTierId: payload?.toTierId ?? current.currentTierId,
+        pendingCount: 0,
+        claimable: false,
+      }));
+      setTierCouponMessage(`已领取 ${Number(payload?.couponsIssued ?? 0).toLocaleString()} 张晋升追加优惠券。`);
+    } catch (error) {
+      setTierCouponMessage(error instanceof Error ? error.message : "领取失败。");
+    } finally {
+      setClaimingTierCoupons(false);
+    }
+  }
 
   return (
     <main className="hide-scrollbar" style={pageStyle}>
@@ -160,6 +191,21 @@ export default function ProfileContent({ profile }: ProfileContentProps) {
             <div style={pointsBadgeStyle}>{profileTierList[activeTierIndex].label}</div>
           </div>
 
+          {tierCouponClaim.claimable ? (
+            <div style={tierCouponClaimPanelStyle}>
+              <div>
+                <strong>晋升追加优惠券可领取</strong>
+                <div style={tierCouponClaimTextStyle}>
+                  本月已发放到 {getTierLabel(tierCouponClaim.grantedTierId)}，当前为 {currentTier.label}，可追加领取 {tierCouponClaim.pendingCount.toLocaleString()} 张优惠券。
+                </div>
+              </div>
+              <button type="button" onClick={() => void claimTierUpgradeCoupons()} disabled={claimingTierCoupons} style={tierCouponClaimButtonStyle}>
+                {claimingTierCoupons ? "领取中..." : "领取追加优惠券"}
+              </button>
+            </div>
+          ) : null}
+          {tierCouponMessage ? <div style={tierCouponMessageStyle}>{tierCouponMessage}</div> : null}
+
           <div style={tierCarouselStyle}>
             {profileTierList.map((tier, index) => {
               const offset = index - activeTierIndex;
@@ -182,6 +228,12 @@ export default function ProfileContent({ profile }: ProfileContentProps) {
                     <div style={{ ...tierCardBadgeStyle, color: tier.accent }}>{tier.label}</div>
                     <div style={tierCardPointsStyle}>{tier.minPoints.toLocaleString()} 分</div>
                     <div style={tierCardTextStyle}>升级所需累计积分</div>
+                    <div style={tierCouponBenefitTitleStyle}>每月星级优惠券</div>
+                    <div style={tierCouponBenefitListStyle}>
+                      {getCouponBenefitsForTier(tier.id).map((benefit) => (
+                        <div key={benefit} style={tierCouponBenefitItemStyle}>{benefit}</div>
+                      ))}
+                    </div>
                     <div style={tierBenefitListStyle}>
                       {getTierBenefits(tier.label).map((benefit) => (
                         <div key={benefit} style={tierBenefitItemStyle}>
@@ -317,6 +369,18 @@ function getTierForPoints(points: number) {
 
 function getNextTier(currentTierId: number) {
   return profileTierList.find((tier) => tier.id === currentTierId + 1) ?? null;
+}
+
+function getTierLabel(tierId: number) {
+  return profileTierList.find((tier) => tier.id === tierId)?.label ?? "未发放";
+}
+
+function getCouponBenefitsForTier(tierId: number) {
+  const extraCount = Math.max(0, tierId - 1) * 2;
+  return [
+    `100元云币充值：立减8元 x ${3 + extraCount}张`,
+    `300元云币充值：立减28元 x ${1 + extraCount}张`,
+  ];
 }
 
 function getTierBenefits(tierLabel: string) {
@@ -621,6 +685,49 @@ const pointsBadgeStyle: React.CSSProperties = {
   fontWeight: 700,
 };
 
+const tierCouponClaimPanelStyle: React.CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  gap: "14px",
+  flexWrap: "wrap",
+  padding: "14px 16px",
+  marginBottom: "16px",
+  borderRadius: "16px",
+  background: "rgba(250,204,21,0.1)",
+  border: "1px solid rgba(250,204,21,0.24)",
+  color: "#f8fafc",
+};
+
+const tierCouponClaimTextStyle: React.CSSProperties = {
+  marginTop: "6px",
+  color: "#fde68a",
+  fontSize: "13px",
+  lineHeight: 1.55,
+};
+
+const tierCouponClaimButtonStyle: React.CSSProperties = {
+  border: "1px solid rgba(250,204,21,0.45)",
+  background: "linear-gradient(135deg, #facc15, #f59e0b)",
+  color: "#111827",
+  borderRadius: "12px",
+  minHeight: "42px",
+  padding: "0 16px",
+  fontWeight: 900,
+  cursor: "pointer",
+};
+
+const tierCouponMessageStyle: React.CSSProperties = {
+  marginBottom: "16px",
+  padding: "12px 14px",
+  borderRadius: "14px",
+  background: "rgba(59,130,246,0.12)",
+  border: "1px solid rgba(96,165,250,0.22)",
+  color: "#bfdbfe",
+  fontSize: "13px",
+  fontWeight: 800,
+};
+
 const ledgerControlStyle: React.CSSProperties = {
   display: "flex",
   alignItems: "center",
@@ -762,6 +869,29 @@ const tierBenefitListStyle: React.CSSProperties = {
   display: "grid",
   gap: "8px",
   marginTop: "6px",
+};
+
+const tierCouponBenefitTitleStyle: React.CSSProperties = {
+  marginTop: "4px",
+  color: "#fde68a",
+  fontSize: "13px",
+  fontWeight: 900,
+};
+
+const tierCouponBenefitListStyle: React.CSSProperties = {
+  display: "grid",
+  gap: "6px",
+};
+
+const tierCouponBenefitItemStyle: React.CSSProperties = {
+  padding: "8px 10px",
+  borderRadius: "11px",
+  background: "rgba(250,204,21,0.08)",
+  border: "1px solid rgba(250,204,21,0.16)",
+  color: "#fde68a",
+  fontSize: "12px",
+  lineHeight: 1.4,
+  fontWeight: 800,
 };
 
 const tierBenefitItemStyle: React.CSSProperties = {
