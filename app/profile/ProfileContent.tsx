@@ -802,7 +802,7 @@ const ledgerNegativeAmountStyle: React.CSSProperties = {
 
 const tierCarouselStyle: React.CSSProperties = {
   position: "relative",
-  height: "390px",
+  height: "500px",
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
@@ -811,8 +811,8 @@ const tierCarouselStyle: React.CSSProperties = {
 
 const tierCardButtonStyle = (offset: number, isActive: boolean): React.CSSProperties => ({
   position: "absolute",
-  width: "min(560px, 96%)",
-  height: "330px",
+  width: "min(640px, 96%)",
+  height: "440px",
   border: "none",
   padding: 0,
   background: "transparent",
@@ -830,7 +830,7 @@ const tierCardStyle = (isActive: boolean, accent: string): React.CSSProperties =
   height: "100%",
   boxSizing: "border-box",
   borderRadius: "24px",
-  padding: "26px 30px",
+  padding: "22px 26px",
   textAlign: "left",
   color: "white",
   background: isActive
@@ -842,18 +842,19 @@ const tierCardStyle = (isActive: boolean, accent: string): React.CSSProperties =
     : "0 16px 36px rgba(0,0,0,0.32)",
   display: "grid",
   alignContent: "start",
-  gap: "12px",
+  gap: "8px",
+  overflow: "hidden",
 });
 
 const tierCardBadgeStyle: React.CSSProperties = {
-  fontSize: "28px",
+  fontSize: "26px",
   fontWeight: 800,
   lineHeight: 1.15,
   wordBreak: "keep-all",
 };
 
 const tierCardPointsStyle: React.CSSProperties = {
-  fontSize: "34px",
+  fontSize: "30px",
   fontWeight: 800,
   color: "#f8fafc",
   lineHeight: 1.1,
@@ -862,46 +863,48 @@ const tierCardPointsStyle: React.CSSProperties = {
 
 const tierCardTextStyle: React.CSSProperties = {
   color: "#9ca3af",
-  fontSize: "13px",
+  fontSize: "12px",
 };
 
 const tierBenefitListStyle: React.CSSProperties = {
   display: "grid",
-  gap: "8px",
-  marginTop: "6px",
+  gap: "6px",
+  marginTop: "4px",
 };
 
 const tierCouponBenefitTitleStyle: React.CSSProperties = {
-  marginTop: "4px",
+  marginTop: "2px",
   color: "#fde68a",
-  fontSize: "13px",
+  fontSize: "12px",
   fontWeight: 900,
 };
 
 const tierCouponBenefitListStyle: React.CSSProperties = {
   display: "grid",
-  gap: "6px",
+  gap: "5px",
 };
 
 const tierCouponBenefitItemStyle: React.CSSProperties = {
-  padding: "8px 10px",
-  borderRadius: "11px",
+  padding: "7px 9px",
+  borderRadius: "10px",
   background: "rgba(250,204,21,0.08)",
   border: "1px solid rgba(250,204,21,0.16)",
   color: "#fde68a",
-  fontSize: "12px",
-  lineHeight: 1.4,
+  fontSize: "11px",
+  lineHeight: 1.32,
   fontWeight: 800,
+  whiteSpace: "normal",
+  overflowWrap: "anywhere",
 };
 
 const tierBenefitItemStyle: React.CSSProperties = {
-  padding: "10px 12px",
-  borderRadius: "12px",
+  padding: "8px 10px",
+  borderRadius: "10px",
   background: "rgba(255,255,255,0.05)",
   border: "1px solid rgba(255,255,255,0.07)",
   color: "#d1d5db",
-  fontSize: "13px",
-  lineHeight: 1.45,
+  fontSize: "12px",
+  lineHeight: 1.32,
   whiteSpace: "normal",
   overflowWrap: "anywhere",
 };
