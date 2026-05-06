@@ -3,6 +3,7 @@
 import Link from "next/link";
 import "./globals.css";
 import { useEffect, useRef, useState } from "react";
+import { usePathname } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import type { User } from "@supabase/supabase-js";
 
@@ -52,6 +53,8 @@ export default function RootLayout({
   const [accountDisplayName, setAccountDisplayName] = useState<string | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
   const accountMenuRef = useRef<HTMLDivElement | null>(null);
+  const pathname = usePathname();
+  const isCheckoutPage = pathname?.startsWith("/coupon/checkout/");
 
   useEffect(() => {
     async function loadUser() {
@@ -123,6 +126,7 @@ export default function RootLayout({
             '"Microsoft YaHei", "PingFang SC", "Hiragino Sans GB", "Noto Sans SC", Arial, sans-serif',
         }}
       >
+        {!isCheckoutPage ? (
         <header
           className="site-header"
           style={{
@@ -303,8 +307,9 @@ export default function RootLayout({
             </div>
           </div>
         </header>
+        ) : null}
 
-        <div className="site-content" style={{ padding: "40px" }}>{children}</div>
+        <div className="site-content" style={{ padding: isCheckoutPage ? 0 : "40px" }}>{children}</div>
       </body>
     </html>
   );
