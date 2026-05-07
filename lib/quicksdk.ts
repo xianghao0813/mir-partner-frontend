@@ -436,6 +436,27 @@ export async function createQuickSdkPayUrl({
   return payUrl;
 }
 
+export function verifyQuickSdkCallbackSign(payload: Record<string, unknown> | null) {
+  if (!payload) {
+    return false;
+  }
+
+  const receivedSign = readQuickSdkString(payload, ["sign"]);
+  if (!receivedSign) {
+    return false;
+  }
+
+  const expectedSign = createQuickSdkSign(
+    Object.fromEntries(
+      Object.entries(payload)
+        .filter(([key]) => key.toLowerCase() !== "sign")
+        .map(([key, value]) => [key, normalizeSignValue(value)])
+    )
+  );
+
+  return safeEqualHex(receivedSign, expectedSign);
+}
+
 export function getQuickSdkSyntheticEmail(uid: string) {
   return `sdkuid-${uid}@quicksdk.local`;
 }
@@ -710,19 +731,49 @@ function readQuickSdkNumber(source: Record<string, unknown>, keys: string[]) {
 }
 
 function buildSignedParams(input: Record<string, string | undefined>) {
-  const { openKey } = getQuickSdkConfig();
-  const normalized = Object.fromEntries(
-    Object.entries(input).filter(([, value]) => value !== undefined && value !== "")
-  ) as Record<string, string>;
-
-  const sorted = Object.entries(normalized).sort(([a], [b]) => a.localeCompare(b));
-  const signBase = `${sorted.map(([key, value]) => `${key}=${value}&`).join("")}${openKey}`;
-  const sign = crypto.createHash("md5").update(signBase, "utf8").digest("hex");
+  const normalized = normalizeSignParams(input);
+  const sign = createQuickSdkSign(normalized);
 
   return {
     ...normalized,
     sign,
   };
+}
+
+function createQuickSdkSign(input: Record<string, string | undefined>) {
+  const { openKey } = getQuickSdkConfig();
+  const normalized = normalizeSignParams(input);
+  const sorted = Object.entries(normalized).sort(([a], [b]) => a.localeCompare(b));
+  const signBase = `${sorted.map(([key, value]) => `${key}=${value}&`).join("")}${openKey}`;
+  return crypto.createHash("md5").update(signBase, "utf8").digest("hex");
+}
+
+function normalizeSignParams(input: Record<string, string | undefined>) {
+  return Object.fromEntries(
+    Object.entries(input).filter(([, value]) => value !== undefined && value !== "")
+  ) as Record<string, string>;
+}
+
+function normalizeSignValue(value: unknown) {
+  if (typeof value === "string") {
+    return value;
+  }
+  if (typeof value === "number" || typeof value === "boolean") {
+    return String(value);
+  }
+  return undefined;
+}
+
+function safeEqualHex(left: string, right: string) {
+  const normalizedLeft = left.trim().toLowerCase();
+  const normalizedRight = right.trim().toLowerCase();
+  if (!/^[a-f0-9]+$/.test(normalizedLeft) || !/^[a-f0-9]+$/.test(normalizedRight)) {
+    return false;
+  }
+
+  const leftBuffer = Buffer.from(normalizedLeft, "hex");
+  const rightBuffer = Buffer.from(normalizedRight, "hex");
+  return leftBuffer.length === rightBuffer.length && crypto.timingSafeEqual(leftBuffer, rightBuffer);
 }
 
 async function postForm(url: string, payload: Record<string, string>) {

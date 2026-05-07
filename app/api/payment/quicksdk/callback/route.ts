@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { compactAuthMetadata } from "@/lib/authMetadata";
 import { getCloudCoinPackage } from "@/lib/cloudCoinPackages";
 import { applyCouponDiscount, expireCouponCheckoutSessions, getCouponStatus, isPackageApplicable, type UserCouponRecord } from "@/lib/coupons";
-import { changeQuickSdkPlatformCoins } from "@/lib/quicksdk";
+import { changeQuickSdkPlatformCoins, verifyQuickSdkCallbackSign } from "@/lib/quicksdk";
 import { awardMirPoints } from "@/lib/mirPoints";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { insertPointTransaction, insertWalletTransaction } from "@/lib/userLedgers";
@@ -34,6 +34,17 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       message: "ignored",
+    });
+  }
+
+  if (!verifyQuickSdkCallbackSign(payload)) {
+    console.error("[QuickSDK callback invalid sign]", {
+      cpOrderNo,
+      payload,
+    });
+    return NextResponse.json({
+      success: true,
+      message: "invalid_sign",
     });
   }
 
@@ -199,7 +210,13 @@ async function readCallbackPayload(request: NextRequest) {
 }
 
 function readString(value: unknown) {
-  return typeof value === "string" ? value.trim() : "";
+  if (typeof value === "string") {
+    return value.trim();
+  }
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return String(value);
+  }
+  return "";
 }
 
 function readNumber(value: unknown) {
@@ -429,7 +446,7 @@ function roundMoney(value: number) {
 
 function isSuccessStatus(value: string) {
   const normalized = value.toLowerCase();
-  return normalized === "" || normalized === "1" || normalized === "true" || normalized === "success" || normalized === "paid";
+  return normalized === "1" || normalized === "true" || normalized === "success" || normalized === "paid";
 }
 
 function containsPlatformCoin(value: string) {
