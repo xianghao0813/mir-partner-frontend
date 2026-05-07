@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import BossSlashTrial from "@/components/BossSlashTrial";
 import type { PartnerPointTransaction, PartnerProfileSummary } from "@/lib/partnerProfile";
 
@@ -36,9 +36,10 @@ export default function ProfileContent({ profile }: ProfileContentProps) {
   const retentionPenalty = currentTier.id > 1 ? Math.floor(currentTier.minPoints * 0.2) : 0;
   const retentionTarget = currentTier.minPoints + retentionPenalty;
   const retentionPointsLeft = Math.max(0, retentionTarget - currentPoints);
-  const retentionAchieved = currentTier.id === 1 || profile.upgradedThisMonth || retentionPointsLeft === 0;
+  const upgradedThisMonth = profile.upgradedThisMonth;
+  const retentionAchieved = currentTier.id === 1 || upgradedThisMonth || retentionPointsLeft === 0;
   const retentionMarkerPercent =
-    nextTier && currentTier.id > 1
+    nextTier && currentTier.id > 1 && !upgradedThisMonth
       ? Math.min(
           100,
           Math.max(
@@ -66,6 +67,13 @@ export default function ProfileContent({ profile }: ProfileContentProps) {
     ledgerMonth ? (entry.createdAt ?? "").startsWith(ledgerMonth) : true
   );
   const filteredPointTotal = filteredPointTransactions.reduce((sum, entry) => sum + entry.points, 0);
+
+  useEffect(() => {
+    const currentIndex = profileTierList.findIndex((tier) => tier.id === currentTier.id);
+    if (currentIndex >= 0) {
+      setActiveTierIndex(currentIndex);
+    }
+  }, [currentTier.id]);
 
   async function claimTierUpgradeCoupons() {
     setClaimingTierCoupons(true);
@@ -133,6 +141,11 @@ export default function ProfileContent({ profile }: ProfileContentProps) {
                       <span style={retentionMarkerDotStyle} />
                       <span style={retentionMarkerLabelStyle}>保级</span>
                     </div>
+                  ) : upgradedThisMonth ? (
+                    <div style={{ ...retentionMarkerStyle, left: `${Math.min(100, progressPercent)}%` }}>
+                      <span style={retentionMarkerDotStyle} />
+                      <span style={retentionMarkerLabelStyle}>晋级成功</span>
+                    </div>
                   ) : null}
                 </div>
                 <div style={tierProgressHeaderStyle}>
@@ -142,9 +155,11 @@ export default function ProfileContent({ profile }: ProfileContentProps) {
                 <div style={retentionStatusStyle(retentionAchieved, currentTier.accent)}>
                   {currentTier.id === 1
                     ? "米尔新星暂无保级要求"
-                    : retentionAchieved
-                      ? `已达保级线，月底预计可保持 ${currentTier.label}`
-                      : `距离保级还需 ${retentionPointsLeft.toLocaleString()} 分，月底未升级将扣除 ${retentionPenalty.toLocaleString()} 分`}
+                    : upgradedThisMonth
+                      ? `本月已晋级成功，月底不会扣除保级积分，可保持 ${currentTier.label}`
+                      : retentionAchieved
+                        ? `已达保级线，月底预计可保持 ${currentTier.label}`
+                        : `距离保级还需 ${retentionPointsLeft.toLocaleString()} 分，月底未升级将扣除 ${retentionPenalty.toLocaleString()} 分`}
                 </div>
               </div>
             </article>
