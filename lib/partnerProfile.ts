@@ -52,7 +52,11 @@ export async function buildPartnerProfileSummary(user: User): Promise<PartnerPro
       "partnerCode",
       "mirPartnerCode",
     ]) || createPartnerCode(user.id);
-  const dbPointTransactions = await readPointTransactionsFromDb(user.id);
+  const monthKey = getShanghaiMonthKey();
+  const [dbPointTransactions, dbMonthlyPointTransactions] = await Promise.all([
+    readPointTransactionsFromDb(user.id),
+    readPointTransactionsFromDb(user.id, monthKey),
+  ]);
   const metadataPointTransactions = readPointTransactions(user.user_metadata);
   const fallbackPointTransactions =
     metadataPointTransactions.length > 0 ? metadataPointTransactions : await readQuickSdkPointTransactions(uid);
@@ -60,12 +64,13 @@ export async function buildPartnerProfileSummary(user: User): Promise<PartnerPro
   const pointsSummary = buildMirPointSummary(user.user_metadata);
   const recalculatedPoints = pointTransactions.reduce((sum, entry) => sum + entry.points, 0);
   const effectivePoints = pointTransactions.length > 0 ? Math.max(0, recalculatedPoints) : pointsSummary.points;
-  const monthKey = getShanghaiMonthKey();
   const effectiveMonthlyPoints =
-    pointTransactions.length > 0
-      ? pointTransactions
-          .filter((entry) => (entry.createdAt ?? "").startsWith(monthKey))
-          .reduce((sum, entry) => sum + Math.max(0, entry.points), 0)
+    dbMonthlyPointTransactions.length > 0
+      ? dbMonthlyPointTransactions.reduce((sum, entry) => sum + Math.max(0, entry.points), 0)
+      : pointTransactions.length > 0
+        ? pointTransactions
+            .filter((entry) => (entry.createdAt ?? "").startsWith(monthKey))
+            .reduce((sum, entry) => sum + Math.max(0, entry.points), 0)
       : pointsSummary.monthlyPoints;
   const currentTier = getCurrentTier(effectivePoints);
   const nextTier = MIR_PARTNER_TIERS.find((tier) => tier.id === currentTier.id + 1) ?? null;
