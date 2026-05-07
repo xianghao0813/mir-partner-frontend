@@ -31,12 +31,23 @@ export default function ProfileContent({ profile }: ProfileContentProps) {
     Math.max(0, profileTierList.findIndex((tier) => tier.id === profile.currentTier.id))
   );
   const currentTier = getTierForPoints(currentPoints);
+  const monthStartPoints = Math.max(
+    0,
+    currentPoints - pointTransactions
+      .filter((entry) => (entry.createdAt ?? "").startsWith(getCurrentMonth()))
+      .reduce((sum, entry) => sum + Math.max(0, entry.points), 0)
+  );
+  const crossedCurrentTierThisMonth =
+    currentTier.id > 1 &&
+    currentPoints >= currentTier.minPoints &&
+    monthStartPoints < currentTier.minPoints;
+  const effectiveUpgradedThisMonth = profile.upgradedThisMonth || crossedCurrentTierThisMonth;
   const nextTier = getNextTier(currentTier.id);
   const pointsToNextTier = nextTier ? Math.max(nextTier.minPoints - currentPoints, 0) : 0;
   const retentionPenalty = currentTier.id > 1 ? Math.floor(currentTier.minPoints * 0.2) : 0;
   const retentionTarget = currentTier.minPoints + retentionPenalty;
   const retentionPointsLeft = Math.max(0, retentionTarget - currentPoints);
-  const upgradedThisMonth = profile.upgradedThisMonth;
+  const upgradedThisMonth = effectiveUpgradedThisMonth;
   const retentionAchieved = currentTier.id === 1 || upgradedThisMonth || retentionPointsLeft === 0;
   const retentionMarkerPercent =
     nextTier && currentTier.id > 1 && !upgradedThisMonth
