@@ -7,6 +7,7 @@ type QuickSdkConfig = {
   baseUrl: string;
   openId: string;
   openKey: string;
+  callbackKey: string;
   productCode: string;
   channelCode: string;
   localAuthSecret: string;
@@ -61,6 +62,7 @@ export function getQuickSdkConfig(): QuickSdkConfig {
     process.env.QUICKSDK_BASE_URL?.trim().replace(/\/+$/, "") ?? QUICKSDK_DEFAULT_BASE_URL;
   const openId = process.env.QUICKSDK_OPEN_ID?.trim() ?? "";
   const openKey = process.env.QUICKSDK_OPEN_KEY?.trim() ?? "";
+  const callbackKey = process.env.QUICKSDK_CALLBACK_KEY?.trim() || openKey;
   const productCode = process.env.QUICKSDK_PRODUCT_CODE?.trim() ?? "";
   const channelCode =
     process.env.QUICKSDK_CHANNEL_CODE?.trim() ?? QUICKSDK_DEFAULT_CHANNEL_CODE;
@@ -77,6 +79,7 @@ export function getQuickSdkConfig(): QuickSdkConfig {
     baseUrl,
     openId,
     openKey,
+    callbackKey,
     productCode,
     channelCode,
     localAuthSecret,
@@ -451,7 +454,8 @@ export function verifyQuickSdkCallbackSign(payload: Record<string, unknown> | nu
       Object.entries(payload)
         .filter(([key]) => key.toLowerCase() !== "sign")
         .map(([key, value]) => [key, normalizeSignValue(value)])
-    )
+    ),
+    getQuickSdkConfig().callbackKey
   );
 
   return safeEqualHex(receivedSign, expectedSign);
@@ -740,11 +744,10 @@ function buildSignedParams(input: Record<string, string | undefined>) {
   };
 }
 
-function createQuickSdkSign(input: Record<string, string | undefined>) {
-  const { openKey } = getQuickSdkConfig();
+function createQuickSdkSign(input: Record<string, string | undefined>, key = getQuickSdkConfig().openKey) {
   const normalized = normalizeSignParams(input);
   const sorted = Object.entries(normalized).sort(([a], [b]) => a.localeCompare(b));
-  const signBase = `${sorted.map(([key, value]) => `${key}=${value}&`).join("")}${openKey}`;
+  const signBase = `${sorted.map(([key, value]) => `${key}=${value}&`).join("")}${key}`;
   return crypto.createHash("md5").update(signBase, "utf8").digest("hex");
 }
 
