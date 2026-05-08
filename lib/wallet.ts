@@ -46,9 +46,7 @@ export async function buildWalletSummary(user: User): Promise<WalletSummary> {
   const metadataTransactions = readWalletTransactions(user.user_metadata);
   const localTransactions = mergeWalletTransactions([...dbTransactions, ...metadataTransactions]);
   const localCloudCoins = readCloudCoins(user.user_metadata);
-  const sdkOrderTransactions = sdkWallet?.orders
-    .filter((order) => !isPlatformCoinOrder(order))
-    .map(mapOrderToTransaction) ?? [];
+  const sdkOrderTransactions = sdkWallet?.orders.map(mapOrderToTransaction) ?? [];
 
   return {
     account,
@@ -140,7 +138,7 @@ export async function reconcileQuickSdkRechargePoints(user: User) {
     });
 
     const shouldAwardPoints = shouldAwardMirPointsForOrder(order);
-    const shouldRecordWallet = !isPlatformCoinOrder(order);
+    const shouldRecordWallet = true;
 
     if ((hasWalletTransaction || !shouldRecordWallet) && (hasPointTransaction || !shouldAwardPoints)) {
       continue;
@@ -162,10 +160,10 @@ export async function reconcileQuickSdkRechargePoints(user: User) {
     if (shouldRecordWallet && !hasWalletTransaction) {
       const walletTransaction: WalletTransaction = {
         id: transactionId,
-        type: "recharge",
+        type: isPlatformCoinOrder(order) ? "consume" : "recharge",
         amount,
-        coins: Math.floor(amount),
-        desc: order.productName || "云币充值",
+        coins: isPlatformCoinOrder(order) ? -Math.floor(amount) : Math.floor(amount),
+        desc: isPlatformCoinOrder(order) ? order.productName || "云币使用" : order.productName || "云币充值",
         date: paidAt.toISOString().slice(0, 10),
         payMethod: "",
         status: "success",
@@ -276,13 +274,14 @@ async function readQuickSdkWallet(uid: string) {
 function mapOrderToTransaction(order: QuickSdkOrderData): WalletTransaction {
   const id = order.productOrderNo || order.orderNo;
   const amount = order.dealAmount || order.amount;
+  const isCoinConsume = isPlatformCoinOrder(order);
 
   return {
     id: `sdk-order-${id}`,
-    type: "recharge",
+    type: isCoinConsume ? "consume" : "recharge",
     amount,
-    coins: Math.floor(amount),
-    desc: order.productName || "云币充值",
+    coins: isCoinConsume ? -Math.floor(amount) : Math.floor(amount),
+    desc: isCoinConsume ? order.productName || "云币使用" : order.productName || "云币充值",
     date: formatSdkTimestamp(order.payTime ?? order.createTime),
     payMethod: "",
     status: order.payStatus === 1 ? "success" : order.payStatus === 0 ? "failed" : "pending",
