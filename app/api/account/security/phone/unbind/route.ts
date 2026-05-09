@@ -39,32 +39,50 @@ export async function POST(request: Request) {
     await unbindQuickSdkPhone({ uid, code });
     console.log("[QuickSDK phone unbind] success", { uid });
 
-    const metadata = compactAuthMetadata({
-      ...(user.user_metadata ?? {}),
-      mobile: "",
-      bound_phone: "",
-      phone_bound: false,
-      mobile_bound: false,
-      mobile_unbound_at: new Date().toISOString(),
-    });
-
-    const { error } = await supabaseAdmin.auth.admin.updateUserById(user.id, {
-      user_metadata: metadata,
-    });
-
-    if (error) {
-      return NextResponse.json({ message: error.message }, { status: 500 });
-    }
-
-    return NextResponse.json({ success: true });
+    return await markPhoneUnbound(user.id, user.user_metadata);
   } catch (error) {
     console.error("[QuickSDK phone unbind] failed", {
       uid,
       message: error instanceof Error ? error.message : String(error),
     });
+
+    if (isAlreadyUnboundPhoneError(error)) {
+      return await markPhoneUnbound(user.id, user.user_metadata, true);
+    }
+
     return NextResponse.json(
       { message: error instanceof Error ? error.message : "手机号解绑失败。" },
       { status: 502 }
     );
   }
+}
+
+async function markPhoneUnbound(
+  userId: string,
+  metadata: Record<string, unknown> | undefined,
+  alreadyUnbound = false
+) {
+  const nextMetadata = compactAuthMetadata({
+    ...(metadata ?? {}),
+    mobile: "",
+    bound_phone: "",
+    phone_bound: false,
+    mobile_bound: false,
+    mobile_unbound_at: new Date().toISOString(),
+  });
+
+  const { error } = await supabaseAdmin.auth.admin.updateUserById(userId, {
+    user_metadata: nextMetadata,
+  });
+
+  if (error) {
+    return NextResponse.json({ message: error.message }, { status: 500 });
+  }
+
+  return NextResponse.json({ success: true, alreadyUnbound });
+}
+
+function isAlreadyUnboundPhoneError(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error);
+  return message.includes("40024");
 }
