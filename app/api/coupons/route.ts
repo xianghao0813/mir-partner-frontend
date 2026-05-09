@@ -31,6 +31,7 @@ export async function GET() {
   await expireCouponCheckoutSessions(supabaseAdmin);
   await expireCouponGiftTransfers(supabaseAdmin);
   await ensureMonthlyTierCoupons(user.id, user.user_metadata);
+  await ensureTestPaymentCoupon(user.id);
 
   const now = new Date();
   const cleanupBefore = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();
@@ -144,6 +145,42 @@ async function ensureMonthlyTierCoupons(userId: string, metadata: Record<string,
 
   if (error) {
     console.error("[coupon initial monthly grant metadata update]", error);
+  }
+}
+
+async function ensureTestPaymentCoupon(userId: string) {
+  const couponCode = "TEST-2YUAN-1YUAN";
+  const { data: existing, error: existingError } = await supabaseAdmin
+    .from("user_coupons")
+    .select("id")
+    .eq("user_id", userId)
+    .eq("coupon_code", couponCode)
+    .maybeSingle();
+
+  if (existingError || existing) {
+    if (existingError) {
+      console.error("[test coupon lookup]", existingError);
+    }
+    return;
+  }
+
+  const now = new Date();
+  const expiresAt = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+  const { error } = await supabaseAdmin.from("user_coupons").insert({
+    user_id: userId,
+    coupon_code: couponCode,
+    title: "2元测试支付券",
+    description: "购买 100 云币测试商品时立减 1 元。",
+    discount_type: "amount",
+    discount_value: 1,
+    min_amount: 2,
+    applicable_package_ids: [1],
+    starts_at: now.toISOString(),
+    expires_at: expiresAt.toISOString(),
+  });
+
+  if (error) {
+    console.error("[test coupon grant]", error);
   }
 }
 

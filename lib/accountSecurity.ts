@@ -12,8 +12,11 @@ export type AccountSecuritySummary = {
 };
 
 export function readAccountSecurity(metadata: UserMetadata | undefined): AccountSecuritySummary {
-  const phone = readString(metadata?.mobile) || readString(metadata?.phone) || readString(metadata?.bound_phone);
-  const phoneBound = readBoolean(metadata?.mobile_bound) || readBoolean(metadata?.phone_bound) || Boolean(phone);
+  const explicitPhoneBound = readBoolean(metadata?.mobile_bound) || readBoolean(metadata?.phone_bound);
+  const boundPhone = readString(metadata?.bound_phone) || readString(metadata?.mobile);
+  const accountPhone = readString(metadata?.phone);
+  const phone = boundPhone || (explicitPhoneBound ? accountPhone : "");
+  const phoneBound = explicitPhoneBound || Boolean(boundPhone);
 
   return {
     realNameVerified:

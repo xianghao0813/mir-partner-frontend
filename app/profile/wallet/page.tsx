@@ -72,7 +72,7 @@ type AccountSecurity = {
 };
 
 const coinTiers: CoinTier[] = [
-  { id: 1, coins: 100, priceLabel: "¥100", image: "/cloud-coins/tier-1.png" },
+  { id: 1, coins: 100, priceLabel: "¥2", image: "/cloud-coins/tier-1.png" },
   { id: 2, coins: 300, priceLabel: "¥300", image: "/cloud-coins/tier-2.png" },
   { id: 3, coins: 500, priceLabel: "¥500", image: "/cloud-coins/tier-3.png" },
   { id: 4, coins: 1000, priceLabel: "¥1,000", image: "/cloud-coins/tier-4.png" },
@@ -158,14 +158,6 @@ export default function WalletPage() {
     [wallet]
   );
 
-  const securityInfo = useMemo(
-    () => [
-      { label: "实名认证", value: security?.realNameVerified ? "已认证" : "未认证" },
-      { label: "手机号", value: security?.phoneBound ? security.maskedPhone || "已绑定" : "未绑定" },
-    ],
-    [security]
-  );
-
   const visibleTransactions = useMemo(() => {
     const transactions = wallet?.transactions ?? [];
     return historyMonth ? transactions.filter((item) => item.date.startsWith(historyMonth)) : transactions;
@@ -182,7 +174,7 @@ export default function WalletPage() {
       label: "手机号",
       value: security?.phoneBound ? security.maskedPhone || "已绑定" : "未绑定",
       actionLabel: security?.phoneBound ? "解绑" : "绑定",
-      onAction: () => setPhoneOpen(true),
+      onAction: openPhoneModal,
     },
   ];
 
@@ -221,12 +213,18 @@ export default function WalletPage() {
       }
 
       setSecurity(payload);
-      if (payload.phone) {
-        setPhone(payload.phone);
-      }
+      setPhone(payload.phone || "");
     } catch {
       // Keep wallet usable even if security status cannot be loaded.
     }
+  }
+
+  function openPhoneModal() {
+    setPhone(security?.phoneBound ? security.phone : "");
+    setPhoneCode("");
+    setUnbindCode("");
+    setPhoneCodeCooldown(0);
+    setPhoneOpen(true);
   }
 
   async function loadCoupons() {
@@ -547,6 +545,7 @@ export default function WalletPage() {
       setMessage(Number(payload?.pointsAwarded ?? 0) > 0 ? "手机号绑定成功，已获得 1000 MIR 积分。" : "手机号绑定成功。");
       setPhoneOpen(false);
       setPhoneCode("");
+      setPhoneCodeCooldown(0);
       await loadSecurity();
     } catch {
       setMessage("手机号绑定失败。");
@@ -574,7 +573,10 @@ export default function WalletPage() {
 
       setMessage("手机号已解绑。");
       setPhoneOpen(false);
+      setPhone("");
+      setPhoneCode("");
       setUnbindCode("");
+      setPhoneCodeCooldown(0);
       await loadSecurity();
     } catch {
       setMessage("手机号解绑失败。");
@@ -590,6 +592,21 @@ export default function WalletPage() {
 
   return (
     <main className="hide-scrollbar" style={pageStyle}>
+      <style jsx global>{`
+        .wallet-lift {
+          transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease, background 180ms ease;
+        }
+
+        .wallet-lift:hover {
+          transform: translateY(-5px);
+          box-shadow: 0 18px 34px rgba(0, 0, 0, 0.28), 0 0 24px rgba(139, 92, 246, 0.18);
+          border-color: rgba(196, 181, 253, 0.42) !important;
+        }
+
+        .wallet-tier-button:hover .wallet-tier-card {
+          background: rgba(255, 255, 255, 0.075) !important;
+        }
+      `}</style>
       <div className="auth-bg" style={fixedBackgroundStyle} />
       <div className="auth-overlay" style={fixedOverlayStyle} />
 
@@ -620,6 +637,9 @@ export default function WalletPage() {
                 <div style={infoValueStyle}>{item.value}</div>
               </article>
             ))}
+          </div>
+
+          <div style={securityGridStyle}>
             {securityCards.map((item) => (
               <article key={item.label} style={infoCardStyle}>
                 <div style={infoLabelStyle}>{item.label}</div>
@@ -634,16 +654,16 @@ export default function WalletPage() {
           </div>
 
           <div style={heroActionRowStyle}>
-            <button type="button" onClick={() => { if (!ensureRealNameVerified()) return; setCouponOpen(true); setCouponMessage(""); void loadCoupons(); }} style={couponButtonStyle}>
+            <button type="button" onClick={() => { if (!ensureRealNameVerified()) return; setCouponOpen(true); setCouponMessage(""); void loadCoupons(); }} style={couponButtonStyle} className="wallet-lift">
               优惠券
             </button>
-            <button type="button" onClick={moveToRecharge} style={primaryButtonStyle}>
+            <button type="button" onClick={moveToRecharge} style={primaryButtonStyle} className="wallet-lift">
               充值
             </button>
             <button type="button" onClick={() => setRealNameOpen(true)} style={{ ...secondaryButtonStyle, display: "none" }}>
               实名认证
             </button>
-            <button type="button" onClick={() => setPhoneOpen(true)} style={{ ...secondaryButtonStyle, display: "none" }}>
+            <button type="button" onClick={openPhoneModal} style={{ ...secondaryButtonStyle, display: "none" }}>
               手机号绑定
             </button>
           </div>
@@ -662,8 +682,8 @@ export default function WalletPage() {
           <div style={tierGridStyle}>
             {coinTiers.map((tier) => {
               return (
-                <button key={tier.id} type="button" onClick={() => void startPayment("wechat", tier)} style={tierCardButtonStyle}>
-                  <article style={tierCardStyle(false)}>
+                <button key={tier.id} type="button" onClick={() => void startPayment("wechat", tier)} style={tierCardButtonStyle} className="wallet-tier-button">
+                  <article style={tierCardStyle(false)} className="wallet-lift wallet-tier-card">
                     <div style={tierImageWrapStyle}>
                       <img src={tier.image} alt={`${tier.coins} 云币`} style={tierImageStyle} />
                     </div>
@@ -1013,6 +1033,7 @@ const balanceDetailButtonStyle: CSSProperties = {
   cursor: "pointer",
 };
 const infoGridStyle: CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "14px" };
+const securityGridStyle: CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "14px" };
 const infoCardStyle: CSSProperties = { padding: "18px", borderRadius: "16px", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)", display: "grid", gap: "8px" };
 const infoLabelStyle: CSSProperties = { color: "#9ca3af", fontSize: "13px" };
 const infoValueStyle: CSSProperties = { fontSize: "20px", fontWeight: 700, color: "#fff", wordBreak: "break-word" };
