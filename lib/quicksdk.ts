@@ -341,11 +341,11 @@ export async function checkQuickSdkRealName({ userId }: { userId: string }) {
 }
 
 export async function bindQuickSdkPhone({
-  userId,
+  uid,
   phone,
   code,
 }: {
-  userId: string;
+  uid: string;
   phone: string;
   code: string;
 }) {
@@ -354,7 +354,7 @@ export async function bindQuickSdkPhone({
     openId: config.openId,
     productCode: config.productCode,
     channelCode: config.channelCode,
-    userId,
+    uid,
     phone,
     code,
   });
@@ -364,12 +364,10 @@ export async function bindQuickSdkPhone({
 }
 
 export async function unbindQuickSdkPhone({
-  userId,
-  phone,
+  uid,
   code,
 }: {
-  userId: string;
-  phone: string;
+  uid: string;
   code: string;
 }) {
   const config = getQuickSdkConfig();
@@ -377,12 +375,11 @@ export async function unbindQuickSdkPhone({
     openId: config.openId,
     productCode: config.productCode,
     channelCode: config.channelCode,
-    userId,
-    phone,
+    uid,
     code,
   });
 
-  const result = await postQuickSdkForm("/webOpen/unbindPhone", payload);
+  const result = await postQuickSdkForm("/webOpen/unBindPhone", payload);
   return normalizeQuickSdkBoolean(result.data) || result.status;
 }
 

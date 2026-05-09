@@ -30,7 +30,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    await bindQuickSdkPhone({ userId: uid, phone, code });
+    await bindQuickSdkPhone({ uid, phone, code });
 
     const alreadyAwarded = user.user_metadata?.mobile_bind_point_awarded === true;
     const pointAward = alreadyAwarded

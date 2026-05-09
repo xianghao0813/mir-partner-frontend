@@ -32,7 +32,12 @@ export async function POST(request: Request) {
   }
 
   try {
-    await unbindQuickSdkPhone({ userId: uid, phone, code });
+    console.log("[QuickSDK phone unbind] request", {
+      uid,
+      phone: phone ? phone.replace(/(\d{3})\d{4}(\d+)/, "$1****$2") : "",
+    });
+    await unbindQuickSdkPhone({ uid, code });
+    console.log("[QuickSDK phone unbind] success", { uid });
 
     const metadata = compactAuthMetadata({
       ...(user.user_metadata ?? {}),
@@ -53,6 +58,10 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ success: true });
   } catch (error) {
+    console.error("[QuickSDK phone unbind] failed", {
+      uid,
+      message: error instanceof Error ? error.message : String(error),
+    });
     return NextResponse.json(
       { message: error instanceof Error ? error.message : "手机号解绑失败。" },
       { status: 502 }
