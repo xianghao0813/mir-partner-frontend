@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { compactAuthMetadata } from "@/lib/authMetadata";
+import { readAccountSecurity } from "@/lib/accountSecurity";
 import { settleMonthlyMirPoints } from "@/lib/mirPoints";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { grantTierCoupons } from "@/lib/tierCoupons";
@@ -38,20 +39,22 @@ export async function POST(request: Request) {
     let nextMetadata = settlement.metadata;
     let couponGrant = null;
 
-    try {
-      couponGrant = await grantTierCoupons({
-        supabaseAdmin,
-        userId: user.id,
-        metadata: nextMetadata,
-        targetTierId: settlement.afterTier.id,
-        reason: "monthly_settlement",
-      });
-      nextMetadata = couponGrant.metadata;
-    } catch (couponError) {
-      console.error("[monthly settlement tier coupons]", {
-        userId: user.id,
-        error: couponError instanceof Error ? couponError.message : couponError,
-      });
+    if (readAccountSecurity(nextMetadata).realNameVerified) {
+      try {
+        couponGrant = await grantTierCoupons({
+          supabaseAdmin,
+          userId: user.id,
+          metadata: nextMetadata,
+          targetTierId: settlement.afterTier.id,
+          reason: "monthly_settlement",
+        });
+        nextMetadata = couponGrant.metadata;
+      } catch (couponError) {
+        console.error("[monthly settlement tier coupons]", {
+          userId: user.id,
+          error: couponError instanceof Error ? couponError.message : couponError,
+        });
+      }
     }
 
     const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(user.id, {

@@ -7,8 +7,12 @@ import {
   type CouponGiftTransferRecord,
   type UserCouponRecord,
 } from "@/lib/coupons";
+import { compactAuthMetadata } from "@/lib/authMetadata";
+import { requireRealNameVerified } from "@/lib/accountSecurity";
+import { getCurrentTier, readMirPoints } from "@/lib/mirPoints";
 import { createClient } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { getGrantedTierCouponId, grantTierCoupons } from "@/lib/tierCoupons";
 
 export async function GET() {
   const supabase = await createClient();
@@ -20,8 +24,13 @@ export async function GET() {
     return NextResponse.json({ message: "请先登录。" }, { status: 401 });
   }
 
+  if (!(await requireRealNameVerified(user))) {
+    return NextResponse.json({ message: "请先完成实名认证后再查看或领取优惠券。" }, { status: 403 });
+  }
+
   await expireCouponCheckoutSessions(supabaseAdmin);
   await expireCouponGiftTransfers(supabaseAdmin);
+  await ensureMonthlyTierCoupons(user.id, user.user_metadata);
 
   const now = new Date();
   const cleanupBefore = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();
@@ -109,6 +118,33 @@ export async function GET() {
   }
 
   return NextResponse.json(result);
+}
+
+async function ensureMonthlyTierCoupons(userId: string, metadata: Record<string, unknown> | undefined) {
+  if (getGrantedTierCouponId(metadata) > 0) {
+    return;
+  }
+
+  const currentTier = getCurrentTier(readMirPoints(metadata));
+  const grant = await grantTierCoupons({
+    supabaseAdmin,
+    userId,
+    metadata,
+    targetTierId: currentTier.id,
+    reason: "initial_monthly",
+  });
+
+  if (!grant.granted) {
+    return;
+  }
+
+  const { error } = await supabaseAdmin.auth.admin.updateUserById(userId, {
+    user_metadata: compactAuthMetadata(grant.metadata),
+  });
+
+  if (error) {
+    console.error("[coupon initial monthly grant metadata update]", error);
+  }
 }
 
 function serializeCoupon(

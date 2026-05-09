@@ -6,6 +6,7 @@ import {
   getCouponStatus,
   type UserCouponRecord,
 } from "@/lib/coupons";
+import { requireRealNameVerified } from "@/lib/accountSecurity";
 import { createClient } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
@@ -20,6 +21,10 @@ export async function POST(
 
   if (!user) {
     return NextResponse.json({ message: "请先登录。" }, { status: 401 });
+  }
+
+  if (!(await requireRealNameVerified(user))) {
+    return NextResponse.json({ message: "请先完成实名认证后再使用优惠券。" }, { status: 403 });
   }
 
   await expireCouponCheckoutSessions(supabaseAdmin);

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCloudCoinPackage } from "@/lib/cloudCoinPackages";
+import { requireRealNameVerified } from "@/lib/accountSecurity";
 import { createQuickSdkPayUrl, getQuickSdkPublicBaseUrl } from "@/lib/quicksdk";
 import { createClient } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
@@ -13,6 +14,10 @@ export async function POST(request: NextRequest) {
 
     if (!user) {
       return NextResponse.json({ message: "请先登录。" }, { status: 401 });
+    }
+
+    if (!(await requireRealNameVerified(user))) {
+      return NextResponse.json({ message: "请先完成实名认证后再进行充值。" }, { status: 403 });
     }
 
     const body = (await request.json().catch(() => null)) as

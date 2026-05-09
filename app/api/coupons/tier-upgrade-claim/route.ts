@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { compactAuthMetadata } from "@/lib/authMetadata";
+import { requireRealNameVerified } from "@/lib/accountSecurity";
 import { readMirPoints } from "@/lib/mirPoints";
 import { createClient } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
@@ -13,6 +14,10 @@ export async function POST() {
 
   if (!user) {
     return NextResponse.json({ message: "请先登录。" }, { status: 401 });
+  }
+
+  if (!(await requireRealNameVerified(user))) {
+    return NextResponse.json({ message: "请先完成实名认证后再领取优惠券。" }, { status: 403 });
   }
 
   const points = readMirPoints(user.user_metadata);

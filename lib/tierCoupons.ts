@@ -70,7 +70,7 @@ export async function grantTierCoupons({
   userId: string;
   metadata: UserMetadata | undefined;
   targetTierId: number;
-  reason: "monthly_settlement" | "tier_upgrade_claim";
+  reason: "monthly_settlement" | "tier_upgrade_claim" | "initial_monthly";
   now?: Date;
 }): Promise<TierCouponGrantResult> {
   const monthKey = getShanghaiMonthKey(now);

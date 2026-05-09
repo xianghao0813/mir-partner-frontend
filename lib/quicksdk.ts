@@ -304,6 +304,88 @@ export async function resetQuickSdkPassword({
   return result.data;
 }
 
+export async function verifyQuickSdkRealName({
+  userId,
+  realName,
+  idCard,
+}: {
+  userId: string;
+  realName: string;
+  idCard: string;
+}) {
+  const config = getQuickSdkConfig();
+  const payload = buildSignedParams({
+    openId: config.openId,
+    productCode: config.productCode,
+    channelCode: config.channelCode,
+    userId,
+    realName,
+    idCard,
+  });
+
+  const result = await postQuickSdkForm("/webOpen/userVerify", payload);
+  return normalizeQuickSdkBoolean(result.data) || result.status;
+}
+
+export async function checkQuickSdkRealName({ userId }: { userId: string }) {
+  const config = getQuickSdkConfig();
+  const payload = buildSignedParams({
+    openId: config.openId,
+    productCode: config.productCode,
+    channelCode: config.channelCode,
+    userId,
+  });
+
+  const result = await postQuickSdkForm("/webOpen/checkUserVerify", payload);
+  return normalizeQuickSdkBoolean(result.data) || result.status;
+}
+
+export async function bindQuickSdkPhone({
+  userId,
+  phone,
+  code,
+}: {
+  userId: string;
+  phone: string;
+  code: string;
+}) {
+  const config = getQuickSdkConfig();
+  const payload = buildSignedParams({
+    openId: config.openId,
+    productCode: config.productCode,
+    channelCode: config.channelCode,
+    userId,
+    phone,
+    code,
+  });
+
+  const result = await postQuickSdkForm("/webOpen/bindPhone", payload);
+  return normalizeQuickSdkBoolean(result.data) || result.status;
+}
+
+export async function unbindQuickSdkPhone({
+  userId,
+  phone,
+  code,
+}: {
+  userId: string;
+  phone: string;
+  code: string;
+}) {
+  const config = getQuickSdkConfig();
+  const payload = buildSignedParams({
+    openId: config.openId,
+    productCode: config.productCode,
+    channelCode: config.channelCode,
+    userId,
+    phone,
+    code,
+  });
+
+  const result = await postQuickSdkForm("/webOpen/unbindPhone", payload);
+  return normalizeQuickSdkBoolean(result.data) || result.status;
+}
+
 export async function getQuickSdkWalletAmount({ userId }: { userId: string }) {
   const config = getQuickSdkConfig();
   const payload = buildSignedParams({
@@ -562,6 +644,43 @@ function normalizeQuickSdkWalletAmount(data: unknown) {
   }
 
   return readQuickSdkNumber(candidate, ["amount", "balance", "money"]) ?? 0;
+}
+
+function normalizeQuickSdkBoolean(data: unknown) {
+  if (typeof data === "boolean") {
+    return data;
+  }
+
+  if (typeof data === "number") {
+    return data === 1;
+  }
+
+  if (typeof data === "string") {
+    const normalized = data.trim().toLowerCase();
+    return normalized === "1" || normalized === "true" || normalized === "yes" || normalized === "success";
+  }
+
+  const candidate =
+    Array.isArray(data) ? (data[0] as Record<string, unknown> | undefined) : (data as Record<string, unknown> | undefined);
+
+  if (!candidate || typeof candidate !== "object") {
+    return false;
+  }
+
+  const direct = readQuickSdkNumber(candidate, ["verified", "isVerify", "isVerified", "realNameVerified", "isBind", "bind"]);
+  if (direct !== null) {
+    return direct === 1;
+  }
+
+  return ["verified", "isVerify", "isVerified", "realNameVerified", "isBind", "bind", "status"].some((key) => {
+    const value = candidate[key];
+    if (typeof value === "boolean") return value;
+    if (typeof value === "string") {
+      const normalized = value.trim().toLowerCase();
+      return normalized === "1" || normalized === "true" || normalized === "yes" || normalized === "success";
+    }
+    return false;
+  });
 }
 
 function normalizeQuickSdkOrders(data: unknown): QuickSdkOrderData[] {

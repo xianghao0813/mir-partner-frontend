@@ -63,6 +63,14 @@ type CouponGroups = {
   used: CouponItem[];
 };
 
+type AccountSecurity = {
+  realNameVerified: boolean;
+  phoneBound: boolean;
+  phone: string;
+  maskedPhone: string;
+  phoneRewardClaimed: boolean;
+};
+
 const coinTiers: CoinTier[] = [
   { id: 1, coins: 100, priceLabel: "¥100", image: "/cloud-coins/tier-1.png" },
   { id: 2, coins: 300, priceLabel: "¥300", image: "/cloud-coins/tier-2.png" },
@@ -94,9 +102,19 @@ export default function WalletPage() {
   const [giftingCouponId, setGiftingCouponId] = useState<string | null>(null);
   const [message, setMessage] = useState("");
   const [couponMessage, setCouponMessage] = useState("");
+  const [security, setSecurity] = useState<AccountSecurity | null>(null);
+  const [realNameOpen, setRealNameOpen] = useState(false);
+  const [phoneOpen, setPhoneOpen] = useState(false);
+  const [realName, setRealName] = useState("");
+  const [idCard, setIdCard] = useState("");
+  const [phone, setPhone] = useState("");
+  const [phoneCode, setPhoneCode] = useState("");
+  const [unbindCode, setUnbindCode] = useState("");
+  const [securitySubmitting, setSecuritySubmitting] = useState(false);
 
   useEffect(() => {
     void loadWallet();
+    void loadSecurity();
     void loadCoupons();
     return () => {
       if (messageClearTimerRef.current) {
@@ -124,6 +142,14 @@ export default function WalletPage() {
       { label: "状态", value: wallet?.status ?? "正常" },
     ],
     [wallet]
+  );
+
+  const securityInfo = useMemo(
+    () => [
+      { label: "实名认证", value: security?.realNameVerified ? "已认证" : "未认证" },
+      { label: "手机号", value: security?.phoneBound ? security.maskedPhone || "已绑定" : "未绑定" },
+    ],
+    [security]
   );
 
   const visibleTransactions = useMemo(() => {
@@ -156,12 +182,33 @@ export default function WalletPage() {
     }
   }
 
+  async function loadSecurity() {
+    try {
+      const response = await fetch("/api/account/security", { cache: "no-store" });
+      const payload = (await response.json().catch(() => null)) as AccountSecurity | { message?: string } | null;
+
+      if (!response.ok || !isAccountSecurity(payload)) {
+        return;
+      }
+
+      setSecurity(payload);
+      if (payload.phone) {
+        setPhone(payload.phone);
+      }
+    } catch {
+      // Keep wallet usable even if security status cannot be loaded.
+    }
+  }
+
   async function loadCoupons() {
     try {
       const response = await fetch("/api/coupons", { cache: "no-store" });
       const payload = (await response.json().catch(() => null)) as Partial<CouponGroups> & { message?: string } | null;
 
       if (!response.ok || !payload) {
+        if (payload?.message) {
+          setCouponMessage(payload.message);
+        }
         return;
       }
 
@@ -180,7 +227,21 @@ export default function WalletPage() {
   }
 
   function moveToRecharge() {
+    if (!ensureRealNameVerified()) {
+      return;
+    }
+
     rechargeRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  function ensureRealNameVerified() {
+    if (security?.realNameVerified) {
+      return true;
+    }
+
+    setRealNameOpen(true);
+    setMessage("请先完成实名认证后再使用充值或优惠券功能。");
+    return false;
   }
 
   function showTemporaryMessage(text: string, durationMs = 5000) {
@@ -227,6 +288,10 @@ export default function WalletPage() {
   }
 
   async function startPayment(payMethod: PayMethod, tierArg?: CoinTier) {
+    if (!ensureRealNameVerified()) {
+      return;
+    }
+
     const tier = tierArg ?? null;
     if (!tier) {
       setMessage("请先选择充值档位。");
@@ -279,6 +344,10 @@ export default function WalletPage() {
   }
 
   async function useCoupon(coupon: CouponItem) {
+    if (!ensureRealNameVerified()) {
+      return;
+    }
+
     if (coupon.giftTransfer) {
       setCouponMessage("该优惠券正在赠送中，请先撤回后再使用。");
       return;
@@ -319,6 +388,10 @@ export default function WalletPage() {
   }
 
   async function giftCoupon(coupon: CouponItem) {
+    if (!ensureRealNameVerified()) {
+      return;
+    }
+
     setGiftingCouponId(coupon.id);
     setCouponMessage("正在生成赠送链接...");
 
@@ -367,6 +440,115 @@ export default function WalletPage() {
     }
   }
 
+  async function submitRealName() {
+    setSecuritySubmitting(true);
+    setMessage("");
+
+    try {
+      const response = await fetch("/api/account/security/real-name", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ realName, idCard }),
+      });
+      const payload = (await response.json().catch(() => null)) as { message?: string } | null;
+
+      if (!response.ok) {
+        setMessage(payload?.message || "实名认证失败。");
+        return;
+      }
+
+      setMessage("实名认证已完成。");
+      setRealNameOpen(false);
+      await loadSecurity();
+      await loadCoupons();
+    } catch {
+      setMessage("实名认证失败。");
+    } finally {
+      setSecuritySubmitting(false);
+    }
+  }
+
+  async function sendPhoneCode(purpose: "bind" | "unbind") {
+    setSecuritySubmitting(true);
+    setMessage("");
+
+    try {
+      const response = await fetch("/api/account/security/phone/send-code", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone, purpose }),
+      });
+      const payload = (await response.json().catch(() => null)) as { message?: string } | null;
+
+      if (!response.ok) {
+        setMessage(payload?.message || "验证码发送失败。");
+        return;
+      }
+
+      setMessage("验证码已发送。");
+    } catch {
+      setMessage("验证码发送失败。");
+    } finally {
+      setSecuritySubmitting(false);
+    }
+  }
+
+  async function bindPhone() {
+    setSecuritySubmitting(true);
+    setMessage("");
+
+    try {
+      const response = await fetch("/api/account/security/phone/bind", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone, code: phoneCode }),
+      });
+      const payload = (await response.json().catch(() => null)) as { message?: string; pointsAwarded?: number } | null;
+
+      if (!response.ok) {
+        setMessage(payload?.message || "手机号绑定失败。");
+        return;
+      }
+
+      setMessage(Number(payload?.pointsAwarded ?? 0) > 0 ? "手机号绑定成功，已获得 1000 MIR 积分。" : "手机号绑定成功。");
+      setPhoneOpen(false);
+      setPhoneCode("");
+      await loadSecurity();
+    } catch {
+      setMessage("手机号绑定失败。");
+    } finally {
+      setSecuritySubmitting(false);
+    }
+  }
+
+  async function unbindPhone() {
+    setSecuritySubmitting(true);
+    setMessage("");
+
+    try {
+      const response = await fetch("/api/account/security/phone/unbind", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code: unbindCode }),
+      });
+      const payload = (await response.json().catch(() => null)) as { message?: string } | null;
+
+      if (!response.ok) {
+        setMessage(payload?.message || "手机号解绑失败。");
+        return;
+      }
+
+      setMessage("手机号已解绑。");
+      setPhoneOpen(false);
+      setUnbindCode("");
+      await loadSecurity();
+    } catch {
+      setMessage("手机号解绑失败。");
+    } finally {
+      setSecuritySubmitting(false);
+    }
+  }
+
   async function copyGiftLink(giftUrl: string) {
     const fullUrl = giftUrl.startsWith("http") ? giftUrl : `${window.location.origin}${giftUrl}`;
     await navigator.clipboard.writeText(fullUrl);
@@ -404,14 +586,26 @@ export default function WalletPage() {
                 <div style={infoValueStyle}>{item.value}</div>
               </article>
             ))}
+            {securityInfo.map((item) => (
+              <article key={item.label} style={infoCardStyle}>
+                <div style={infoLabelStyle}>{item.label}</div>
+                <div style={infoValueStyle}>{item.value}</div>
+              </article>
+            ))}
           </div>
 
           <div style={heroActionRowStyle}>
-            <button type="button" onClick={() => { setCouponOpen(true); setCouponMessage(""); void loadCoupons(); }} style={couponButtonStyle}>
+            <button type="button" onClick={() => { if (!ensureRealNameVerified()) return; setCouponOpen(true); setCouponMessage(""); void loadCoupons(); }} style={couponButtonStyle}>
               优惠券
             </button>
             <button type="button" onClick={moveToRecharge} style={primaryButtonStyle}>
               充值
+            </button>
+            <button type="button" onClick={() => setRealNameOpen(true)} style={secondaryButtonStyle}>
+              实名认证
+            </button>
+            <button type="button" onClick={() => setPhoneOpen(true)} style={secondaryButtonStyle}>
+              手机号绑定
             </button>
           </div>
         </section>
@@ -539,6 +733,57 @@ export default function WalletPage() {
           </div>
         </Modal>
       ) : null}
+      {realNameOpen ? (
+        <Modal title="实名认证" onClose={() => setRealNameOpen(false)}>
+          <div style={formGridStyle}>
+            {security?.realNameVerified ? (
+              <div style={successPanelStyle}>当前账号已完成实名认证，可以使用充值和优惠券功能。</div>
+            ) : (
+              <>
+                <div style={warningPanelStyle}>充值与优惠券涉及账号资产安全，使用前必须先完成实名认证。</div>
+                <input value={realName} onChange={(event) => setRealName(event.target.value)} placeholder="真实姓名" style={textInputStyle} />
+                <input value={idCard} onChange={(event) => setIdCard(event.target.value)} placeholder="证件号码" style={textInputStyle} />
+                <button type="button" onClick={() => void submitRealName()} disabled={securitySubmitting} style={primaryButtonStyle}>
+                  {securitySubmitting ? "认证中..." : "提交认证"}
+                </button>
+              </>
+            )}
+          </div>
+        </Modal>
+      ) : null}
+
+      {phoneOpen ? (
+        <Modal title="手机号绑定" onClose={() => setPhoneOpen(false)}>
+          <div style={formGridStyle}>
+            <div style={warningPanelStyle}>
+              绑定手机号可提升账号安全。完成手机号认证后可获得 1000 MIR 积分，每个账号仅可领取一次，解绑后再次绑定也不会重复发放。
+            </div>
+            {security?.phoneBound ? (
+              <>
+                <div style={successPanelStyle}>当前已绑定：{security.maskedPhone}</div>
+                <button type="button" onClick={() => void sendPhoneCode("unbind")} disabled={securitySubmitting} style={secondaryButtonStyle}>
+                  发送解绑验证码
+                </button>
+                <input value={unbindCode} onChange={(event) => setUnbindCode(event.target.value)} placeholder="解绑验证码" style={textInputStyle} />
+                <button type="button" onClick={() => void unbindPhone()} disabled={securitySubmitting} style={dangerSmallButtonStyle}>
+                  {securitySubmitting ? "处理中..." : "解绑手机号"}
+                </button>
+              </>
+            ) : (
+              <>
+                <input value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="手机号" style={textInputStyle} />
+                <button type="button" onClick={() => void sendPhoneCode("bind")} disabled={securitySubmitting} style={secondaryButtonStyle}>
+                  发送验证码
+                </button>
+                <input value={phoneCode} onChange={(event) => setPhoneCode(event.target.value)} placeholder="验证码" style={textInputStyle} />
+                <button type="button" onClick={() => void bindPhone()} disabled={securitySubmitting} style={primaryButtonStyle}>
+                  {securitySubmitting ? "绑定中..." : "绑定并领取奖励"}
+                </button>
+              </>
+            )}
+          </div>
+        </Modal>
+      ) : null}
     </main>
   );
 }
@@ -598,6 +843,21 @@ function isWalletSummary(value: unknown): value is WalletSummary {
     typeof candidate.status === "string" &&
     typeof candidate.cloudCoins === "number" &&
     Array.isArray(candidate.transactions)
+  );
+}
+
+function isAccountSecurity(value: unknown): value is AccountSecurity {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const candidate = value as Record<string, unknown>;
+  return (
+    typeof candidate.realNameVerified === "boolean" &&
+    typeof candidate.phoneBound === "boolean" &&
+    typeof candidate.phone === "string" &&
+    typeof candidate.maskedPhone === "string" &&
+    typeof candidate.phoneRewardClaimed === "boolean"
   );
 }
 
@@ -760,6 +1020,36 @@ const messageStyle: CSSProperties = {
   border: "1px solid rgba(96,165,250,0.24)",
   color: "#dbeafe",
   fontSize: "14px",
+};
+
+const formGridStyle: CSSProperties = { display: "grid", gap: "12px" };
+const textInputStyle: CSSProperties = {
+  height: "44px",
+  border: "1px solid rgba(255,255,255,0.14)",
+  borderRadius: "12px",
+  background: "rgba(255,255,255,0.06)",
+  color: "#fff",
+  padding: "0 12px",
+  fontSize: "14px",
+  outline: "none",
+};
+const warningPanelStyle: CSSProperties = {
+  padding: "14px",
+  borderRadius: "14px",
+  background: "rgba(250,204,21,0.12)",
+  border: "1px solid rgba(250,204,21,0.24)",
+  color: "#fde68a",
+  fontSize: "14px",
+  lineHeight: 1.65,
+};
+const successPanelStyle: CSSProperties = {
+  padding: "14px",
+  borderRadius: "14px",
+  background: "rgba(34,197,94,0.12)",
+  border: "1px solid rgba(34,197,94,0.24)",
+  color: "#bbf7d0",
+  fontSize: "14px",
+  lineHeight: 1.65,
 };
 
 const sectionHeaderStyle: CSSProperties = { display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "16px", flexWrap: "wrap" };
