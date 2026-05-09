@@ -13,7 +13,7 @@ export async function POST(request: Request) {
   } = await supabase.auth.getUser();
 
   if (!user) {
-    return NextResponse.json({ message: "请先登录。" }, { status: 401 });
+    return NextResponse.json({ message: "\u8bf7\u5148\u767b\u5f55\u3002" }, { status: 401 });
   }
 
   const body = (await request.json().catch(() => null)) as { phone?: string; code?: string } | null;
@@ -22,11 +22,11 @@ export async function POST(request: Request) {
   const uid = String(user.user_metadata?.quicksdk_uid ?? "").trim();
 
   if (!uid) {
-    return NextResponse.json({ message: "当前账号未绑定 SDK UID。" }, { status: 400 });
+    return NextResponse.json({ message: "\u5f53\u524d\u8d26\u53f7\u672a\u7ed1\u5b9a SDK UID\u3002" }, { status: 400 });
   }
 
   if (!phone || !code) {
-    return NextResponse.json({ message: "请输入手机号和验证码。" }, { status: 400 });
+    return NextResponse.json({ message: "\u8bf7\u8f93\u5165\u624b\u673a\u53f7\u548c\u9a8c\u8bc1\u7801\u3002" }, { status: 400 });
   }
 
   try {
@@ -39,7 +39,7 @@ export async function POST(request: Request) {
     }
 
     return NextResponse.json(
-      { message: error instanceof Error ? error.message : "手机号绑定失败。" },
+      { message: error instanceof Error ? error.message : "\u624b\u673a\u53f7\u7ed1\u5b9a\u5931\u8d25\u3002" },
       { status: 502 }
     );
   }
@@ -58,8 +58,8 @@ async function markPhoneBound(
         points: 1000,
         source: "phone_bind",
         referenceId: `phone-bind-${userId}`,
-        title: "手机绑定奖励",
-        description: "完成手机号绑定，奖励 1000 MIR 积分。",
+        title: "\u624b\u673a\u7ed1\u5b9a\u5956\u52b1",
+        description: "\u5b8c\u6210\u624b\u673a\u53f7\u7ed1\u5b9a\uff0c\u5956\u52b1 1000 MIR \u79ef\u5206\u3002",
       });
 
   const nextMetadata = compactAuthMetadata({
@@ -95,7 +95,19 @@ async function markPhoneBound(
 
 function isAlreadyBoundPhoneError(error: unknown) {
   const message = error instanceof Error ? error.message : String(error);
-  return message.includes("已绑定") || message.includes("已经绑定") || message.toLowerCase().includes("already");
+  const normalized = message.toLowerCase();
+  return (
+    message.includes("\u5df2\u7ed1\u5b9a") ||
+    message.includes("\u5df2\u7ecf\u7ed1\u5b9a") ||
+    message.includes("\u5df2\u5b58\u5728") ||
+    message.includes("\u5df2\u88ab\u4f7f\u7528") ||
+    message.includes("\u5df2\u88ab\u7ed1\u5b9a") ||
+    message.includes("\u624b\u673a\u53f7\u5df2") ||
+    message.includes("\u624b\u673a\u5df2") ||
+    normalized.includes("already") ||
+    normalized.includes("exist") ||
+    normalized.includes("used")
+  );
 }
 
 function isSamePhone(left: string, right: string) {
@@ -119,7 +131,7 @@ function readLatestPointTransaction(metadata: Record<string, unknown> | undefine
   const source = latest as Record<string, unknown>;
   return {
     id: readString(source.id),
-    title: readString(source.title) || "MIR 积分",
+    title: readString(source.title) || "MIR \u79ef\u5206",
     description: readString(source.description) || "-",
     points: readNumber(source.points),
     createdAt: readString(source.createdAt) || new Date().toISOString(),
