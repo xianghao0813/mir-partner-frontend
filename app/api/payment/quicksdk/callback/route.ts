@@ -29,15 +29,26 @@ export async function POST(request: NextRequest) {
     readString(payload?.subject);
   const payTypeName = readString(payload?.payTypeName) || readString(payload?.pay_type_name);
 
-  const extras = parseExtras(extrasParams);
+  const parsedExtras = parseExtras(extrasParams);
+  const context = await resolveCallbackContext(parsedExtras, cpOrderNo);
+  const extras = context.extras;
   if (!extras?.couponId) {
     await expireCouponCheckoutSessions(supabaseAdmin);
   }
-  const userId = extras?.userId ?? "";
-  const coins = Math.max(0, Number(extras?.coins ?? 0));
+  const userId = context.userId;
+  const coins = context.coins;
   const payMethod: "wechat" | "alipay" = extras?.payMethod === "alipay" ? "alipay" : "wechat";
 
   if (!userId || !cpOrderNo || !isSuccessStatus(orderStatus) || coins <= 0) {
+    console.error("[QuickSDK callback ignored]", {
+      cpOrderNo,
+      orderStatus,
+      paidAmount,
+      userId,
+      coins,
+      extras,
+      payload,
+    });
     return new NextResponse("SUCCESS");
   }
 
@@ -237,6 +248,85 @@ function parseExtras(value: string) {
   } catch {
     return null;
   }
+}
+
+async function resolveCallbackContext(extras: ReturnType<typeof parseExtras>, cpOrderNo: string) {
+  const packageId = Math.floor(Number(extras?.packageId ?? 0));
+  const packageItem = packageId > 0 ? getCloudCoinPackage(packageId) : null;
+
+  if (extras?.userId && Number(extras.coins ?? 0) > 0) {
+    return {
+      userId: extras.userId,
+      coins: Math.max(0, Math.floor(Number(extras.coins))),
+      extras,
+    };
+  }
+
+  if (!cpOrderNo) {
+    return {
+      userId: extras?.userId ?? "",
+      coins: Math.max(0, Math.floor(Number(extras?.coins ?? packageItem?.coins ?? 0))),
+      extras,
+    };
+  }
+
+  const { data: paymentOrder } = await supabaseAdmin
+    .from("payment_orders")
+    .select("user_id,package_id,coins,pay_method")
+    .eq("cp_order_no", cpOrderNo)
+    .maybeSingle();
+
+  if (paymentOrder) {
+    const source = paymentOrder as Record<string, unknown>;
+    const orderPackageId = Math.floor(readNumber(source.package_id));
+    const orderPackage = getCloudCoinPackage(orderPackageId);
+    const resolvedExtras = {
+      ...(extras ?? {}),
+      userId: readString(source.user_id),
+      packageId: orderPackageId,
+      coins: Math.floor(readNumber(source.coins) || orderPackage?.coins || 0),
+      payMethod: readString(source.pay_method) === "alipay" ? "alipay" as const : "wechat" as const,
+    };
+
+    return {
+      userId: resolvedExtras.userId ?? "",
+      coins: Math.max(0, Math.floor(Number(resolvedExtras.coins ?? 0))),
+      extras: resolvedExtras,
+    };
+  }
+
+  const { data: couponSession } = await supabaseAdmin
+    .from("coupon_checkout_sessions")
+    .select("session_token,user_id,coupon_id,package_id")
+    .eq("cp_order_no", cpOrderNo)
+    .maybeSingle();
+
+  if (couponSession) {
+    const source = couponSession as Record<string, unknown>;
+    const sessionPackageId = Math.floor(readNumber(source.package_id));
+    const sessionPackage = getCloudCoinPackage(sessionPackageId);
+    const resolvedExtras = {
+      ...(extras ?? {}),
+      userId: readString(source.user_id),
+      packageId: sessionPackageId,
+      coins: sessionPackage?.coins ?? 0,
+      couponId: readString(source.coupon_id),
+      couponSessionToken: readString(source.session_token),
+      payMethod: extras?.payMethod ?? "wechat" as const,
+    };
+
+    return {
+      userId: resolvedExtras.userId ?? "",
+      coins: Math.max(0, Math.floor(Number(resolvedExtras.coins ?? 0))),
+      extras: resolvedExtras,
+    };
+  }
+
+  return {
+    userId: extras?.userId ?? "",
+    coins: Math.max(0, Math.floor(Number(extras?.coins ?? packageItem?.coins ?? 0))),
+    extras,
+  };
 }
 
 async function resolveExpectedPaidAmount(

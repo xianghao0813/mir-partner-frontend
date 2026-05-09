@@ -609,28 +609,26 @@ function decryptQuickSdkCallbackValue(value: string) {
 }
 
 function parseQuickSdkCallbackXml(xml: string) {
+  const entries = [...xml.matchAll(/<([A-Za-z0-9_]+)>([\s\S]*?)<\/\1>/g)].map((match) => [
+    match[1],
+    match[2].trim(),
+  ]);
+  const values = Object.fromEntries(entries);
   const readTag = (name: string) => {
-    const match = xml.match(new RegExp(`<${name}>[\\s\\S]*?<\\/${name}>`, "i"));
-    if (!match) {
-      return "";
-    }
-
-    return match[0]
-      .replace(new RegExp(`^<${name}>`, "i"), "")
-      .replace(new RegExp(`<\\/${name}>$`, "i"), "")
-      .trim();
+    return values[name] ?? values[name.toLowerCase()] ?? "";
   };
 
   const status = readTag("status");
 
   return {
-    cpOrderNo: readTag("game_order"),
-    orderNo: readTag("order_no"),
+    ...values,
+    cpOrderNo: readTag("game_order") || readTag("cpOrderNo") || readTag("cp_order_no"),
+    orderNo: readTag("order_no") || readTag("orderNo"),
     status: status === "0" ? "success" : status === "1" ? "failed" : status,
-    amount: readTag("amount"),
-    goodsName: readTag("product_name") || readTag("goods_name"),
-    payTypeName: readTag("pay_type_name"),
-    extrasParams: readTag("extras_params"),
+    amount: readTag("amount") || readTag("real_amount") || readTag("money"),
+    goodsName: readTag("product_name") || readTag("goods_name") || readTag("productName"),
+    payTypeName: readTag("pay_type_name") || readTag("payTypeName"),
+    extrasParams: readTag("extras_params") || readTag("extrasParams"),
     uid: readTag("uid"),
   };
 }
