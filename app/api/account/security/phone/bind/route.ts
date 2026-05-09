@@ -32,9 +32,16 @@ export async function POST(request: Request) {
   try {
     const quickSdkUsername = String(user.user_metadata?.quicksdk_username ?? "").trim();
     if (isSamePhone(phone, quickSdkUsername)) {
-      const account = await loginQuickSdkByPhone({ phone, code });
-      if (account.uid === uid) {
-        return await markPhoneBound(user.id, user.user_metadata, phone);
+      try {
+        const account = await loginQuickSdkByPhone({ phone, code });
+        if (account.uid === uid) {
+          return await markPhoneBound(user.id, user.user_metadata, phone);
+        }
+      } catch (loginError) {
+        console.warn("[QuickSDK phone bind] login verification fallback", {
+          uid,
+          message: loginError instanceof Error ? loginError.message : String(loginError),
+        });
       }
     }
 

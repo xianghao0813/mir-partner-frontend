@@ -44,7 +44,7 @@ export async function POST(request: Request) {
       message: error instanceof Error ? error.message : String(error),
     });
 
-    if (purpose === "bind" && quickSdkPurpose !== "login" && isAlreadyBoundPhoneError(error)) {
+    if (purpose === "bind" && quickSdkPurpose !== "login") {
       await sendQuickSdkPhoneCode({ phone, uid, purpose: "login" });
       console.log("[QuickSDK phone send-code] fallback login success", { purpose, uid });
       return NextResponse.json({ success: true, verificationType: "login" });
@@ -63,21 +63,4 @@ function isSamePhone(left: string, right: string) {
 
 function normalizePhone(value: string) {
   return value.replace(/\D/g, "");
-}
-
-function isAlreadyBoundPhoneError(error: unknown) {
-  const message = error instanceof Error ? error.message : String(error);
-  const normalized = message.toLowerCase();
-  return (
-    message.includes("\u5df2\u7ed1\u5b9a") ||
-    message.includes("\u5df2\u7ecf\u7ed1\u5b9a") ||
-    message.includes("\u5df2\u5b58\u5728") ||
-    message.includes("\u5df2\u88ab\u4f7f\u7528") ||
-    message.includes("\u5df2\u88ab\u7ed1\u5b9a") ||
-    message.includes("\u624b\u673a\u53f7\u5df2") ||
-    message.includes("\u624b\u673a\u5df2") ||
-    normalized.includes("already") ||
-    normalized.includes("exist") ||
-    normalized.includes("used")
-  );
 }
