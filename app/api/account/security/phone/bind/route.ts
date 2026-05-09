@@ -31,54 +31,79 @@ export async function POST(request: Request) {
 
   try {
     await bindQuickSdkPhone({ uid, phone, code });
-
-    const alreadyAwarded = user.user_metadata?.mobile_bind_point_awarded === true;
-    const pointAward = alreadyAwarded
-      ? null
-      : awardMirPoints({
-          metadata: user.user_metadata,
-          points: 1000,
-          source: "phone_bind",
-          referenceId: `phone-bind-${user.id}`,
-          title: "手机绑定奖励",
-          description: "完成手机号绑定，奖励 1000 MIR 积分。",
-        });
-
-    const nextMetadata = compactAuthMetadata({
-      ...(pointAward?.metadata ?? user.user_metadata ?? {}),
-      mobile: phone,
-      bound_phone: phone,
-      phone_bound: true,
-      mobile_bound: true,
-      mobile_bound_at: new Date().toISOString(),
-      mobile_bind_point_awarded: true,
-    });
-
-    const { error } = await supabaseAdmin.auth.admin.updateUserById(user.id, {
-      user_metadata: nextMetadata,
-    });
-
-    if (error) {
-      return NextResponse.json({ message: error.message }, { status: 500 });
-    }
-
-    if (pointAward) {
-      const latest = readLatestPointTransaction(pointAward.metadata);
-      if (latest) {
-        await insertPointTransaction(user.id, latest);
-      }
-    }
-
-    return NextResponse.json({
-      success: true,
-      pointsAwarded: alreadyAwarded ? 0 : 1000,
-    });
+    return await markPhoneBound(user.id, user.user_metadata, phone);
   } catch (error) {
+    const quickSdkUsername = String(user.user_metadata?.quicksdk_username ?? "").trim();
+    if (isAlreadyBoundPhoneError(error) && isSamePhone(phone, quickSdkUsername)) {
+      return await markPhoneBound(user.id, user.user_metadata, phone);
+    }
+
     return NextResponse.json(
       { message: error instanceof Error ? error.message : "手机号绑定失败。" },
       { status: 502 }
     );
   }
+}
+
+async function markPhoneBound(
+  userId: string,
+  metadata: Record<string, unknown> | undefined,
+  phone: string
+) {
+  const alreadyAwarded = metadata?.mobile_bind_point_awarded === true;
+  const pointAward = alreadyAwarded
+    ? null
+    : awardMirPoints({
+        metadata,
+        points: 1000,
+        source: "phone_bind",
+        referenceId: `phone-bind-${userId}`,
+        title: "手机绑定奖励",
+        description: "完成手机号绑定，奖励 1000 MIR 积分。",
+      });
+
+  const nextMetadata = compactAuthMetadata({
+    ...(pointAward?.metadata ?? metadata ?? {}),
+    mobile: phone,
+    bound_phone: phone,
+    phone_bound: true,
+    mobile_bound: true,
+    mobile_bound_at: new Date().toISOString(),
+    mobile_bind_point_awarded: true,
+  });
+
+  const { error } = await supabaseAdmin.auth.admin.updateUserById(userId, {
+    user_metadata: nextMetadata,
+  });
+
+  if (error) {
+    return NextResponse.json({ message: error.message }, { status: 500 });
+  }
+
+  if (pointAward) {
+    const latest = readLatestPointTransaction(pointAward.metadata);
+    if (latest) {
+      await insertPointTransaction(userId, latest);
+    }
+  }
+
+  return NextResponse.json({
+    success: true,
+    pointsAwarded: alreadyAwarded ? 0 : 1000,
+  });
+}
+
+function isAlreadyBoundPhoneError(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error);
+  return message.includes("已绑定") || message.includes("已经绑定") || message.toLowerCase().includes("already");
+}
+
+function isSamePhone(left: string, right: string) {
+  return normalizePhone(left) !== "" && normalizePhone(left) === normalizePhone(right);
+}
+
+function normalizePhone(value: string) {
+  return value.replace(/\D/g, "");
 }
 
 function readLatestPointTransaction(metadata: Record<string, unknown> | undefined) {
