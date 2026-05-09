@@ -367,6 +367,7 @@ async function resolveExpectedPaidAmount(
 
   const couponRecord = coupon as UserCouponRecord;
   const sessionToken = readString(extras.couponSessionToken);
+  let sessionCpOrderNo = "";
   if (sessionToken) {
     const { data: session, error: sessionError } = await supabaseAdmin
       .from("coupon_checkout_sessions")
@@ -387,6 +388,7 @@ async function resolveExpectedPaidAmount(
     }
 
     const source = session as Record<string, unknown>;
+    sessionCpOrderNo = readString(source.cp_order_no);
     if (readString(source.status) !== "consumed") {
       return 0;
     }
@@ -398,11 +400,16 @@ async function resolveExpectedPaidAmount(
     }
   }
 
-  if (getCouponStatus(couponRecord) !== "used" || couponRecord.used_order_no !== cpOrderNo) {
+  const couponOrderMatches =
+    couponRecord.used_order_no === cpOrderNo ||
+    (!!sessionCpOrderNo && couponRecord.used_order_no === sessionCpOrderNo);
+
+  if (getCouponStatus(couponRecord) !== "used" || !couponOrderMatches) {
     console.error("[QuickSDK callback coupon order mismatch]", {
       couponId,
       userId,
       cpOrderNo,
+      sessionCpOrderNo,
       couponOrderNo: couponRecord.used_order_no,
       status: getCouponStatus(couponRecord),
     });
@@ -444,10 +451,30 @@ async function verifyCallbackOrder({
     .maybeSingle();
 
   if (error || !order) {
+    const packageId = Math.floor(Number(extras?.packageId ?? 0));
+    const selectedPackage = getCloudCoinPackage(packageId);
+    const extrasUserId = readString(extras?.userId);
+    const extrasCoins = Math.floor(Number(extras?.coins ?? 0));
+    if (selectedPackage && extrasUserId === userId && extrasCoins === selectedPackage.coins) {
+      console.warn("[QuickSDK callback payment order fallback]", {
+        cpOrderNo,
+        userId,
+        packageId,
+        coins: extrasCoins,
+        expectedAmount: selectedPackage.amount,
+      });
+      return {
+        expectedAmount: readNumber(selectedPackage.amount),
+        paymentOrderId: "",
+        alreadyPaid: false,
+      };
+    }
+
     console.error("[QuickSDK callback payment order lookup failed]", {
       cpOrderNo,
       userId,
       error: error?.message,
+      extras,
     });
     return {
       expectedAmount: 0,
