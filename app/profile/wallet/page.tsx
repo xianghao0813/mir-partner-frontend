@@ -157,6 +157,21 @@ export default function WalletPage() {
     return historyMonth ? transactions.filter((item) => item.date.startsWith(historyMonth)) : transactions;
   }, [historyMonth, wallet]);
 
+  const securityCards = [
+    {
+      label: "实名认证",
+      value: security?.realNameVerified ? "已认证" : "未认证",
+      actionLabel: security?.realNameVerified ? "" : "去认证",
+      onAction: () => setRealNameOpen(true),
+    },
+    {
+      label: "手机号",
+      value: security?.phoneBound ? security.maskedPhone || "已绑定" : "未绑定",
+      actionLabel: security?.phoneBound ? "解绑" : "绑定",
+      onAction: () => setPhoneOpen(true),
+    },
+  ];
+
   const historyRechargeTotal = useMemo(
     () => sumTransactions(visibleTransactions, "recharge"),
     [visibleTransactions]
@@ -586,10 +601,15 @@ export default function WalletPage() {
                 <div style={infoValueStyle}>{item.value}</div>
               </article>
             ))}
-            {securityInfo.map((item) => (
+            {securityCards.map((item) => (
               <article key={item.label} style={infoCardStyle}>
                 <div style={infoLabelStyle}>{item.label}</div>
                 <div style={infoValueStyle}>{item.value}</div>
+                {item.actionLabel ? (
+                  <button type="button" onClick={item.onAction} style={statusCardButtonStyle}>
+                    {item.actionLabel}
+                  </button>
+                ) : null}
               </article>
             ))}
           </div>
@@ -601,10 +621,10 @@ export default function WalletPage() {
             <button type="button" onClick={moveToRecharge} style={primaryButtonStyle}>
               充值
             </button>
-            <button type="button" onClick={() => setRealNameOpen(true)} style={secondaryButtonStyle}>
+            <button type="button" onClick={() => setRealNameOpen(true)} style={{ ...secondaryButtonStyle, display: "none" }}>
               实名认证
             </button>
-            <button type="button" onClick={() => setPhoneOpen(true)} style={secondaryButtonStyle}>
+            <button type="button" onClick={() => setPhoneOpen(true)} style={{ ...secondaryButtonStyle, display: "none" }}>
               手机号绑定
             </button>
           </div>
@@ -977,6 +997,17 @@ const infoGridStyle: CSSProperties = { display: "grid", gridTemplateColumns: "re
 const infoCardStyle: CSSProperties = { padding: "18px", borderRadius: "16px", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)", display: "grid", gap: "8px" };
 const infoLabelStyle: CSSProperties = { color: "#9ca3af", fontSize: "13px" };
 const infoValueStyle: CSSProperties = { fontSize: "20px", fontWeight: 700, color: "#fff", wordBreak: "break-word" };
+const statusCardButtonStyle: CSSProperties = {
+  width: "fit-content",
+  border: "1px solid rgba(255,255,255,0.14)",
+  background: "rgba(255,255,255,0.06)",
+  color: "#fff",
+  borderRadius: "999px",
+  padding: "8px 12px",
+  fontSize: "12px",
+  fontWeight: 800,
+  cursor: "pointer",
+};
 const heroActionRowStyle: CSSProperties = { display: "flex", gap: "12px", flexWrap: "wrap" };
 
 const primaryButtonStyle: CSSProperties = {

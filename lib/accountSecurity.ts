@@ -19,7 +19,8 @@ export function readAccountSecurity(metadata: UserMetadata | undefined): Account
     realNameVerified:
       readBoolean(metadata?.real_name_verified) ||
       readBoolean(metadata?.id_verified) ||
-      readBoolean(metadata?.is_real_name_auth),
+      readBoolean(metadata?.is_real_name_auth) ||
+      readNumber(metadata?.time_left) === -1,
     phoneBound,
     phone,
     maskedPhone: maskPhone(phone),
@@ -96,4 +97,19 @@ function readBoolean(value: unknown) {
   }
 
   return false;
+}
+
+function readNumber(value: unknown) {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+
+  if (typeof value === "string") {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) {
+      return parsed;
+    }
+  }
+
+  return 0;
 }
