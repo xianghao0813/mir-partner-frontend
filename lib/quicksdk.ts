@@ -235,6 +235,26 @@ export async function sendQuickSdkPhoneCode({
   return result.data;
 }
 
+export async function loginQuickSdkByPhone({
+  phone,
+  code,
+}: {
+  phone: string;
+  code: string;
+}) {
+  const config = getQuickSdkConfig();
+  const payload = buildSignedParams({
+    openId: config.openId,
+    productCode: config.productCode,
+    channelCode: config.channelCode,
+    phone,
+    code,
+  });
+
+  const result = await postQuickSdkForm("/webOpen/loginByPhone", payload);
+  return normalizeQuickSdkAuthData(result.data);
+}
+
 export async function registerQuickSdkAccount({
   username,
   password,

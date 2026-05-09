@@ -16,6 +16,8 @@ export async function POST(request: Request) {
   const purpose = body?.purpose === "unbind" ? "unbind" : "bind";
   const phone = body?.phone?.trim() || String(user.user_metadata?.mobile ?? "").trim();
   const uid = String(user.user_metadata?.quicksdk_uid ?? "").trim();
+  const quickSdkUsername = String(user.user_metadata?.quicksdk_username ?? "").trim();
+  const quickSdkPurpose = purpose === "bind" && isSamePhone(phone, quickSdkUsername) ? "login" : purpose;
 
   if (!uid) {
     return NextResponse.json({ message: "当前账号未绑定 SDK UID。" }, { status: 400 });
@@ -28,12 +30,13 @@ export async function POST(request: Request) {
   try {
     console.log("[QuickSDK phone send-code] request", {
       purpose,
+      quickSdkPurpose,
       uid,
       phone: phone.replace(/(\d{3})\d{4}(\d+)/, "$1****$2"),
     });
-    await sendQuickSdkPhoneCode({ phone, uid, purpose });
+    await sendQuickSdkPhoneCode({ phone, uid, purpose: quickSdkPurpose });
     console.log("[QuickSDK phone send-code] success", { purpose, uid });
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true, verificationType: quickSdkPurpose });
   } catch (error) {
     console.error("[QuickSDK phone send-code] failed", {
       purpose,
@@ -45,4 +48,12 @@ export async function POST(request: Request) {
       { status: 502 }
     );
   }
+}
+
+function isSamePhone(left: string, right: string) {
+  return normalizePhone(left) !== "" && normalizePhone(left) === normalizePhone(right);
+}
+
+function normalizePhone(value: string) {
+  return value.replace(/\D/g, "");
 }

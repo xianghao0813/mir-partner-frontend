@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { compactAuthMetadata } from "@/lib/authMetadata";
 import { awardMirPoints } from "@/lib/mirPoints";
-import { bindQuickSdkPhone } from "@/lib/quicksdk";
+import { bindQuickSdkPhone, loginQuickSdkByPhone } from "@/lib/quicksdk";
 import { createClient } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { insertPointTransaction } from "@/lib/userLedgers";
@@ -30,6 +30,14 @@ export async function POST(request: Request) {
   }
 
   try {
+    const quickSdkUsername = String(user.user_metadata?.quicksdk_username ?? "").trim();
+    if (isSamePhone(phone, quickSdkUsername)) {
+      const account = await loginQuickSdkByPhone({ phone, code });
+      if (account.uid === uid) {
+        return await markPhoneBound(user.id, user.user_metadata, phone);
+      }
+    }
+
     await bindQuickSdkPhone({ uid, phone, code });
     return await markPhoneBound(user.id, user.user_metadata, phone);
   } catch (error) {

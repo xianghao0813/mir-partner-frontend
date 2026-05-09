@@ -84,5 +84,13 @@ async function markPhoneUnbound(
 
 function isAlreadyUnboundPhoneError(error: unknown) {
   const message = error instanceof Error ? error.message : String(error);
-  return message.includes("40024");
+  const normalized = message.toLowerCase();
+  return (
+    message.includes("40024") ||
+    message.includes("\u672a\u7ed1\u5b9a") ||
+    message.includes("\u6ca1\u6709\u7ed1\u5b9a") ||
+    message.includes("\u672a\u7ed1\u5b9a\u624b\u673a") ||
+    normalized.includes("not bound") ||
+    normalized.includes("unbind")
+  );
 }
