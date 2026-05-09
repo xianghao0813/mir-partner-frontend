@@ -8,6 +8,7 @@ type QuickSdkConfig = {
   openId: string;
   openKey: string;
   callbackKey: string;
+  md5Key: string;
   productCode: string;
   channelCode: string;
   localAuthSecret: string;
@@ -63,6 +64,7 @@ export function getQuickSdkConfig(): QuickSdkConfig {
   const openId = process.env.QUICKSDK_OPEN_ID?.trim() ?? "";
   const openKey = process.env.QUICKSDK_OPEN_KEY?.trim() ?? "";
   const callbackKey = process.env.QUICKSDK_CALLBACK_KEY?.trim() || openKey;
+  const md5Key = process.env.QUICKSDK_MD5_KEY?.trim() || callbackKey;
   const productCode = process.env.QUICKSDK_PRODUCT_CODE?.trim() ?? "";
   const channelCode =
     process.env.QUICKSDK_CHANNEL_CODE?.trim() ?? QUICKSDK_DEFAULT_CHANNEL_CODE;
@@ -80,6 +82,7 @@ export function getQuickSdkConfig(): QuickSdkConfig {
     openId,
     openKey,
     callbackKey,
+    md5Key,
     productCode,
     channelCode,
     localAuthSecret,
@@ -538,6 +541,98 @@ export function verifyQuickSdkCallbackSign(payload: Record<string, unknown> | nu
   );
 
   return safeEqualHex(receivedSign, expectedSign);
+}
+
+export function normalizeQuickSdkCallbackPayload(payload: Record<string, unknown> | null) {
+  if (!payload) {
+    return {
+      payload: null,
+      encrypted: false,
+      signValid: false,
+    };
+  }
+
+  const ntData = readQuickSdkString(payload, ["nt_data"]);
+  const encryptedSign = readQuickSdkString(payload, ["sign"]);
+  const md5Sign = readQuickSdkString(payload, ["md5Sign", "md5sign"]);
+
+  if (!ntData) {
+    return {
+      payload,
+      encrypted: false,
+      signValid: verifyQuickSdkCallbackSign(payload),
+    };
+  }
+
+  if (!verifyQuickSdkEncryptedCallbackSign(ntData, encryptedSign, md5Sign)) {
+    return {
+      payload: null,
+      encrypted: true,
+      signValid: false,
+    };
+  }
+
+  const xml = decryptQuickSdkCallbackValue(ntData);
+  const decoded = parseQuickSdkCallbackXml(xml);
+
+  return {
+    payload: decoded,
+    encrypted: true,
+    signValid: true,
+  };
+}
+
+function verifyQuickSdkEncryptedCallbackSign(ntData: string, sign: string, md5Sign: string) {
+  if (!ntData || !sign || !md5Sign) {
+    return false;
+  }
+
+  const expected = crypto
+    .createHash("md5")
+    .update(`${ntData}${sign}${getQuickSdkConfig().md5Key}`, "utf8")
+    .digest("hex");
+
+  return safeEqualHex(md5Sign, expected);
+}
+
+function decryptQuickSdkCallbackValue(value: string) {
+  const key = getQuickSdkConfig().callbackKey;
+  return value
+    .split("@")
+    .filter(Boolean)
+    .map((item, index) => {
+      const code = Number(item);
+      const keyCode = key.charCodeAt(index % key.length);
+      return Number.isFinite(code) ? String.fromCharCode(code - keyCode) : "";
+    })
+    .join("");
+}
+
+function parseQuickSdkCallbackXml(xml: string) {
+  const readTag = (name: string) => {
+    const match = xml.match(new RegExp(`<${name}>[\\s\\S]*?<\\/${name}>`, "i"));
+    if (!match) {
+      return "";
+    }
+
+    return match[0]
+      .replace(new RegExp(`^<${name}>`, "i"), "")
+      .replace(new RegExp(`<\\/${name}>$`, "i"), "")
+      .trim();
+  };
+
+  const status = readTag("status");
+
+  return {
+    cpOrderNo: readTag("game_order"),
+    orderNo: readTag("order_no"),
+    status: status === "0" ? "success" : status === "1" ? "failed" : status,
+    amount: readTag("amount"),
+    goodsName: readTag("product_name") || readTag("goods_name"),
+    payTypeName: readTag("pay_type_name"),
+    extrasParams: readTag("extras_params"),
+    uid: readTag("uid"),
+  };
 }
 
 export function getQuickSdkSyntheticEmail(uid: string) {

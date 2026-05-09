@@ -2,17 +2,21 @@ import { NextRequest, NextResponse } from "next/server";
 import { compactAuthMetadata } from "@/lib/authMetadata";
 import { getCloudCoinPackage } from "@/lib/cloudCoinPackages";
 import { applyCouponDiscount, expireCouponCheckoutSessions, getCouponStatus, isPackageApplicable, type UserCouponRecord } from "@/lib/coupons";
-import { changeQuickSdkPlatformCoins, verifyQuickSdkCallbackSign } from "@/lib/quicksdk";
+import { changeQuickSdkPlatformCoins, normalizeQuickSdkCallbackPayload } from "@/lib/quicksdk";
 import { awardMirPoints } from "@/lib/mirPoints";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { insertPointTransaction, insertWalletTransaction } from "@/lib/userLedgers";
 import { appendWalletTransaction, readCloudCoins, readWalletTransactions } from "@/lib/wallet";
 
 export async function POST(request: NextRequest) {
-  await expireCouponCheckoutSessions(supabaseAdmin);
-
-  const payload = await readCallbackPayload(request);
-  console.log("[QuickSDK callback]", payload);
+  const rawPayload = await readCallbackPayload(request);
+  const normalized = normalizeQuickSdkCallbackPayload(rawPayload);
+  const payload = normalized.payload as Record<string, unknown> | null;
+  console.log("[QuickSDK callback]", {
+    encrypted: normalized.encrypted,
+    signValid: normalized.signValid,
+    payload,
+  });
 
   const cpOrderNo = readString(payload?.cpOrderNo) || readString(payload?.orderNo) || readString(payload?.cp_order_no);
   const extrasParams = readString(payload?.extrasParams) || readString(payload?.extras_params);
@@ -26,26 +30,24 @@ export async function POST(request: NextRequest) {
   const payTypeName = readString(payload?.payTypeName) || readString(payload?.pay_type_name);
 
   const extras = parseExtras(extrasParams);
+  if (!extras?.couponId) {
+    await expireCouponCheckoutSessions(supabaseAdmin);
+  }
   const userId = extras?.userId ?? "";
   const coins = Math.max(0, Number(extras?.coins ?? 0));
   const payMethod: "wechat" | "alipay" = extras?.payMethod === "alipay" ? "alipay" : "wechat";
 
   if (!userId || !cpOrderNo || !isSuccessStatus(orderStatus) || coins <= 0) {
-    return NextResponse.json({
-      success: true,
-      message: "ignored",
-    });
+    return new NextResponse("SUCCESS");
   }
 
-  if (!verifyQuickSdkCallbackSign(payload)) {
+  if (!normalized.signValid) {
     console.error("[QuickSDK callback invalid sign]", {
       cpOrderNo,
+      rawPayload,
       payload,
     });
-    return NextResponse.json({
-      success: true,
-      message: "invalid_sign",
-    });
+    return new NextResponse("SUCCESS");
   }
 
   const orderVerification = await verifyCallbackOrder({
@@ -66,25 +68,16 @@ export async function POST(request: NextRequest) {
       payload,
     });
 
-    return NextResponse.json({
-      success: true,
-      message: "amount_mismatch",
-    });
+    return new NextResponse("SUCCESS");
   }
 
   if (orderVerification.alreadyPaid) {
-    return NextResponse.json({
-      success: true,
-      message: "duplicate",
-    });
+    return new NextResponse("SUCCESS");
   }
 
   const { data, error } = await supabaseAdmin.auth.admin.getUserById(userId);
   if (error || !data.user) {
-    return NextResponse.json({
-      success: true,
-      message: "user_not_found",
-    });
+    return new NextResponse("SUCCESS");
   }
 
   const user = data.user;
@@ -92,10 +85,7 @@ export async function POST(request: NextRequest) {
   const existingTransactions = readWalletTransactions(user.user_metadata);
 
   if (existingTransactions.some((item) => item.id === transactionId)) {
-    return NextResponse.json({
-      success: true,
-      message: "duplicate",
-    });
+    return new NextResponse("SUCCESS");
   }
 
   const sdkUid = readString(user.user_metadata?.quicksdk_uid);
@@ -128,10 +118,7 @@ export async function POST(request: NextRequest) {
         error: claimError?.message,
       });
 
-      return NextResponse.json({
-        success: true,
-        message: "duplicate_or_order_claim_failed",
-      });
+      return new NextResponse("SUCCESS");
     }
   }
 
@@ -184,10 +171,7 @@ export async function POST(request: NextRequest) {
     });
   }
 
-  return NextResponse.json({
-    success: true,
-    message: "ok",
-  });
+  return new NextResponse("SUCCESS");
 }
 
 async function readCallbackPayload(request: NextRequest) {

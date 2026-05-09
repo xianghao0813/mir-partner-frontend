@@ -93,7 +93,7 @@ export async function expireCouponCheckoutSessions(supabaseAdmin: SupabaseClient
   const { data } = await supabaseAdmin
     .from("coupon_checkout_sessions")
     .select("id,coupon_id,cp_order_no,status")
-    .in("status", ["open", "consumed"])
+    .eq("status", "open")
     .lte("expires_at", nowIso);
 
   const expiredSessions = Array.isArray(data) ? data as Record<string, unknown>[] : [];
@@ -101,7 +101,7 @@ export async function expireCouponCheckoutSessions(supabaseAdmin: SupabaseClient
   await supabaseAdmin
     .from("coupon_checkout_sessions")
     .update({ status: "expired" })
-    .in("status", ["open", "consumed"])
+    .eq("status", "open")
     .lte("expires_at", nowIso);
 
   await Promise.all(

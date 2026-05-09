@@ -500,6 +500,12 @@ export default function WalletPage() {
       return;
     }
 
+    const phoneToSend = purpose === "bind" ? phone.trim() : security?.phone || phone.trim();
+    if (!phoneToSend) {
+      setMessage(purpose === "bind" ? "请先输入手机号。" : "当前账号未绑定手机号。");
+      return;
+    }
+
     setPhoneCodeSending(purpose);
     setMessage("");
 
@@ -507,7 +513,7 @@ export default function WalletPage() {
       const response = await fetch("/api/account/security/phone/send-code", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone, purpose }),
+        body: JSON.stringify({ phone: phoneToSend, purpose }),
       });
       const payload = (await response.json().catch(() => null)) as { message?: string } | null;
 
@@ -817,6 +823,7 @@ export default function WalletPage() {
             <div style={warningPanelStyle}>
               绑定手机号可提升账号安全。完成手机号认证后可获得 1000 MIR 积分，每个账号仅可领取一次，解绑后再次绑定也不会重复发放。
             </div>
+            {message ? <div style={messageStyle}>{message}</div> : null}
             {security?.phoneBound ? (
               <>
                 <div style={successPanelStyle}>当前已绑定：{security.maskedPhone}</div>
