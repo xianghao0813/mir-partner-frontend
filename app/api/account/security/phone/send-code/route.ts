@@ -26,9 +26,20 @@ export async function POST(request: Request) {
   }
 
   try {
+    console.log("[QuickSDK phone send-code] request", {
+      purpose,
+      uid,
+      phone: phone.replace(/(\d{3})\d{4}(\d+)/, "$1****$2"),
+    });
     await sendQuickSdkPhoneCode({ phone, uid, purpose });
+    console.log("[QuickSDK phone send-code] success", { purpose, uid });
     return NextResponse.json({ success: true });
   } catch (error) {
+    console.error("[QuickSDK phone send-code] failed", {
+      purpose,
+      uid,
+      message: error instanceof Error ? error.message : String(error),
+    });
     return NextResponse.json(
       { message: error instanceof Error ? error.message : "验证码发送失败。" },
       { status: 502 }

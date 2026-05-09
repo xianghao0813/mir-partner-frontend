@@ -111,6 +111,8 @@ export default function WalletPage() {
   const [phoneCode, setPhoneCode] = useState("");
   const [unbindCode, setUnbindCode] = useState("");
   const [securitySubmitting, setSecuritySubmitting] = useState(false);
+  const [phoneCodeSending, setPhoneCodeSending] = useState<"bind" | "unbind" | null>(null);
+  const [phoneCodeCooldown, setPhoneCodeCooldown] = useState(0);
 
   useEffect(() => {
     void loadWallet();
@@ -134,6 +136,18 @@ export default function WalletPage() {
       void loadCoupons();
     }
   }, []);
+
+  useEffect(() => {
+    if (phoneCodeCooldown <= 0) {
+      return;
+    }
+
+    const timerId = window.setTimeout(() => {
+      setPhoneCodeCooldown((current) => Math.max(0, current - 1));
+    }, 1000);
+
+    return () => window.clearTimeout(timerId);
+  }, [phoneCodeCooldown]);
 
   const accountInfo = useMemo(
     () => [
@@ -484,7 +498,11 @@ export default function WalletPage() {
   }
 
   async function sendPhoneCode(purpose: "bind" | "unbind") {
-    setSecuritySubmitting(true);
+    if (phoneCodeCooldown > 0 || phoneCodeSending) {
+      return;
+    }
+
+    setPhoneCodeSending(purpose);
     setMessage("");
 
     try {
@@ -500,11 +518,12 @@ export default function WalletPage() {
         return;
       }
 
-      setMessage("验证码已发送。");
+      setMessage("验证码已发送，请留意短信。");
+      setPhoneCodeCooldown(60);
     } catch {
       setMessage("验证码发送失败。");
     } finally {
-      setSecuritySubmitting(false);
+      setPhoneCodeSending(null);
     }
   }
 
@@ -781,8 +800,8 @@ export default function WalletPage() {
             {security?.phoneBound ? (
               <>
                 <div style={successPanelStyle}>当前已绑定：{security.maskedPhone}</div>
-                <button type="button" onClick={() => void sendPhoneCode("unbind")} disabled={securitySubmitting} style={secondaryButtonStyle}>
-                  发送解绑验证码
+                <button type="button" onClick={() => void sendPhoneCode("unbind")} disabled={securitySubmitting || phoneCodeCooldown > 0 || phoneCodeSending !== null} style={secondaryButtonStyle}>
+                  {phoneCodeSending === "unbind" ? "发送中..." : phoneCodeCooldown > 0 ? `${phoneCodeCooldown}秒后重发` : "发送解绑验证码"}
                 </button>
                 <input value={unbindCode} onChange={(event) => setUnbindCode(event.target.value)} placeholder="解绑验证码" style={textInputStyle} />
                 <button type="button" onClick={() => void unbindPhone()} disabled={securitySubmitting} style={dangerSmallButtonStyle}>
@@ -792,8 +811,8 @@ export default function WalletPage() {
             ) : (
               <>
                 <input value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="手机号" style={textInputStyle} />
-                <button type="button" onClick={() => void sendPhoneCode("bind")} disabled={securitySubmitting} style={secondaryButtonStyle}>
-                  发送验证码
+                <button type="button" onClick={() => void sendPhoneCode("bind")} disabled={securitySubmitting || phoneCodeCooldown > 0 || phoneCodeSending !== null} style={secondaryButtonStyle}>
+                  {phoneCodeSending === "bind" ? "发送中..." : phoneCodeCooldown > 0 ? `${phoneCodeCooldown}秒后重发` : "发送验证码"}
                 </button>
                 <input value={phoneCode} onChange={(event) => setPhoneCode(event.target.value)} placeholder="验证码" style={textInputStyle} />
                 <button type="button" onClick={() => void bindPhone()} disabled={securitySubmitting} style={primaryButtonStyle}>
