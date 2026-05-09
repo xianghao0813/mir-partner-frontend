@@ -118,7 +118,7 @@ export async function POST(request: NextRequest) {
         updated_at: new Date().toISOString(),
       })
       .eq("id", orderVerification.paymentOrderId)
-      .eq("status", "pending")
+      .neq("status", "paid")
       .select("id")
       .maybeSingle();
 
@@ -389,13 +389,8 @@ async function resolveExpectedPaidAmount(
 
     const source = session as Record<string, unknown>;
     sessionCpOrderNo = readString(source.cp_order_no);
-    if (readString(source.status) !== "consumed") {
-      return 0;
-    }
-
-    const expiresAt = new Date(readString(source.expires_at)).getTime();
-    if (!Number.isFinite(expiresAt) || expiresAt <= Date.now()) {
-      await expireCouponCheckoutSessions(supabaseAdmin);
+    const sessionStatus = readString(source.status);
+    if (sessionStatus !== "consumed" && sessionStatus !== "expired") {
       return 0;
     }
   }
@@ -503,9 +498,8 @@ async function verifyCallbackOrder({
   }
 
   if (
-    orderStatus !== "pending" ||
+    (orderStatus !== "pending" && orderStatus !== "cancelled") ||
     !Number.isFinite(expiresAt) ||
-    expiresAt <= Date.now() ||
     orderUserId !== userId ||
     orderPackageId !== extrasPackageId ||
     orderCoins !== extrasCoins
@@ -515,6 +509,7 @@ async function verifyCallbackOrder({
       orderUserId,
       userId,
       orderStatus,
+      expired: expiresAt <= Date.now(),
       orderPackageId,
       extrasPackageId,
       orderCoins,

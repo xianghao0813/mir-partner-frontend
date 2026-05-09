@@ -1,5 +1,6 @@
 ﻿import type { User, UserMetadata } from "@supabase/supabase-js";
 import { compactAuthMetadata } from "@/lib/authMetadata";
+import { getCloudCoinPackage } from "@/lib/cloudCoinPackages";
 import { createPartnerCode } from "@/lib/partnerProfile";
 import {
   getQuickSdkUserOrders,
@@ -117,6 +118,7 @@ export async function reconcileQuickSdkRechargePoints(user: User) {
   for (const order of orders) {
     const orderId = order.productOrderNo || order.orderNo;
     const amount = order.dealAmount || order.amount;
+    const coins = await resolveWalletOrderCoins(user.id, order);
 
     if (!orderId || !amount || amount <= 0) {
       continue;
@@ -162,7 +164,7 @@ export async function reconcileQuickSdkRechargePoints(user: User) {
         id: transactionId,
         type: isPlatformCoinOrder(order) ? "consume" : "recharge",
         amount,
-        coins: isPlatformCoinOrder(order) ? -Math.floor(amount) : Math.floor(amount),
+        coins: isPlatformCoinOrder(order) ? -Math.floor(amount) : coins,
         desc: isPlatformCoinOrder(order) ? order.productName || "云币使用" : order.productName || "云币充值",
         date: paidAt.toISOString().slice(0, 10),
         payMethod: "",
@@ -302,6 +304,44 @@ function mergeWalletTransactions(items: WalletTransaction[]) {
 
 function shouldAwardMirPointsForOrder(order: QuickSdkOrderData) {
   return !isPlatformCoinOrder(order);
+}
+
+async function resolveWalletOrderCoins(userId: string, order: QuickSdkOrderData) {
+  const orderNo = order.productOrderNo || order.orderNo;
+  const fallbackCoins = Math.floor(order.dealAmount || order.amount || 0);
+
+  if (!orderNo) {
+    return fallbackCoins;
+  }
+
+  const { data: paymentOrder } = await supabaseAdmin
+    .from("payment_orders")
+    .select("user_id,coins")
+    .eq("cp_order_no", orderNo)
+    .maybeSingle();
+
+  if (paymentOrder && readString(paymentOrder.user_id) === userId) {
+    const coins = readNumber(paymentOrder.coins);
+    if (coins > 0) {
+      return coins;
+    }
+  }
+
+  const { data: couponSession } = await supabaseAdmin
+    .from("coupon_checkout_sessions")
+    .select("user_id,package_id")
+    .eq("cp_order_no", orderNo)
+    .maybeSingle();
+
+  if (couponSession && readString(couponSession.user_id) === userId) {
+    const packageId = readNumber(couponSession.package_id);
+    const packageCoins = getCloudCoinPackage(packageId)?.coins ?? 0;
+    if (packageCoins > 0) {
+      return packageCoins;
+    }
+  }
+
+  return fallbackCoins;
 }
 
 function isPlatformCoinOrder(order: QuickSdkOrderData) {

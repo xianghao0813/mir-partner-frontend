@@ -51,7 +51,7 @@ export async function POST(request: NextRequest) {
     const successUrl = new URL("/profile/wallet?payment=success", publicBaseUrl).toString();
     const cancelUrl = new URL("/profile/wallet?payment=cancel", publicBaseUrl).toString();
     const cpOrderNo = buildOrderNo(user.id, selectedPackage.id);
-    const expiresAt = new Date(Date.now() + 60 * 1000).toISOString();
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
 
     const { error: orderInsertError } = await supabaseAdmin.from("payment_orders").insert({
       cp_order_no: cpOrderNo,
