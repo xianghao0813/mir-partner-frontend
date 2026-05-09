@@ -30,27 +30,33 @@ export async function POST(request: Request) {
   }
 
   try {
-    const quickSdkUsername = String(user.user_metadata?.quicksdk_username ?? "").trim();
-    if (isSamePhone(phone, quickSdkUsername)) {
+    try {
+      const account = await loginQuickSdkByPhone({ phone, code });
+      if (account.uid === uid) {
+        return await markPhoneBound(user.id, user.user_metadata, phone);
+      }
+    } catch (loginError) {
+      console.warn("[QuickSDK phone bind] login verification fallback", {
+        uid,
+        message: loginError instanceof Error ? loginError.message : String(loginError),
+      });
+    }
+
+    await bindQuickSdkPhone({ uid, phone, code });
+    return await markPhoneBound(user.id, user.user_metadata, phone);
+  } catch (error) {
+    if (isAlreadyBoundPhoneError(error)) {
       try {
         const account = await loginQuickSdkByPhone({ phone, code });
         if (account.uid === uid) {
           return await markPhoneBound(user.id, user.user_metadata, phone);
         }
       } catch (loginError) {
-        console.warn("[QuickSDK phone bind] login verification fallback", {
+        console.warn("[QuickSDK phone bind] already-bound verification failed", {
           uid,
           message: loginError instanceof Error ? loginError.message : String(loginError),
         });
       }
-    }
-
-    await bindQuickSdkPhone({ uid, phone, code });
-    return await markPhoneBound(user.id, user.user_metadata, phone);
-  } catch (error) {
-    const quickSdkUsername = String(user.user_metadata?.quicksdk_username ?? "").trim();
-    if (isAlreadyBoundPhoneError(error) && isSamePhone(phone, quickSdkUsername)) {
-      return await markPhoneBound(user.id, user.user_metadata, phone);
     }
 
     return NextResponse.json(
@@ -123,14 +129,6 @@ function isAlreadyBoundPhoneError(error: unknown) {
     normalized.includes("exist") ||
     normalized.includes("used")
   );
-}
-
-function isSamePhone(left: string, right: string) {
-  return normalizePhone(left) !== "" && normalizePhone(left) === normalizePhone(right);
-}
-
-function normalizePhone(value: string) {
-  return value.replace(/\D/g, "");
 }
 
 function readLatestPointTransaction(metadata: Record<string, unknown> | undefined) {
