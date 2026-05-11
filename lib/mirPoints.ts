@@ -320,6 +320,8 @@ function getPointSourceTitle(source: string) {
       return "云币充值积分";
     case "boss_last_hit":
       return "小游戏积分";
+    case "daily_attendance":
+      return "每日出席积分";
     default:
       return "MIR 积分";
   }
@@ -331,6 +333,8 @@ function getPointSourceDescription(source: string) {
       return "根据云币充值金额自动发放";
     case "boss_last_hit":
       return "遗迹冲刺小游戏奖励";
+    case "daily_attendance":
+      return "每日出席活动奖励";
     default:
       return source || "积分变动";
   }

@@ -83,7 +83,7 @@ type RunnerBiome = {
 const BIOME_DISTANCE = 10000;
 const RUNNER_BIOMES: RunnerBiome[] = [
   {
-    label: "妫灄",
+    label: "森林",
     track:
       "linear-gradient(180deg, #24462d 0%, #152819 68%, #0d1710 100%), repeating-linear-gradient(90deg, rgba(74,222,128,0.14) 0 12px, transparent 12px 38px)",
     skyline:
@@ -94,7 +94,7 @@ const RUNNER_BIOMES: RunnerBiome[] = [
       "linear-gradient(180deg, #31572c 0%, #1f2f16 100%), repeating-linear-gradient(90deg, rgba(190,242,100,0.18) 0 8px, transparent 8px 24px)",
   },
   {
-    label: "娌欐紶",
+    label: "沙漠",
     track:
       "linear-gradient(180deg, #8a5a2b 0%, #51301a 62%, #22140b 100%), repeating-linear-gradient(90deg, rgba(254,215,170,0.14) 0 18px, transparent 18px 54px)",
     skyline:
@@ -105,7 +105,7 @@ const RUNNER_BIOMES: RunnerBiome[] = [
       "linear-gradient(180deg, #b7792f 0%, #6b3f1d 100%), repeating-linear-gradient(90deg, rgba(255,237,213,0.22) 0 14px, transparent 14px 34px)",
   },
   {
-    label: "宀╃煶",
+    label: "岩石",
     track:
       "linear-gradient(180deg, #475569 0%, #263241 64%, #111827 100%), repeating-linear-gradient(90deg, rgba(203,213,225,0.12) 0 10px, transparent 10px 34px)",
     skyline:
@@ -116,7 +116,7 @@ const RUNNER_BIOMES: RunnerBiome[] = [
       "linear-gradient(180deg, #64748b 0%, #334155 100%), repeating-linear-gradient(90deg, rgba(226,232,240,0.16) 0 11px, transparent 11px 29px)",
   },
   {
-    label: "鐔斿博",
+    label: "熔岩",
     track:
       "linear-gradient(180deg, #5f1717 0%, #2a0c0c 62%, #09090b 100%), repeating-linear-gradient(90deg, rgba(248,113,113,0.16) 0 8px, transparent 8px 30px)",
     skyline:
@@ -127,7 +127,7 @@ const RUNNER_BIOMES: RunnerBiome[] = [
       "linear-gradient(180deg, #7f1d1d 0%, #1f0808 100%), repeating-linear-gradient(90deg, rgba(251,146,60,0.32) 0 7px, transparent 7px 23px)",
   },
   {
-    label: "浜戠",
+    label: "云端",
     track:
       "linear-gradient(180deg, #5b7bbd 0%, #334f8c 58%, #172554 100%), repeating-linear-gradient(90deg, rgba(255,255,255,0.14) 0 18px, transparent 18px 52px)",
     skyline:

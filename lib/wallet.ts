@@ -40,7 +40,7 @@ export async function buildWalletSummary(user: User): Promise<WalletSummary> {
   const account =
     user.email?.trim() ||
     readStringMetadata(user.user_metadata, ["quicksdk_username", "username"]) ||
-    "褰撳墠鐧诲綍璐﹀彿";
+    "当前登录账号";
   const uid = readStringMetadata(user.user_metadata, ["quicksdk_uid", "uid"]) || extractAccountUid(account);
   const sdkWallet = uid ? await readQuickSdkWallet(uid) : null;
   const dbTransactions = await readWalletTransactionsFromDb(user.id);
@@ -53,7 +53,7 @@ export async function buildWalletSummary(user: User): Promise<WalletSummary> {
     account,
     nickname:
       readStringMetadata(user.user_metadata, ["nickname", "quicksdk_username", "username"]) ||
-      "MIR Partner 鐜╁",
+      "MIR Partner 玩家",
     uid,
     partnerCode:
       readStringMetadata(user.user_metadata, [
@@ -380,7 +380,7 @@ function normalizeWalletTransaction(value: unknown): WalletTransaction | null {
     type,
     amount,
     coins,
-    desc: desc || "浜戝竵鍙樺姩",
+    desc: desc || "云币变动",
     date,
     payMethod,
     status,

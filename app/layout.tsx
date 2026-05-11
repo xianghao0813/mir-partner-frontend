@@ -28,6 +28,7 @@ const navGroups: NavGroup[] = [
     items: [
       { href: "/profile", label: "个人资料" },
       { href: "/profile/wallet", label: "我的钱包" },
+      { href: "/profile/points-activity", label: "积分活动" },
     ],
   },
   {

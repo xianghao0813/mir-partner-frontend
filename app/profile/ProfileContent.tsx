@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import BossSlashTrial from "@/components/BossSlashTrial";
 import type { PartnerPointTransaction, PartnerProfileSummary } from "@/lib/partnerProfile";
 
 type ProfileContentProps = {
@@ -277,38 +276,6 @@ export default function ProfileContent({ profile }: ProfileContentProps) {
         <section style={cardStyle}>
           <div style={sectionHeaderStyle}>
             <div>
-              <div style={eyebrowStyle}>Mini Game</div>
-              <h2 style={sectionTitleStyle}>遗迹冲刺</h2>
-            </div>
-            <div style={pointsBadgeStyle}>MIR Points: {currentPoints.toLocaleString()}</div>
-          </div>
-
-          <BossSlashTrial
-            initialPoints={currentPoints}
-            onPointsChange={(points) => {
-              setCurrentPoints((previousPoints) => {
-                if (points > previousPoints) {
-                  setCurrentMonthlyPoints((previousMonthlyPoints) => previousMonthlyPoints + points - previousPoints);
-                }
-                return points;
-              });
-            }}
-            onRewardClaimed={(transaction) => {
-              const normalized = normalizeRewardTransaction(transaction);
-              setPointTransactions((current) => [
-                normalized,
-                ...current.filter((entry) => entry.id !== normalized.id),
-              ]);
-              if (normalized.createdAt) {
-                setLedgerMonth(normalized.createdAt.slice(0, 7));
-              }
-            }}
-          />
-        </section>
-
-        <section style={cardStyle}>
-          <div style={sectionHeaderStyle}>
-            <div>
               <div style={eyebrowStyle}>Point Ledger</div>
               <h2 style={sectionTitleStyle}>MIR 积分月度明细</h2>
             </div>
@@ -439,26 +406,6 @@ function formatDate(value: string | null) {
     hour: "2-digit",
     minute: "2-digit",
   });
-}
-
-function normalizeRewardTransaction(transaction: {
-  id?: string;
-  title?: string;
-  description?: string;
-  points?: number;
-  createdAt?: string;
-  source?: string;
-}): PartnerPointTransaction {
-  const createdAt = transaction.createdAt || new Date().toISOString();
-
-  return {
-    id: transaction.id || `boss-last-hit-${Date.now()}`,
-    title: transaction.title || "小游戏积分",
-    description: transaction.description || "遗迹冲刺小游戏奖励",
-    points: Number.isFinite(Number(transaction.points)) ? Math.floor(Number(transaction.points)) : 50,
-    createdAt,
-    source: transaction.source || "boss_last_hit",
-  };
 }
 
 const pageStyle: React.CSSProperties = {
