@@ -29,6 +29,7 @@ export default function PointsActivityContent({
   const [selectedMonth, setSelectedMonth] = useState(initialSummary.monthKey);
   const [checkingIn, setCheckingIn] = useState(false);
   const [makeupDate, setMakeupDate] = useState("");
+  const [pendingMakeupDate, setPendingMakeupDate] = useState("");
   const [stampDate, setStampDate] = useState("");
   const [message, setMessage] = useState("");
   const [lastAward, setLastAward] = useState<AttendanceAward | null>(null);
@@ -97,15 +98,10 @@ export default function PointsActivityContent({
 
   async function submitAttendance(type: AttendanceAction, date?: string) {
     if (type === "makeup" && !date) return;
-    if (
-      type === "makeup" &&
-      !window.confirm("补签将消耗 200 MIR 积分。确定要补签吗？")
-    ) {
-      return;
-    }
 
     setCheckingIn(type === "checkin");
     setMakeupDate(type === "makeup" ? date ?? "" : "");
+    setPendingMakeupDate("");
     setMessage("");
     setLastAward(null);
 
@@ -144,6 +140,16 @@ export default function PointsActivityContent({
       setCheckingIn(false);
       setMakeupDate("");
     }
+  }
+
+  function requestMakeup(date: string) {
+    if (makeupDate) return;
+    setPendingMakeupDate(date);
+  }
+
+  function closeMakeupDialog() {
+    if (makeupDate) return;
+    setPendingMakeupDate("");
   }
 
   return (
@@ -252,8 +258,8 @@ export default function PointsActivityContent({
                     ) : day.canMakeup ? (
                       <button
                         type="button"
-                        onClick={() => void submitAttendance("makeup", day.date)}
-                        disabled={Boolean(makeupDate)}
+                        onClick={() => requestMakeup(day.date)}
+                        disabled={Boolean(makeupDate) || Boolean(pendingMakeupDate)}
                         style={makeupButtonStyle}
                       >
                         {makeupDate === day.date ? "补签中" : "补签"}
@@ -285,6 +291,38 @@ export default function PointsActivityContent({
           />
         </section>
       </div>
+
+      {pendingMakeupDate ? (
+        <div style={modalOverlayStyle} role="presentation" onClick={closeMakeupDialog}>
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="makeup-dialog-title"
+            style={modalDialogStyle}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div style={modalIconStyle}>签</div>
+            <div>
+              <h3 id="makeup-dialog-title" style={modalTitleStyle}>确认补签</h3>
+              <p style={modalTextStyle}>
+                补签 {pendingMakeupDate} 将消耗 200 MIR 积分。确定要补签吗？
+              </p>
+            </div>
+            <div style={modalActionsStyle}>
+              <button type="button" onClick={closeMakeupDialog} style={modalCancelButtonStyle}>
+                取消
+              </button>
+              <button
+                type="button"
+                onClick={() => void submitAttendance("makeup", pendingMakeupDate)}
+                style={modalConfirmButtonStyle}
+              >
+                确认补签
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       <style jsx>{`
         @keyframes attendanceStamp {
@@ -681,4 +719,83 @@ const smallBadgeStyle: React.CSSProperties = {
   color: "#f5d0fe",
   fontSize: "14px",
   fontWeight: 700,
+};
+
+const modalOverlayStyle: React.CSSProperties = {
+  position: "fixed",
+  inset: 0,
+  zIndex: 50,
+  display: "grid",
+  placeItems: "center",
+  padding: "24px",
+  background: "rgba(3,7,18,0.62)",
+  backdropFilter: "blur(8px)",
+};
+
+const modalDialogStyle: React.CSSProperties = {
+  width: "min(420px, 100%)",
+  borderRadius: "22px",
+  border: "1px solid rgba(250,204,21,0.24)",
+  background: "linear-gradient(145deg, rgba(24,24,32,0.98), rgba(12,12,18,0.98))",
+  boxShadow: "0 26px 70px rgba(0,0,0,0.54)",
+  padding: "26px",
+  display: "grid",
+  justifyItems: "center",
+  gap: "16px",
+  textAlign: "center",
+};
+
+const modalIconStyle: React.CSSProperties = {
+  width: "58px",
+  height: "58px",
+  borderRadius: "50%",
+  border: "3px solid rgba(248,113,113,0.95)",
+  color: "#fecaca",
+  display: "grid",
+  placeItems: "center",
+  fontSize: "20px",
+  fontWeight: 900,
+  transform: "rotate(-9deg)",
+  boxShadow: "0 0 24px rgba(248,113,113,0.24)",
+};
+
+const modalTitleStyle: React.CSSProperties = {
+  margin: 0,
+  color: "white",
+  fontSize: "22px",
+};
+
+const modalTextStyle: React.CSSProperties = {
+  margin: "10px 0 0",
+  color: "#cbd5e1",
+  fontSize: "14px",
+  lineHeight: 1.7,
+};
+
+const modalActionsStyle: React.CSSProperties = {
+  width: "100%",
+  display: "grid",
+  gridTemplateColumns: "1fr 1fr",
+  gap: "10px",
+  marginTop: "4px",
+};
+
+const modalCancelButtonStyle: React.CSSProperties = {
+  minHeight: "42px",
+  borderRadius: "13px",
+  border: "1px solid rgba(255,255,255,0.1)",
+  background: "rgba(255,255,255,0.06)",
+  color: "#e5e7eb",
+  fontWeight: 900,
+  cursor: "pointer",
+};
+
+const modalConfirmButtonStyle: React.CSSProperties = {
+  minHeight: "42px",
+  borderRadius: "13px",
+  border: "none",
+  background: "linear-gradient(135deg, #facc15, #f59e0b)",
+  color: "#111827",
+  fontWeight: 900,
+  cursor: "pointer",
 };
