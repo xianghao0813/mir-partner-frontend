@@ -181,6 +181,65 @@ export function awardMirPoints({
   };
 }
 
+export function applyMirPointDelta({
+  metadata,
+  points,
+  source,
+  referenceId,
+  title,
+  description,
+  now = new Date(),
+}: {
+  metadata: UserMetadata | undefined;
+  points: number;
+  source: string;
+  referenceId?: string;
+  title?: string;
+  description?: string;
+  now?: Date;
+}) {
+  const monthKey = getShanghaiMonthKey(now);
+  const deltaPoints = Math.floor(points);
+  const beforePoints = readMirPoints(metadata);
+  const afterPoints = Math.max(0, beforePoints + deltaPoints);
+  const beforeTier = getCurrentTier(beforePoints);
+  const afterTier = getCurrentTier(afterPoints);
+  const currentMonthlyPoints = readMonthlyPoints(metadata, monthKey);
+  const upgradedThisAward = afterTier.id > beforeTier.id;
+
+  return {
+    metadata: {
+      ...(metadata ?? {}),
+      mir_points: afterPoints,
+      mir_month_key: monthKey,
+      mir_month_points: Math.max(0, currentMonthlyPoints + deltaPoints),
+      mir_last_tier_id: afterTier.id,
+      mir_upgraded_month_key: upgradedThisAward
+        ? monthKey
+        : readString(metadata?.mir_upgraded_month_key) || undefined,
+      mir_last_point_source: source,
+      mir_last_point_award: deltaPoints,
+      mir_last_point_awarded_at: now.toISOString(),
+      mir_point_transactions: appendPointTransaction(metadata, {
+        id: referenceId ? `point-${referenceId}` : `point-${now.getTime()}-${source}`,
+        type: deltaPoints < 0 ? "deduct" : "earn",
+        source,
+        referenceId,
+        points: deltaPoints,
+        title: title || getPointSourceTitle(source),
+        description: description || getPointSourceDescription(source),
+        createdAt: now.toISOString(),
+      }),
+    },
+    beforePoints,
+    afterPoints,
+    awardedPoints: deltaPoints,
+    beforeTier,
+    afterTier,
+    upgradedThisAward,
+  };
+}
+
 export function settleMonthlyMirPoints(metadata: UserMetadata | undefined, now = new Date()) {
   const monthKey = getShanghaiMonthKey(now);
   const summary = buildMirPointSummary(metadata, now);
@@ -322,6 +381,8 @@ function getPointSourceTitle(source: string) {
       return "小游戏积分";
     case "daily_attendance":
       return "每日签到积分";
+    case "attendance_makeup":
+      return "补签积分调整";
     default:
       return "MIR 积分";
   }
@@ -335,6 +396,8 @@ function getPointSourceDescription(source: string) {
       return "遗迹冲刺小游戏奖励";
     case "daily_attendance":
       return "每日签到活动奖励";
+    case "attendance_makeup":
+      return "补签消耗与连续签到奖励";
     default:
       return source || "积分变动";
   }

@@ -12,18 +12,13 @@ type PointsActivityContentProps = {
 
 type AttendanceResponse = {
   message?: string;
+  code?: string;
   points?: number;
   award?: AttendanceAward;
   summary?: AttendanceSummary;
-  pointTransaction?: {
-    id?: string;
-    title?: string;
-    description?: string;
-    points?: number;
-    createdAt?: string;
-    source?: string;
-  };
 };
+
+type AttendanceAction = "checkin" | "makeup";
 
 export default function PointsActivityContent({
   initialPoints,
@@ -33,15 +28,24 @@ export default function PointsActivityContent({
   const [attendance, setAttendance] = useState(initialSummary);
   const [selectedMonth, setSelectedMonth] = useState(initialSummary.monthKey);
   const [checkingIn, setCheckingIn] = useState(false);
+  const [makeupDate, setMakeupDate] = useState("");
   const [stampDate, setStampDate] = useState("");
   const [message, setMessage] = useState("");
   const [lastAward, setLastAward] = useState<AttendanceAward | null>(null);
   const [syncing, setSyncing] = useState(false);
   const [syncMessage, setSyncMessage] = useState("");
 
+  const availableMakeupSet = useMemo(
+    () => new Set(attendance.availableMakeupDates),
+    [attendance.availableMakeupDates]
+  );
+  const makeupSet = useMemo(
+    () => new Set(attendance.makeupDates),
+    [attendance.makeupDates]
+  );
   const calendar = useMemo(
-    () => buildCalendar(selectedMonth, attendance.checkedDates),
-    [selectedMonth, attendance.checkedDates]
+    () => buildCalendar(selectedMonth, attendance.checkedDates, availableMakeupSet, makeupSet),
+    [availableMakeupSet, attendance.checkedDates, makeupSet, selectedMonth]
   );
 
   useEffect(() => {
@@ -49,11 +53,8 @@ export default function PointsActivityContent({
 
     async function syncQuickSdk() {
       setSyncing(true);
-
       try {
-        const response = await fetch("/api/account/sync-quicksdk", {
-          method: "POST",
-        });
+        const response = await fetch("/api/account/sync-quicksdk", { method: "POST" });
         const payload = (await response.json().catch(() => null)) as {
           status?: "synced" | "skipped";
           profile?: { points: number };
@@ -61,9 +62,7 @@ export default function PointsActivityContent({
           message?: string;
         } | null;
 
-        if (cancelled) {
-          return;
-        }
+        if (cancelled) return;
 
         if (!response.ok || !payload) {
           setSyncMessage(payload?.message ?? "同步失败，当前显示最近一次数据。");
@@ -96,21 +95,24 @@ export default function PointsActivityContent({
     };
   }, []);
 
-  async function checkIn() {
-    setCheckingIn(true);
+  async function submitAttendance(type: AttendanceAction, date?: string) {
+    if (type === "makeup" && !date) return;
+
+    setCheckingIn(type === "checkin");
+    setMakeupDate(type === "makeup" ? date ?? "" : "");
     setMessage("");
     setLastAward(null);
 
     try {
       const response = await fetch("/api/points/attendance", {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type, date }),
       });
       const payload = (await response.json().catch(() => null)) as AttendanceResponse | null;
 
       if (!response.ok) {
-        if (payload?.summary) {
-          setAttendance(payload.summary);
-        }
+        if (payload?.summary) setAttendance(payload.summary);
         setMessage(payload?.message ?? "签到处理失败。");
         return;
       }
@@ -118,7 +120,7 @@ export default function PointsActivityContent({
       if (payload?.summary) {
         setAttendance(payload.summary);
         setSelectedMonth(payload.summary.monthKey);
-        setStampDate(payload.summary.today);
+        setStampDate(payload.award?.date ?? payload.summary.today);
         window.setTimeout(() => setStampDate(""), 780);
       }
       if (typeof payload?.points === "number") {
@@ -126,12 +128,15 @@ export default function PointsActivityContent({
       }
       if (payload?.award) {
         setLastAward(payload.award);
-        setMessage(`签到完成，获得 ${payload.award.totalAwarded.toLocaleString()} MIR 积分。`);
+        const verb = payload.award.type === "makeup" ? "补签完成" : "签到完成";
+        const amount = payload.award.totalAwarded;
+        setMessage(`${verb}，积分${amount >= 0 ? "获得" : "消耗"} ${Math.abs(amount).toLocaleString()}。`);
       }
     } catch {
       setMessage("当前无法连接签到服务。");
     } finally {
       setCheckingIn(false);
+      setMakeupDate("");
     }
   }
 
@@ -146,7 +151,7 @@ export default function PointsActivityContent({
             <div style={eyebrowStyle}>Point Activity</div>
             <h1 style={titleStyle}>积分活动</h1>
             <p style={subtitleStyle}>
-              每日签到和小游戏奖励都会累计到 MIR 积分，并同步计入合伙人星级成长。
+              每月签到独立统计。连续签到 7 天可获得追加奖励，连续 25 天可获得月度大奖。
             </p>
             <div style={syncStatusStyle(syncing)}>
               {syncing ? "同步中..." : syncMessage || "已加载最近一次数据。"}
@@ -166,7 +171,7 @@ export default function PointsActivityContent({
             </div>
             <button
               type="button"
-              onClick={() => void checkIn()}
+              onClick={() => void submitAttendance("checkin")}
               disabled={checkingIn || attendance.checkedToday}
               style={{
                 ...checkInButtonStyle,
@@ -180,58 +185,38 @@ export default function PointsActivityContent({
 
           <div style={attendanceGridStyle}>
             <div style={attendanceStatsStyle}>
-              <InfoTile label="累计签到" value={`${attendance.totalDays.toLocaleString()} 天`} accent="#facc15" />
-              <InfoTile label="每日奖励" value="+100" accent="#86efac" />
-              <InfoTile
-                label="7日追加"
-                value={attendance.nextSevenBonusIn === 7 ? "+1000" : `${attendance.nextSevenBonusIn} 天后`}
-                accent="#c4b5fd"
-              />
-              <InfoTile
-                label="30日追加"
-                value={attendance.nextThirtyBonusIn === 30 ? "+5000" : `${attendance.nextThirtyBonusIn} 天后`}
-                accent="#fca5a5"
-              />
+              <InfoTile label="本月签到" value={`${attendance.monthlyCheckedCount.toLocaleString()} 天`} accent="#facc15" />
+              <InfoTile label="当前连续" value={`${attendance.currentStreak.toLocaleString()} 天`} accent="#86efac" />
+              <InfoTile label="7日奖励" value={attendance.nextSevenBonusIn === 0 ? "已达成" : `${attendance.nextSevenBonusIn} 天后`} accent="#c4b5fd" />
+              <InfoTile label="25日奖励" value={attendance.nextTwentyFiveBonusIn === 0 ? "已达成" : `${attendance.nextTwentyFiveBonusIn} 天后`} accent="#fca5a5" />
+
+              <div style={awardBreakdownStyle}>
+                <strong>签到规则</strong>
+                <span>每日签到 +100 MIR 积分</span>
+                <span>本月连续 7 天 +1000 MIR 积分</span>
+                <span>本月连续 25 天 +5000 MIR 积分</span>
+                <span>补签消耗 200 MIR 积分，可补齐连续签到</span>
+              </div>
+
               {lastAward ? (
                 <div style={awardBreakdownStyle}>
-                  <strong>本次奖励</strong>
-                  <span>基础 +{lastAward.basePoints}</span>
-                  {lastAward.sevenDayBonus > 0 ? <span>7日奖励 +{lastAward.sevenDayBonus}</span> : null}
-                  {lastAward.thirtyDayBonus > 0 ? <span>30日奖励 +{lastAward.thirtyDayBonus}</span> : null}
+                  <strong>本次变动</strong>
+                  {lastAward.basePoints > 0 ? <span>每日签到 +{lastAward.basePoints}</span> : null}
+                  {lastAward.makeupCost > 0 ? <span>补签消耗 -{lastAward.makeupCost}</span> : null}
+                  {lastAward.sevenDayBonus > 0 ? <span>连续 7 天奖励 +{lastAward.sevenDayBonus}</span> : null}
+                  {lastAward.twentyFiveDayBonus > 0 ? <span>连续 25 天奖励 +{lastAward.twentyFiveDayBonus}</span> : null}
                 </div>
-              ) : (
-                <div style={awardBreakdownStyle}>
-                  <strong>奖励规则</strong>
-                  <span>每天签到 +100</span>
-                  <span>累计每 7 天 +1000</span>
-                  <span>累计每 30 天 +5000</span>
-                </div>
-              )}
+              ) : null}
               {message ? <div style={messageStyle}>{message}</div> : null}
             </div>
 
             <div style={calendarShellStyle}>
               <div style={calendarTopStyle}>
-                <button
-                  type="button"
-                  onClick={() => setSelectedMonth(shiftMonth(selectedMonth, -1))}
-                  style={monthButtonStyle}
-                  aria-label="上个月"
-                >
+                <button type="button" onClick={() => setSelectedMonth(shiftMonth(selectedMonth, -1))} style={monthButtonStyle} aria-label="上个月">
                   ‹
                 </button>
-                <input
-                  type="month"
-                  value={selectedMonth}
-                  onChange={(event) => setSelectedMonth(event.target.value)}
-                  style={monthInputStyle}
-                />
-                <button
-                  type="button"
-                  onClick={() => setSelectedMonth(shiftMonth(selectedMonth, 1))}
-                  style={monthButtonStyle}
-                  aria-label="下个月"
-                >
+                <input type="month" value={selectedMonth} onChange={(event) => setSelectedMonth(event.target.value)} style={monthInputStyle} />
+                <button type="button" onClick={() => setSelectedMonth(shiftMonth(selectedMonth, 1))} style={monthButtonStyle} aria-label="下个月">
                   ›
                 </button>
               </div>
@@ -249,12 +234,24 @@ export default function PointsActivityContent({
                       ...dayCellStyle,
                       ...(day.inMonth ? null : outsideDayCellStyle),
                       ...(day.checked ? checkedDayCellStyle : null),
+                      ...(day.makeup ? makeupDayCellStyle : null),
                       ...(day.date === attendance.today ? todayCellStyle : null),
                     }}
                   >
                     <span style={dayNumberStyle}>{day.day}</span>
                     {day.checked ? (
-                      <span style={day.date === stampDate ? stampStyleActive : stampStyle}>签到</span>
+                      <span style={day.date === stampDate ? stampStyleActive : stampStyle}>
+                        {day.makeup ? "补签" : "签到"}
+                      </span>
+                    ) : day.canMakeup ? (
+                      <button
+                        type="button"
+                        onClick={() => void submitAttendance("makeup", day.date)}
+                        disabled={Boolean(makeupDate)}
+                        style={makeupButtonStyle}
+                      >
+                        {makeupDate === day.date ? "补签中" : "补签 -200"}
+                      </button>
                     ) : null}
                   </div>
                 ))}
@@ -317,7 +314,7 @@ function InfoTile({ label, value, accent }: { label: string; value: string; acce
   );
 }
 
-function buildCalendar(monthKey: string, checkedDates: string[]) {
+function buildCalendar(monthKey: string, checkedDates: string[], makeupDates: Set<string>, makeupSet: Set<string>) {
   const [year, month] = monthKey.split("-").map(Number);
   const first = new Date(year, month - 1, 1);
   const startOffset = (first.getDay() + 6) % 7;
@@ -334,6 +331,8 @@ function buildCalendar(monthKey: string, checkedDates: string[]) {
       day: date.getDate(),
       inMonth: date.getMonth() === month - 1,
       checked: checked.has(key),
+      canMakeup: makeupDates.has(key),
+      makeup: makeupSet.has(key),
     };
   });
 }
@@ -597,7 +596,7 @@ const calendarGridStyle: React.CSSProperties = {
 
 const dayCellStyle: React.CSSProperties = {
   position: "relative",
-  minHeight: "74px",
+  minHeight: "78px",
   borderRadius: "14px",
   background: "rgba(255,255,255,0.045)",
   border: "1px solid rgba(255,255,255,0.08)",
@@ -611,6 +610,11 @@ const outsideDayCellStyle: React.CSSProperties = {
 const checkedDayCellStyle: React.CSSProperties = {
   background: "rgba(250,204,21,0.1)",
   border: "1px solid rgba(250,204,21,0.32)",
+};
+
+const makeupDayCellStyle: React.CSSProperties = {
+  background: "rgba(59,130,246,0.1)",
+  border: "1px solid rgba(96,165,250,0.32)",
 };
 
 const todayCellStyle: React.CSSProperties = {
@@ -646,6 +650,21 @@ const stampStyle: React.CSSProperties = {
 const stampStyleActive: React.CSSProperties = {
   ...stampStyle,
   animation: "attendanceStamp 700ms cubic-bezier(.2,.9,.2,1.1)",
+};
+
+const makeupButtonStyle: React.CSSProperties = {
+  position: "absolute",
+  left: "8px",
+  right: "8px",
+  bottom: "8px",
+  minHeight: "28px",
+  border: "1px solid rgba(96,165,250,0.35)",
+  borderRadius: "10px",
+  background: "rgba(37,99,235,0.24)",
+  color: "#dbeafe",
+  fontSize: "11px",
+  fontWeight: 900,
+  cursor: "pointer",
 };
 
 const smallBadgeStyle: React.CSSProperties = {

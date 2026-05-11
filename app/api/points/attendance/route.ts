@@ -1,7 +1,7 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { compactAuthMetadata } from "@/lib/authMetadata";
-import { buildAttendanceSummary, checkInAttendance } from "@/lib/attendance";
-import { awardMirPoints, readMirPoints } from "@/lib/mirPoints";
+import { applyAttendanceAction, buildAttendanceSummary } from "@/lib/attendance";
+import { applyMirPointDelta, readMirPoints } from "@/lib/mirPoints";
 import { createClient } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { insertPointTransaction, readPointTransactionsFromDb } from "@/lib/userLedgers";
@@ -21,7 +21,7 @@ export async function GET() {
   });
 }
 
-export async function POST() {
+export async function POST(request: NextRequest) {
   const supabase = await createClient();
   const {
     data: { user },
@@ -31,6 +31,10 @@ export async function POST() {
     return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
   }
 
+  const body = (await request.json().catch(() => null)) as {
+    type?: "checkin" | "makeup";
+    date?: string;
+  } | null;
   const ledgerTransactions = await readPointTransactionsFromDb(user.id);
   const ledgerTotal = ledgerTransactions.reduce((sum, entry) => sum + entry.points, 0);
   const baseMetadata =
@@ -40,24 +44,30 @@ export async function POST() {
           mir_points: ledgerTotal,
         }
       : user.user_metadata;
-  const result = checkInAttendance(baseMetadata);
+  const currentPoints = readMirPoints(baseMetadata);
+  const action =
+    body?.type === "makeup" && body.date
+      ? { type: "makeup" as const, date: body.date, currentPoints }
+      : { type: "checkin" as const };
+  const result = applyAttendanceAction(baseMetadata, action);
 
-  if (result.alreadyChecked || !result.award) {
+  if (!result.ok || !result.award) {
     return NextResponse.json(
       {
-        message: "今日已经签到。",
+        message: result.message,
+        code: result.code,
         summary: result.summary,
       },
-      { status: 409 }
+      { status: result.code === "insufficient_points" ? 402 : 409 }
     );
   }
 
-  const pointAward = awardMirPoints({
+  const pointAward = applyMirPointDelta({
     metadata: result.metadata,
     points: result.award.totalAwarded,
-    source: "daily_attendance",
-    referenceId: `attendance-${result.award.date}`,
-    title: "每日签到积分",
+    source: result.award.type === "makeup" ? "attendance_makeup" : "daily_attendance",
+    referenceId: `${result.award.type}-${result.award.date}`,
+    title: result.award.type === "makeup" ? "补签积分调整" : "每日签到积分",
     description: buildAwardDescription(result.award),
   });
 
@@ -102,17 +112,21 @@ export async function POST() {
 
 function buildAwardDescription(award: {
   basePoints: number;
+  makeupCost: number;
   sevenDayBonus: number;
-  thirtyDayBonus: number;
-  totalDays: number;
+  twentyFiveDayBonus: number;
+  checkedCount: number;
+  currentStreak: number;
+  type: "checkin" | "makeup";
 }) {
-  const parts = [`每日签到 +${award.basePoints}`];
+  const parts = award.type === "makeup" ? [`补签消耗 -${award.makeupCost}`] : [`每日签到 +${award.basePoints}`];
   if (award.sevenDayBonus > 0) {
-    parts.push(`累计 ${award.totalDays} 天 7日奖励 +${award.sevenDayBonus}`);
+    parts.push(`连续 ${award.currentStreak} 天奖励 +${award.sevenDayBonus}`);
   }
-  if (award.thirtyDayBonus > 0) {
-    parts.push(`累计 ${award.totalDays} 天 30日奖励 +${award.thirtyDayBonus}`);
+  if (award.twentyFiveDayBonus > 0) {
+    parts.push(`连续 ${award.currentStreak} 天奖励 +${award.twentyFiveDayBonus}`);
   }
+  parts.push(`本月已签到 ${award.checkedCount} 天`);
   return parts.join("，");
 }
 
