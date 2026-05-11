@@ -3,8 +3,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { compactAuthMetadata } from "@/lib/authMetadata";
 import { createClient } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { awardMirPoints } from "@/lib/mirPoints";
-import { insertPointTransaction } from "@/lib/userLedgers";
+import { awardMirPoints, readMirPoints } from "@/lib/mirPoints";
+import { insertPointTransaction, readPointTransactionsFromDb } from "@/lib/userLedgers";
 import {
   BOSS_LAST_HIT_COOKIE,
   buildBossLastHitPublicState,
@@ -12,7 +12,6 @@ import {
   getRewardClaimDateInShanghai,
   getTodayRewardClaimed,
   parseBossLastHitState,
-  readMirPoints,
 } from "@/lib/bossLastHit";
 
 export async function POST(request: NextRequest) {
@@ -34,12 +33,21 @@ export async function POST(request: NextRequest) {
 
   const today = getRewardClaimDateInShanghai();
   const rewardClaimedDate = getTodayRewardClaimed(user.user_metadata);
+  const ledgerTransactions = await readPointTransactionsFromDb(user.id);
+  const ledgerPoints = ledgerTransactions.reduce((sum, entry) => sum + entry.points, 0);
+  const baseMetadata =
+    ledgerPoints > readMirPoints(user.user_metadata)
+      ? {
+          ...(user.user_metadata ?? {}),
+          mir_points: ledgerPoints,
+        }
+      : user.user_metadata;
 
   if (rewardClaimedDate === today) {
     return NextResponse.json(
       {
         message: "Reward already claimed today.",
-        points: readMirPoints(user.user_metadata),
+        points: readMirPoints(baseMetadata),
         rewardClaimedToday: true,
       },
       { status: 400 }
@@ -48,7 +56,7 @@ export async function POST(request: NextRequest) {
 
   const awardedPoints = gameState.dailyBestScore;
   const pointAward = awardMirPoints({
-    metadata: user.user_metadata,
+    metadata: baseMetadata,
     points: awardedPoints,
     source: "boss_last_hit",
   });
