@@ -5,6 +5,7 @@ import { readMirPoints } from "@/lib/mirPoints";
 import { createClient } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getTierCouponClaimState, grantTierCoupons } from "@/lib/tierCoupons";
+import { readPointTransactionsFromDb } from "@/lib/userLedgers";
 
 export async function POST() {
   const supabase = await createClient();
@@ -20,16 +21,21 @@ export async function POST() {
     return NextResponse.json({ message: "请先完成实名认证后再领取优惠券。" }, { status: 403 });
   }
 
-  const points = readMirPoints(user.user_metadata);
-  const claimState = getTierCouponClaimState(user.user_metadata, points);
+  const ledgerTransactions = await readPointTransactionsFromDb(user.id);
+  const ledgerPoints = ledgerTransactions.reduce((sum, entry) => sum + entry.points, 0);
+  const metadata =
+    ledgerPoints > readMirPoints(user.user_metadata)
+      ? {
+          ...(user.user_metadata ?? {}),
+          mir_points: ledgerPoints,
+        }
+      : user.user_metadata;
+  const points = readMirPoints(metadata);
+  const claimState = getTierCouponClaimState(metadata, points);
 
   if (!claimState.claimable) {
     return NextResponse.json(
-      {
-        message: claimState.grantedTierId <= 0
-          ? "本月星级权益券尚未完成月度发放。"
-          : "当前没有可领取的晋升追加优惠券。",
-      },
+      { message: "当前没有可领取的星级优惠券。" },
       { status: 400 }
     );
   }
@@ -37,7 +43,7 @@ export async function POST() {
   const grant = await grantTierCoupons({
     supabaseAdmin,
     userId: user.id,
-    metadata: user.user_metadata,
+    metadata,
     targetTierId: claimState.currentTierId,
     reason: "tier_upgrade_claim",
   });

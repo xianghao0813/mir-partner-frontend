@@ -69,7 +69,9 @@ export async function buildPartnerProfileSummary(
         ? await readQuickSdkPointTransactions(uid)
         : [];
   const pointTransactions = dbPointTransactions.length > 0 ? dbPointTransactions : fallbackPointTransactions;
-  const pointsSummary = buildMirPointSummary(user.user_metadata);
+  const pointsSummary = buildMirPointSummary(
+    recalculatedMetadata(user.user_metadata, pointTransactions)
+  );
   const recalculatedPoints = pointTransactions.reduce((sum, entry) => sum + entry.points, 0);
   const effectivePoints = pointTransactions.length > 0 ? Math.max(0, recalculatedPoints) : pointsSummary.points;
   const effectiveMonthlyPoints =
@@ -107,7 +109,21 @@ export async function buildPartnerProfileSummary(
     upgradedThisMonth: pointsSummary.upgradedThisMonth,
     pointTransactions,
     couponBenefits: getTierCouponBenefits(currentTier.id),
-    tierCouponClaim: getTierCouponClaimState(user.user_metadata, effectivePoints),
+    tierCouponClaim: getTierCouponClaimState(
+      recalculatedMetadata(user.user_metadata, pointTransactions),
+      effectivePoints
+    ),
+  };
+}
+
+function recalculatedMetadata(metadata: User["user_metadata"], pointTransactions: PartnerPointTransaction[]) {
+  if (pointTransactions.length === 0) {
+    return metadata;
+  }
+
+  return {
+    ...(metadata ?? {}),
+    mir_points: Math.max(0, pointTransactions.reduce((sum, entry) => sum + entry.points, 0)),
   };
 }
 
