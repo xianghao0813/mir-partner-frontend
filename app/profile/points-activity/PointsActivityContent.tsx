@@ -97,6 +97,12 @@ export default function PointsActivityContent({
 
   async function submitAttendance(type: AttendanceAction, date?: string) {
     if (type === "makeup" && !date) return;
+    if (
+      type === "makeup" &&
+      !window.confirm("补签将消耗 200 MIR 积分。确定要补签吗？")
+    ) {
+      return;
+    }
 
     setCheckingIn(type === "checkin");
     setMakeupDate(type === "makeup" ? date ?? "" : "");
@@ -250,7 +256,7 @@ export default function PointsActivityContent({
                         disabled={Boolean(makeupDate)}
                         style={makeupButtonStyle}
                       >
-                        {makeupDate === day.date ? "补签中" : "补签 -200"}
+                        {makeupDate === day.date ? "补签中" : "补签"}
                       </button>
                     ) : null}
                   </div>
