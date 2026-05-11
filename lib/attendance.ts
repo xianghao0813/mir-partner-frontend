@@ -50,7 +50,7 @@ export function buildAttendanceSummary(metadata: UserMetadata | undefined, now =
 
   return {
     today,
-    checkedToday: checkedDates.includes(today),
+    checkedToday: monthlyCheckedDates.includes(today),
     monthKey,
     checkedDates,
     makeupDates,
@@ -61,7 +61,7 @@ export function buildAttendanceSummary(metadata: UserMetadata | undefined, now =
     longestStreak,
     nextSevenBonusIn: daysUntilNextStreakBonus(currentStreak, 7),
     nextTwentyFiveBonusIn: daysUntilNextStreakBonus(currentStreak, 25),
-    availableMakeupDates: getAvailableMakeupDates(monthKey, today, checkedDates),
+    availableMakeupDates: getAvailableMakeupDates(monthKey, today, monthlyCheckedDates),
     makeupCost: ATTENDANCE_MAKEUP_COST,
   };
 }
@@ -136,10 +136,12 @@ export function applyAttendanceAction(
 
   const previousMonthlyDates = checkedDates.filter((date) => date.startsWith(monthKey));
   const previousBonusKeys = readBonusKeys(metadata);
-  const nextCheckedDates = [targetDate, ...checkedDates].sort((a, b) => b.localeCompare(a));
-  const nextMonthlyDates = nextCheckedDates.filter((date) => date.startsWith(monthKey));
-  const currentStreak = calculateCurrentMonthStreak(nextMonthlyDates, today);
-  const checkedCount = nextMonthlyDates.length;
+  const nextCheckedDates = [
+    targetDate,
+    ...checkedDates.filter((date) => date.startsWith(monthKey) && date !== targetDate),
+  ].sort((a, b) => b.localeCompare(a));
+  const currentStreak = calculateCurrentMonthStreak(nextCheckedDates, today);
+  const checkedCount = nextCheckedDates.length;
   const sevenDayBonus =
     currentStreak >= 7 && !previousBonusKeys.has(`${monthKey}:streak:7`)
       ? ATTENDANCE_SEVEN_DAY_BONUS
@@ -166,18 +168,26 @@ export function applyAttendanceAction(
   if (twentyFiveDayBonus > 0) nextBonusKeys.add(`${monthKey}:streak:25`);
   const nextMakeupDates =
     action.type === "makeup"
-      ? [targetDate, ...makeupDates.filter((date) => date !== targetDate)].sort((a, b) => b.localeCompare(a))
-      : makeupDates;
+      ? [
+          targetDate,
+          ...makeupDates.filter((date) => date.startsWith(monthKey) && date !== targetDate),
+        ].sort((a, b) => b.localeCompare(a))
+      : makeupDates.filter((date) => date.startsWith(monthKey));
   const nextMetadata: UserMetadata = {
     ...(metadata ?? {}),
-    attendance_dates: nextCheckedDates.slice(0, 420),
-    attendance_makeup_dates: nextMakeupDates.slice(0, 420),
+    attendance_dates: nextCheckedDates,
+    attendance_makeup_dates: nextMakeupDates,
     attendance_month_key: monthKey,
     attendance_month_checked_count: checkedCount,
     attendance_current_streak: currentStreak,
-    attendance_longest_streak: Math.max(calculateLongestStreak(previousMonthlyDates), calculateLongestStreak(nextMonthlyDates)),
+    attendance_longest_streak: Math.max(
+      calculateLongestStreak(previousMonthlyDates),
+      calculateLongestStreak(nextCheckedDates)
+    ),
     attendance_last_date: targetDate,
-    attendance_bonus_keys: Array.from(nextBonusKeys).sort(),
+    attendance_bonus_keys: Array.from(nextBonusKeys)
+      .filter((key) => key.startsWith(`${monthKey}:`))
+      .sort(),
   };
 
   return {
