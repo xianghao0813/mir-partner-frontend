@@ -2,7 +2,6 @@ import { redirect } from "next/navigation";
 import ProfileContent from "./ProfileContent";
 import { createClient } from "@/lib/supabase/server";
 import { buildPartnerProfileSummary } from "@/lib/partnerProfile";
-import { reconcileQuickSdkRechargePoints } from "@/lib/wallet";
 
 export default async function ProfilePage() {
   const supabase = await createClient();
@@ -15,11 +14,9 @@ export default async function ProfilePage() {
     redirect("/login");
   }
 
-  const reconciledMetadata = await reconcileQuickSdkRechargePoints(user);
   const profile = await buildPartnerProfileSummary({
     ...user,
-    user_metadata: reconciledMetadata,
-  });
+  }, { includeQuickSdkFallback: false });
 
   return <ProfileContent profile={profile} />;
 }

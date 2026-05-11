@@ -45,7 +45,7 @@ export async function POST() {
   if (result.alreadyChecked || !result.award) {
     return NextResponse.json(
       {
-        message: "今日已经出席。",
+        message: "今日已经签到。",
         summary: result.summary,
       },
       { status: 409 }
@@ -57,7 +57,7 @@ export async function POST() {
     points: result.award.totalAwarded,
     source: "daily_attendance",
     referenceId: `attendance-${result.award.date}`,
-    title: "每日出席积分",
+    title: "每日签到积分",
     description: buildAwardDescription(result.award),
   });
 
@@ -83,8 +83,8 @@ export async function POST() {
     const source = latestPointTransaction as Record<string, unknown>;
     await insertPointTransaction(user.id, {
       id: readString(source.id),
-      title: readString(source.title) || "每日出席积分",
-      description: readString(source.description) || "每日出席活动奖励",
+      title: readString(source.title) || "每日签到积分",
+      description: readString(source.description) || "每日签到活动奖励",
       points: readNumber(source.points),
       createdAt: readString(source.createdAt) || new Date().toISOString(),
       source: readString(source.source) || "daily_attendance",
@@ -106,7 +106,7 @@ function buildAwardDescription(award: {
   thirtyDayBonus: number;
   totalDays: number;
 }) {
-  const parts = [`每日出席 +${award.basePoints}`];
+  const parts = [`每日签到 +${award.basePoints}`];
   if (award.sevenDayBonus > 0) {
     parts.push(`累计 ${award.totalDays} 天 7日奖励 +${award.sevenDayBonus}`);
   }

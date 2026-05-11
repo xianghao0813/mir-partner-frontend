@@ -26,6 +26,8 @@ export default function ProfileContent({ profile }: ProfileContentProps) {
   const [tierCouponClaim, setTierCouponClaim] = useState(profile.tierCouponClaim);
   const [claimingTierCoupons, setClaimingTierCoupons] = useState(false);
   const [tierCouponMessage, setTierCouponMessage] = useState("");
+  const [syncing, setSyncing] = useState(false);
+  const [syncMessage, setSyncMessage] = useState("");
   const [activeTierIndex, setActiveTierIndex] = useState(
     Math.max(0, profileTierList.findIndex((tier) => tier.id === profile.currentTier.id))
   );
@@ -85,6 +87,54 @@ export default function ProfileContent({ profile }: ProfileContentProps) {
     }
   }, [currentTier.id]);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    async function syncQuickSdk() {
+      setSyncing(true);
+
+      try {
+        const response = await fetch("/api/account/sync-quicksdk", {
+          method: "POST",
+        });
+        const payload = (await response.json().catch(() => null)) as {
+          status?: "synced" | "skipped";
+          profile?: PartnerProfileSummary;
+          message?: string;
+        } | null;
+
+        if (cancelled) {
+          return;
+        }
+
+        if (!response.ok || !payload?.profile) {
+          setSyncMessage(payload?.message ?? "同步失败，当前显示最近一次数据。");
+          return;
+        }
+
+        setCurrentPoints(payload.profile.points);
+        setCurrentMonthlyPoints(payload.profile.monthlyPoints);
+        setPointTransactions(payload.profile.pointTransactions);
+        setTierCouponClaim(payload.profile.tierCouponClaim);
+        setSyncMessage(payload.status === "skipped" ? "已显示最新同步数据。" : "同步完成。");
+      } catch {
+        if (!cancelled) {
+          setSyncMessage("同步失败，当前显示最近一次数据。");
+        }
+      } finally {
+        if (!cancelled) {
+          setSyncing(false);
+        }
+      }
+    }
+
+    void syncQuickSdk();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   async function claimTierUpgradeCoupons() {
     setClaimingTierCoupons(true);
     setTierCouponMessage("");
@@ -123,6 +173,9 @@ export default function ProfileContent({ profile }: ProfileContentProps) {
           <div style={eyebrowStyle}>MIR Partner</div>
           <h1 style={titleStyle}>个人资料</h1>
           <p style={subtitleStyle}>查看当前账号的合伙人身份、星级和 MIR 积分进度。</p>
+          <div style={syncStatusStyle(syncing)}>
+            {syncing ? "同步中..." : syncMessage || "已加载最近一次数据。"}
+          </div>
 
           <div style={identityGridStyle}>
             <InfoCard label="UID" value={profile.uid || "-"} />
@@ -458,6 +511,20 @@ const subtitleStyle: React.CSSProperties = {
   color: "#b8b8c5",
   fontSize: "14px",
 };
+
+const syncStatusStyle = (active: boolean): React.CSSProperties => ({
+  display: "inline-flex",
+  alignItems: "center",
+  minHeight: "30px",
+  marginBottom: "18px",
+  padding: "0 12px",
+  borderRadius: "999px",
+  background: active ? "rgba(59,130,246,0.14)" : "rgba(255,255,255,0.05)",
+  border: active ? "1px solid rgba(96,165,250,0.28)" : "1px solid rgba(255,255,255,0.08)",
+  color: active ? "#bfdbfe" : "#a1a1aa",
+  fontSize: "12px",
+  fontWeight: 800,
+});
 
 const identityGridStyle: React.CSSProperties = {
   display: "grid",

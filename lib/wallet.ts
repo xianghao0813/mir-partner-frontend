@@ -36,13 +36,17 @@ export type WalletSummary = {
   transactions: WalletTransaction[];
 };
 
-export async function buildWalletSummary(user: User): Promise<WalletSummary> {
+export async function buildWalletSummary(
+  user: User,
+  options: { includeSdkWallet?: boolean } = {}
+): Promise<WalletSummary> {
+  const includeSdkWallet = options.includeSdkWallet ?? true;
   const account =
     user.email?.trim() ||
     readStringMetadata(user.user_metadata, ["quicksdk_username", "username"]) ||
     "当前登录账号";
   const uid = readStringMetadata(user.user_metadata, ["quicksdk_uid", "uid"]) || extractAccountUid(account);
-  const sdkWallet = uid ? await readQuickSdkWallet(uid) : null;
+  const sdkWallet = includeSdkWallet && uid ? await readQuickSdkWallet(uid) : null;
   const dbTransactions = await readWalletTransactionsFromDb(user.id);
   const metadataTransactions = readWalletTransactions(user.user_metadata);
   const localTransactions = mergeWalletTransactions([...dbTransactions, ...metadataTransactions]);

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import BossSlashTrial from "@/components/BossSlashTrial";
 import type { AttendanceAward, AttendanceSummary } from "@/lib/attendance";
 import type { PartnerPointTransaction } from "@/lib/partnerProfile";
@@ -36,11 +36,65 @@ export default function PointsActivityContent({
   const [stampDate, setStampDate] = useState("");
   const [message, setMessage] = useState("");
   const [lastAward, setLastAward] = useState<AttendanceAward | null>(null);
+  const [syncing, setSyncing] = useState(false);
+  const [syncMessage, setSyncMessage] = useState("");
 
   const calendar = useMemo(
     () => buildCalendar(selectedMonth, attendance.checkedDates),
     [selectedMonth, attendance.checkedDates]
   );
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function syncQuickSdk() {
+      setSyncing(true);
+
+      try {
+        const response = await fetch("/api/account/sync-quicksdk", {
+          method: "POST",
+        });
+        const payload = (await response.json().catch(() => null)) as {
+          status?: "synced" | "skipped";
+          profile?: { points: number };
+          attendance?: AttendanceSummary;
+          message?: string;
+        } | null;
+
+        if (cancelled) {
+          return;
+        }
+
+        if (!response.ok || !payload) {
+          setSyncMessage(payload?.message ?? "同步失败，当前显示最近一次数据。");
+          return;
+        }
+
+        if (typeof payload.profile?.points === "number") {
+          setPoints(payload.profile.points);
+        }
+        if (payload.attendance) {
+          setAttendance(payload.attendance);
+          setSelectedMonth(payload.attendance.monthKey);
+        }
+        setSyncMessage(payload.status === "skipped" ? "已显示最新同步数据。" : "同步完成。");
+      } catch {
+        if (!cancelled) {
+          setSyncMessage("同步失败，当前显示最近一次数据。");
+        }
+      } finally {
+        if (!cancelled) {
+          setSyncing(false);
+        }
+      }
+    }
+
+    void syncQuickSdk();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   async function checkIn() {
     setCheckingIn(true);
@@ -57,7 +111,7 @@ export default function PointsActivityContent({
         if (payload?.summary) {
           setAttendance(payload.summary);
         }
-        setMessage(payload?.message ?? "出席处理失败。");
+        setMessage(payload?.message ?? "签到处理失败。");
         return;
       }
 
@@ -72,10 +126,10 @@ export default function PointsActivityContent({
       }
       if (payload?.award) {
         setLastAward(payload.award);
-        setMessage(`出席完成，获得 ${payload.award.totalAwarded.toLocaleString()} MIR 积分。`);
+        setMessage(`签到完成，获得 ${payload.award.totalAwarded.toLocaleString()} MIR 积分。`);
       }
     } catch {
-      setMessage("当前无法连接出席服务。");
+      setMessage("当前无法连接签到服务。");
     } finally {
       setCheckingIn(false);
     }
@@ -92,8 +146,11 @@ export default function PointsActivityContent({
             <div style={eyebrowStyle}>Point Activity</div>
             <h1 style={titleStyle}>积分活动</h1>
             <p style={subtitleStyle}>
-              每日出席和小游戏奖励都会累计到 MIR 积分，并同步计入合伙人星级成长。
+              每日签到和小游戏奖励都会累计到 MIR 积分，并同步计入合伙人星级成长。
             </p>
+            <div style={syncStatusStyle(syncing)}>
+              {syncing ? "同步中..." : syncMessage || "已加载最近一次数据。"}
+            </div>
           </div>
           <div style={pointsPanelStyle}>
             <span style={pointsLabelStyle}>当前 MIR 积分</span>
@@ -104,8 +161,8 @@ export default function PointsActivityContent({
         <section style={cardStyle}>
           <div style={sectionHeaderStyle}>
             <div>
-              <div style={eyebrowStyle}>Daily Attendance</div>
-              <h2 style={sectionTitleStyle}>每日出席</h2>
+              <div style={eyebrowStyle}>Daily Check-in</div>
+              <h2 style={sectionTitleStyle}>每日签到</h2>
             </div>
             <button
               type="button"
@@ -117,13 +174,13 @@ export default function PointsActivityContent({
                 cursor: checkingIn || attendance.checkedToday ? "not-allowed" : "pointer",
               }}
             >
-              {attendance.checkedToday ? "今日已出席" : checkingIn ? "出席中..." : "立即出席"}
+              {attendance.checkedToday ? "今日已签到" : checkingIn ? "签到中..." : "立即签到"}
             </button>
           </div>
 
           <div style={attendanceGridStyle}>
             <div style={attendanceStatsStyle}>
-              <InfoTile label="累计出席" value={`${attendance.totalDays.toLocaleString()} 天`} accent="#facc15" />
+              <InfoTile label="累计签到" value={`${attendance.totalDays.toLocaleString()} 天`} accent="#facc15" />
               <InfoTile label="每日奖励" value="+100" accent="#86efac" />
               <InfoTile
                 label="7日追加"
@@ -145,7 +202,7 @@ export default function PointsActivityContent({
               ) : (
                 <div style={awardBreakdownStyle}>
                   <strong>奖励规则</strong>
-                  <span>每天出席 +100</span>
+                  <span>每天签到 +100</span>
                   <span>累计每 7 天 +1000</span>
                   <span>累计每 30 天 +5000</span>
                 </div>
@@ -197,7 +254,7 @@ export default function PointsActivityContent({
                   >
                     <span style={dayNumberStyle}>{day.day}</span>
                     {day.checked ? (
-                      <span style={day.date === stampDate ? stampStyleActive : stampStyle}>出席</span>
+                      <span style={day.date === stampDate ? stampStyleActive : stampStyle}>签到</span>
                     ) : null}
                   </div>
                 ))}
@@ -367,6 +424,20 @@ const subtitleStyle: React.CSSProperties = {
   color: "#b8b8c5",
   lineHeight: 1.7,
 };
+
+const syncStatusStyle = (active: boolean): React.CSSProperties => ({
+  display: "inline-flex",
+  alignItems: "center",
+  minHeight: "30px",
+  marginTop: "14px",
+  padding: "0 12px",
+  borderRadius: "999px",
+  background: active ? "rgba(59,130,246,0.14)" : "rgba(255,255,255,0.05)",
+  border: active ? "1px solid rgba(96,165,250,0.28)" : "1px solid rgba(255,255,255,0.08)",
+  color: active ? "#bfdbfe" : "#a1a1aa",
+  fontSize: "12px",
+  fontWeight: 800,
+});
 
 const pointsPanelStyle: React.CSSProperties = {
   minWidth: "220px",

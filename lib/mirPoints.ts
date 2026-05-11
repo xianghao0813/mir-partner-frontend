@@ -321,7 +321,7 @@ function getPointSourceTitle(source: string) {
     case "boss_last_hit":
       return "小游戏积分";
     case "daily_attendance":
-      return "每日出席积分";
+      return "每日签到积分";
     default:
       return "MIR 积分";
   }
@@ -334,7 +334,7 @@ function getPointSourceDescription(source: string) {
     case "boss_last_hit":
       return "遗迹冲刺小游戏奖励";
     case "daily_attendance":
-      return "每日出席活动奖励";
+      return "每日签到活动奖励";
     default:
       return source || "积分变动";
   }

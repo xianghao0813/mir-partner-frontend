@@ -43,7 +43,11 @@ export type PartnerPointTransaction = {
   source: string;
 };
 
-export async function buildPartnerProfileSummary(user: User): Promise<PartnerProfileSummary> {
+export async function buildPartnerProfileSummary(
+  user: User,
+  options: { includeQuickSdkFallback?: boolean } = {}
+): Promise<PartnerProfileSummary> {
+  const includeQuickSdkFallback = options.includeQuickSdkFallback ?? true;
   const uid = String(user.user_metadata?.quicksdk_uid ?? "").trim();
   const partnerCode =
     readStringMetadata(user, [
@@ -59,7 +63,11 @@ export async function buildPartnerProfileSummary(user: User): Promise<PartnerPro
   ]);
   const metadataPointTransactions = readPointTransactions(user.user_metadata);
   const fallbackPointTransactions =
-    metadataPointTransactions.length > 0 ? metadataPointTransactions : await readQuickSdkPointTransactions(uid);
+    metadataPointTransactions.length > 0
+      ? metadataPointTransactions
+      : includeQuickSdkFallback
+        ? await readQuickSdkPointTransactions(uid)
+        : [];
   const pointTransactions = dbPointTransactions.length > 0 ? dbPointTransactions : fallbackPointTransactions;
   const pointsSummary = buildMirPointSummary(user.user_metadata);
   const recalculatedPoints = pointTransactions.reduce((sum, entry) => sum + entry.points, 0);
