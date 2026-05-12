@@ -72,7 +72,7 @@ type AccountSecurity = {
 };
 
 const coinTiers: CoinTier[] = [
-  { id: 1, coins: 100, priceLabel: "¥2", image: "/cloud-coins/tier-1.png" },
+  { id: 1, coins: 2, priceLabel: "¥2", image: "/cloud-coins/tier-1.png" },
   { id: 2, coins: 300, priceLabel: "¥300", image: "/cloud-coins/tier-2.png" },
   { id: 3, coins: 500, priceLabel: "¥500", image: "/cloud-coins/tier-3.png" },
   { id: 4, coins: 1000, priceLabel: "¥1,000", image: "/cloud-coins/tier-4.png" },
