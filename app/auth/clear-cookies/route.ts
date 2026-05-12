@@ -37,9 +37,15 @@ function clearKnownCookies(response: NextResponse) {
 
 function getSupabaseAuthCookieNames() {
   const projectRef = getSupabaseProjectRef();
-  const baseNames = projectRef
-    ? [`sb-${projectRef}-auth-token`]
-    : ["sb-auth-token"];
+  const baseNames = [
+    "sb-auth-token",
+    "mir-partner-auth-token",
+    "mir-partner-frontend-auth-token",
+  ];
+
+  if (projectRef) {
+    baseNames.push(`sb-${projectRef}-auth-token`);
+  }
 
   return baseNames.flatMap(getCookieChunkNames);
 }
@@ -50,7 +56,7 @@ function getAdminAuthCookieNames() {
 
 function getCookieChunkNames(baseName: string) {
   const names = [baseName];
-  for (let index = 0; index <= 25; index += 1) {
+  for (let index = 0; index <= 100; index += 1) {
     names.push(`${baseName}.${index}`);
   }
   return names;

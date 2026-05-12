@@ -30,9 +30,17 @@ export async function POST() {
 function getSupabaseAuthCookieNames() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
   const projectRef = url.match(/^https?:\/\/([^.]+)\.supabase\.co/i)?.[1] ?? "";
-  const baseName = projectRef ? `sb-${projectRef}-auth-token` : "sb-auth-token";
+  const baseNames = [
+    "sb-auth-token",
+    "mir-partner-auth-token",
+    "mir-partner-frontend-auth-token",
+  ];
 
-  return getCookieChunkNames(baseName);
+  if (projectRef) {
+    baseNames.push(`sb-${projectRef}-auth-token`);
+  }
+
+  return baseNames.flatMap(getCookieChunkNames);
 }
 
 function getAdminAuthCookieNames() {
@@ -41,7 +49,7 @@ function getAdminAuthCookieNames() {
 
 function getCookieChunkNames(baseName: string) {
   const names = [baseName];
-  for (let index = 0; index <= 25; index += 1) {
+  for (let index = 0; index <= 100; index += 1) {
     names.push(`${baseName}.${index}`);
   }
   return names;
