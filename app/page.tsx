@@ -28,7 +28,7 @@ type FeaturedNews = {
 
 const gameLabelMap: Record<string, string> = {
   mir4: "MIR4",
-  mirm: "MIR M",
+  mirm: "暮光双龙",
   "night-crows": "Night Crows",
   "legend-of-ymir": "Legend of YMIR",
 };
@@ -46,7 +46,7 @@ const showcasePosters = [
     image: "/banners/mir4-main.jpg",
   },
   {
-    title: "MIR M",
+    title: "暮光双龙",
     subtitle: "Legacy Reforged For Mobile",
     image: "/games/mir-m.jpg",
   },
