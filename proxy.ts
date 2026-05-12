@@ -35,9 +35,13 @@ export async function proxy(request: NextRequest) {
 
   const pathname = request.nextUrl.pathname;
   const protectedPaths = ["/profile", "/profile/wallet", "/admin"];
+  const frozenApiPaths = ["/api/account", "/api/coupons", "/api/payment", "/api/points", "/api/minigame"];
   const isProtected = protectedPaths.some(
     (protectedPath) =>
       pathname === protectedPath || pathname.startsWith(`${protectedPath}/`)
+  );
+  const isFrozenApi = frozenApiPaths.some(
+    (apiPath) => pathname === apiPath || pathname.startsWith(`${apiPath}/`)
   );
 
   if (isProtected && !user) {
@@ -46,9 +50,48 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
+  if (user && isAccountFrozen(user.user_metadata) && pathname !== "/account/frozen") {
+    if (isFrozenApi) {
+      return NextResponse.json(
+        {
+          message: "系统检测到账户存在异常情况，当前账号已被冻结。请联系客户中心处理。",
+        },
+        { status: 403 }
+      );
+    }
+
+    if (isProtected) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/account/frozen";
+      return NextResponse.redirect(url);
+    }
+  }
+
   return response;
 }
 
 export const config = {
-  matcher: ["/profile/:path*", "/admin/:path*"],
+  matcher: [
+    "/profile/:path*",
+    "/admin/:path*",
+    "/api/account/:path*",
+    "/api/coupons/:path*",
+    "/api/payment/:path*",
+    "/api/points/:path*",
+    "/api/minigame/:path*",
+  ],
 };
+
+function isAccountFrozen(metadata: Record<string, unknown> | null | undefined) {
+  if (String(metadata?.account_status ?? "").toLowerCase() !== "frozen") {
+    return false;
+  }
+
+  const frozenUntil = String(metadata?.account_frozen_until ?? "").trim();
+  if (!frozenUntil) {
+    return true;
+  }
+
+  const timestamp = Date.parse(frozenUntil);
+  return Number.isNaN(timestamp) || timestamp > Date.now();
+}

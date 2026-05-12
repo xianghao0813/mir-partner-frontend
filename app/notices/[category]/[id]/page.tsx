@@ -190,15 +190,14 @@ export default function NoticeDetailPage() {
               )}
 
               <div
+                className="notice-rich-content"
                 style={{
                   color: "#e5e7eb",
                   lineHeight: 1.9,
                   fontSize: "17px",
-                  whiteSpace: "pre-wrap",
                 }}
-              >
-                {post.content}
-              </div>
+                dangerouslySetInnerHTML={{ __html: normalizeNoticeContent(post.content) }}
+              />
             </>
           )}
         </div>
@@ -212,3 +211,39 @@ const stateStyle: React.CSSProperties = {
   textAlign: "center",
   color: "#8d8d98",
 };
+
+function normalizeNoticeContent(content: string) {
+  const trimmed = content.trim();
+  if (!trimmed) {
+    return "";
+  }
+
+  if (/<[a-z][\s\S]*>/i.test(trimmed)) {
+    return sanitizeRichTextHtml(trimmed);
+  }
+
+  return trimmed
+    .split("\n")
+    .map((paragraph) => `<p>${escapeHtml(paragraph) || "&nbsp;"}</p>`)
+    .join("");
+}
+
+function sanitizeRichTextHtml(html: string) {
+  return html
+    .replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, "")
+    .replace(/<style[\s\S]*?>[\s\S]*?<\/style>/gi, "")
+    .replace(/<iframe[\s\S]*?>[\s\S]*?<\/iframe>/gi, "")
+    .replace(/<\/?(?:object|embed|form|input|button|textarea|select|option|meta|link)[^>]*>/gi, "")
+    .replace(/\s+on\w+=(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, "")
+    .replace(/\s+(href|src)=(["'])\s*javascript:[\s\S]*?\2/gi, "")
+    .replace(/\s+(href|src)=javascript:[^\s>]+/gi, "");
+}
+
+function escapeHtml(value: string) {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}

@@ -40,8 +40,6 @@ body {
 body {
   -ms-overflow-style: none;
   scrollbar-width: none;
-  -webkit-user-select: none;
-  user-select: none;
 }
 
 body::-webkit-scrollbar,
@@ -481,6 +479,70 @@ a {
   outline: 2px solid rgba(196, 181, 253, 0.72);
   outline-offset: 4px;
   border-radius: 10px;
+}
+
+.notice-rich-content {
+  overflow-wrap: anywhere;
+}
+
+.notice-rich-content :where(p, h2, h3, blockquote, ul, ol, table) {
+  margin-top: 0;
+}
+
+.notice-rich-content :where(p, h2, h3, blockquote, ul, ol) {
+  margin-bottom: 14px;
+}
+
+.notice-rich-content h2 {
+  color: #fff;
+  font-size: 28px;
+  line-height: 1.35;
+}
+
+.notice-rich-content h3 {
+  color: #fff;
+  font-size: 22px;
+  line-height: 1.4;
+}
+
+.notice-rich-content blockquote {
+  border-left: 4px solid rgba(192, 132, 252, 0.72);
+  padding: 12px 16px;
+  background: rgba(124, 58, 237, 0.12);
+  border-radius: 0 14px 14px 0;
+}
+
+.notice-rich-content a {
+  color: #c084fc;
+  text-decoration: underline;
+}
+
+.notice-rich-content img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 18px 0;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.notice-rich-content table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 18px 0;
+  overflow: hidden;
+  border-radius: 14px;
+}
+
+.notice-rich-content :where(th, td) {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  padding: 12px 14px;
+  text-align: left;
+}
+
+.notice-rich-content th {
+  background: rgba(124, 58, 237, 0.18);
+  color: #fff;
 }
 
 @media (max-width: 420px) {

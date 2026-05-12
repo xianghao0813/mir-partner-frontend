@@ -7,6 +7,7 @@ import {
   getShanghaiDateKey,
 } from "@/lib/attendance";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { readPointTransactionsFromDb } from "@/lib/userLedgers";
 
 type AttendanceAction =
   | { type: "checkin"; date?: string }
@@ -20,6 +21,7 @@ export async function readAttendanceSummaryFromDb(
   const monthKey = getShanghaiDateKey(now).slice(0, 7);
 
   await migrateAttendanceMetadataToDb(userId, metadata, monthKey);
+  await recoverAttendanceRecordsFromPointLedger(userId, monthKey);
 
   const dbMetadata = await buildAttendanceMetadataFromDb(userId, monthKey, metadata);
   if (!dbMetadata) {
@@ -58,6 +60,7 @@ export async function applyAttendanceActionInDb({
   const monthKey = getShanghaiDateKey(now).slice(0, 7);
 
   await migrateAttendanceMetadataToDb(userId, metadata, monthKey);
+  await recoverAttendanceRecordsFromPointLedger(userId, monthKey);
 
   const dbMetadata = await buildAttendanceMetadataFromDb(userId, monthKey, metadata);
   const result = applyAttendanceAction(dbMetadata ?? metadata, action, now);
@@ -185,6 +188,65 @@ async function readAttendanceRecords(userId: string, monthKey: string) {
     date: readDate(record.attendance_date),
     type: record.type === "makeup" ? "makeup" : "checkin",
   }));
+}
+
+async function recoverAttendanceRecordsFromPointLedger(userId: string, monthKey: string) {
+  const transactions = await readPointTransactionsFromDb(userId, monthKey);
+  const rows = transactions
+    .map((transaction) => {
+      const date =
+        readDateFromTransactionKey(transaction.id, "point-checkin-") ||
+        readDateFromTransactionKey(transaction.id, "point-makeup-") ||
+        readDate(transaction.createdAt);
+      const source = readString(transaction.source);
+
+      if (!date.startsWith(monthKey)) {
+        return null;
+      }
+
+      if (source !== "daily_attendance" && source !== "attendance_makeup") {
+        return null;
+      }
+
+      return {
+        user_id: userId,
+        attendance_date: date,
+        month_key: monthKey,
+        type: source === "attendance_makeup" ? "makeup" : "checkin",
+      };
+    })
+    .filter((row): row is {
+      user_id: string;
+      attendance_date: string;
+      month_key: string;
+      type: "checkin" | "makeup";
+    } => row !== null);
+
+  if (rows.length === 0) {
+    return;
+  }
+
+  const uniqueRows = Array.from(
+    new Map(rows.map((row) => [`${row.user_id}:${row.attendance_date}`, row])).values()
+  );
+
+  const { error } = await supabaseAdmin.from("attendance_records").upsert(
+    uniqueRows,
+    { onConflict: "user_id,attendance_date", ignoreDuplicates: true }
+  );
+
+  if (error && error.code !== "42P01") {
+    console.error("[attendance_records recover from points]", error);
+  }
+}
+
+function readDateFromTransactionKey(value: string, prefix: string) {
+  if (!value.startsWith(prefix)) {
+    return "";
+  }
+
+  const date = value.slice(prefix.length, prefix.length + 10);
+  return /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : "";
 }
 
 async function readAttendanceBonusKeys(userId: string, monthKey: string) {

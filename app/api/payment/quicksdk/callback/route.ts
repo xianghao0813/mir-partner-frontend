@@ -4,6 +4,7 @@ import { getCloudCoinPackage } from "@/lib/cloudCoinPackages";
 import { applyCouponDiscount, expireCouponCheckoutSessions, getCouponStatus, isPackageApplicable, type UserCouponRecord } from "@/lib/coupons";
 import { changeQuickSdkPlatformCoins, normalizeQuickSdkCallbackPayload } from "@/lib/quicksdk";
 import { awardMirPoints } from "@/lib/mirPoints";
+import { recordRiskEvent } from "@/lib/riskControl";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { insertPointTransaction, insertWalletTransaction } from "@/lib/userLedgers";
 import { appendWalletTransaction, readCloudCoins, readWalletTransactions } from "@/lib/wallet";
@@ -58,6 +59,16 @@ export async function POST(request: NextRequest) {
       rawPayload,
       payload,
     });
+    await recordRiskEvent({
+      userId,
+      eventType: "invalid_payment_callback_signature",
+      severity: "critical",
+      score: 100,
+      source: "quicksdk_callback",
+      request,
+      autoFreeze: true,
+      details: { cpOrderNo, payload },
+    });
     return new NextResponse("SUCCESS");
   }
 
@@ -77,6 +88,22 @@ export async function POST(request: NextRequest) {
       expectedAmount,
       extras,
       payload,
+    });
+    await recordRiskEvent({
+      userId,
+      eventType: "payment_amount_mismatch",
+      severity: "critical",
+      score: 100,
+      source: "quicksdk_callback",
+      request,
+      autoFreeze: true,
+      details: {
+        cpOrderNo,
+        paidAmount,
+        expectedAmount,
+        extras,
+        payload,
+      },
     });
 
     return new NextResponse("SUCCESS");

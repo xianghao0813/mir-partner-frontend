@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getCloudCoinPackage } from "@/lib/cloudCoinPackages";
 import { requireRealNameVerified } from "@/lib/accountSecurity";
 import { createQuickSdkPayUrl, getQuickSdkPublicBaseUrl } from "@/lib/quicksdk";
+import { detectRapidPaymentAttempts, recordRiskEvent } from "@/lib/riskControl";
 import { createClient } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
@@ -32,7 +33,29 @@ export async function POST(request: NextRequest) {
     const selectedPackage = getCloudCoinPackage(packageId);
 
     if (!selectedPackage) {
+      await recordRiskEvent({
+        userId: user.id,
+        eventType: "invalid_payment_package",
+        severity: "medium",
+        score: 20,
+        source: "payment_order",
+        request,
+        details: { packageId: body?.packageId ?? null },
+      });
       return NextResponse.json({ message: "无效的充值档位。" }, { status: 400 });
+    }
+
+    const rapidCheck = await detectRapidPaymentAttempts({
+      userId: user.id,
+      request,
+      source: "payment_order",
+    });
+
+    if (rapidCheck.blocked) {
+      return NextResponse.json(
+        { message: "请求过于频繁，请稍后再试。如账号被冻结，请联系客户中心。" },
+        { status: 429 }
+      );
     }
 
     const uid = String(user.user_metadata?.quicksdk_uid ?? "").trim();

@@ -7,6 +7,7 @@ import {
   type UserCouponRecord,
 } from "@/lib/coupons";
 import { requireRealNameVerified } from "@/lib/accountSecurity";
+import { recordRiskEvent } from "@/lib/riskControl";
 import { createClient } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
@@ -42,10 +43,26 @@ export async function POST(
   }
 
   if (!coupon) {
+    await recordRiskEvent({
+      userId: user.id,
+      eventType: "missing_coupon_checkout_attempt",
+      severity: "medium",
+      score: 30,
+      source: "coupon_checkout_session",
+      details: { couponId },
+    });
     return NextResponse.json({ message: "优惠券不存在。" }, { status: 404 });
   }
 
   if (getCouponStatus(coupon as UserCouponRecord) !== "unused") {
+    await recordRiskEvent({
+      userId: user.id,
+      eventType: "unusable_coupon_checkout_attempt",
+      severity: "medium",
+      score: 30,
+      source: "coupon_checkout_session",
+      details: { couponId, status: getCouponStatus(coupon as UserCouponRecord) },
+    });
     return NextResponse.json({ message: "该优惠券当前不可使用。" }, { status: 400 });
   }
 
