@@ -11,12 +11,16 @@ export async function POST() {
   response.cookies.set(BOSS_LAST_HIT_COOKIE, "", {
     path: "/",
     maxAge: 0,
+    expires: new Date(0),
   });
 
-  getSupabaseAuthCookieNames().forEach((name) => {
-    response.cookies.set(name, "", {
-      path: "/",
-      maxAge: 0,
+  [...getSupabaseAuthCookieNames(), ...getAdminAuthCookieNames()].forEach((name) => {
+    ["/", "/admin"].forEach((path) => {
+      response.cookies.set(name, "", {
+        path,
+        maxAge: 0,
+        expires: new Date(0),
+      });
     });
   });
 
@@ -28,13 +32,17 @@ function getSupabaseAuthCookieNames() {
   const projectRef = url.match(/^https?:\/\/([^.]+)\.supabase\.co/i)?.[1] ?? "";
   const baseName = projectRef ? `sb-${projectRef}-auth-token` : "sb-auth-token";
 
-  return [
-    baseName,
-    `${baseName}.0`,
-    `${baseName}.1`,
-    `${baseName}.2`,
-    `${baseName}.3`,
-    `${baseName}.4`,
-    `${baseName}.5`,
-  ];
+  return getCookieChunkNames(baseName);
+}
+
+function getAdminAuthCookieNames() {
+  return getCookieChunkNames("mir-partner-admin-auth-token");
+}
+
+function getCookieChunkNames(baseName: string) {
+  const names = [baseName];
+  for (let index = 0; index <= 25; index += 1) {
+    names.push(`${baseName}.${index}`);
+  }
+  return names;
 }

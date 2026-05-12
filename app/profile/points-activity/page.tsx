@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { buildAttendanceSummary } from "@/lib/attendance";
+import { readAttendanceSummaryFromDb } from "@/lib/attendanceDb";
 import { buildPartnerProfileSummary } from "@/lib/partnerProfile";
 import { createClient } from "@/lib/supabase/server";
 import PointsActivityContent from "./PointsActivityContent";
@@ -21,7 +21,7 @@ export default async function PointsActivityPage() {
   return (
     <PointsActivityContent
       initialPoints={profile.points}
-      initialSummary={buildAttendanceSummary(user.user_metadata)}
+      initialSummary={await readAttendanceSummaryFromDb(user.id, user.user_metadata)}
     />
   );
 }

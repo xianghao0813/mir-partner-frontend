@@ -1,17 +1,14 @@
 import { cookies } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
-import { compactAuthMetadata } from "@/lib/authMetadata";
 import { createClient } from "@/lib/supabase/server";
-import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import {
   BOSS_LAST_HIT_COOKIE,
   buildBossLastHitPublicState,
-  getRewardClaimDateInShanghai,
-  getTodayRewardClaimed,
   normalizeDailyRunnerState,
   parseBossLastHitState,
   resolveBossLastHitStrike,
 } from "@/lib/bossLastHit";
+import { readBossLastHitDailyState, saveBossLastHitRun } from "@/lib/bossLastHitDb";
 
 export async function POST(request: NextRequest) {
   const supabase = await createClient();
@@ -48,7 +45,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ message: "Invalid run result." }, { status: 400 });
   }
 
-  const rewardClaimedDate = getTodayRewardClaimed(user.user_metadata);
+  const dailyState = await readBossLastHitDailyState(user.id, user.user_metadata);
+  const rewardClaimedDate = dailyState.rewardClaimedDate;
   const nextState = resolveBossLastHitStrike(normalizeDailyRunnerState(state, rewardClaimedDate), {
     score: body.score,
     distance: body.distance,
@@ -56,18 +54,13 @@ export async function POST(request: NextRequest) {
     durationMs: body.durationMs,
   });
 
-  const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(user.id, {
-    user_metadata: compactAuthMetadata({
-      ...(user.user_metadata ?? {}),
-      boss_last_hit_best_score: nextState.bestScore,
-      boss_last_hit_day_key: getRewardClaimDateInShanghai(),
-      boss_last_hit_daily_runs: nextState.dailyRunCount,
-      boss_last_hit_daily_best_score: nextState.dailyBestScore,
-    }),
-  });
-
-  if (updateError) {
-    return NextResponse.json({ message: updateError.message }, { status: 500 });
+  try {
+    await saveBossLastHitRun(user.id, nextState);
+  } catch (error) {
+    return NextResponse.json(
+      { message: error instanceof Error ? error.message : "Failed to save game result." },
+      { status: 500 }
+    );
   }
 
   const response = NextResponse.json({

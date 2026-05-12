@@ -21,12 +21,16 @@ function clearKnownCookies(response: NextResponse) {
   const names = new Set<string>([
     BOSS_LAST_HIT_COOKIE,
     ...getSupabaseAuthCookieNames(),
+    ...getAdminAuthCookieNames(),
   ]);
 
   names.forEach((name) => {
-    response.cookies.set(name, "", {
-      path: "/",
-      maxAge: 0,
+    ["/", "/admin"].forEach((path) => {
+      response.cookies.set(name, "", {
+        path,
+        maxAge: 0,
+        expires: new Date(0),
+      });
     });
   });
 }
@@ -37,15 +41,19 @@ function getSupabaseAuthCookieNames() {
     ? [`sb-${projectRef}-auth-token`]
     : ["sb-auth-token"];
 
-  return baseNames.flatMap((name) => [
-    name,
-    `${name}.0`,
-    `${name}.1`,
-    `${name}.2`,
-    `${name}.3`,
-    `${name}.4`,
-    `${name}.5`,
-  ]);
+  return baseNames.flatMap(getCookieChunkNames);
+}
+
+function getAdminAuthCookieNames() {
+  return getCookieChunkNames("mir-partner-admin-auth-token");
+}
+
+function getCookieChunkNames(baseName: string) {
+  const names = [baseName];
+  for (let index = 0; index <= 25; index += 1) {
+    names.push(`${baseName}.${index}`);
+  }
+  return names;
 }
 
 function getSupabaseProjectRef() {

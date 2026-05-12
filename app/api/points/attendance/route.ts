@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { compactAuthMetadata } from "@/lib/authMetadata";
-import { applyAttendanceAction, buildAttendanceSummary } from "@/lib/attendance";
+import { readAttendanceSummaryFromDb, applyAttendanceActionInDb } from "@/lib/attendanceDb";
 import { applyMirPointDelta, readMirPoints } from "@/lib/mirPoints";
 import { createClient } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
@@ -17,7 +17,7 @@ export async function GET() {
   }
 
   return NextResponse.json({
-    summary: buildAttendanceSummary(user.user_metadata),
+    summary: await readAttendanceSummaryFromDb(user.id, user.user_metadata),
   });
 }
 
@@ -49,7 +49,19 @@ export async function POST(request: NextRequest) {
     body?.type === "makeup" && body.date
       ? { type: "makeup" as const, date: body.date, currentPoints }
       : { type: "checkin" as const };
-  const result = applyAttendanceAction(baseMetadata, action);
+  let result: Awaited<ReturnType<typeof applyAttendanceActionInDb>>;
+  try {
+    result = await applyAttendanceActionInDb({
+      userId: user.id,
+      metadata: baseMetadata,
+      action,
+    });
+  } catch (error) {
+    return NextResponse.json(
+      { message: error instanceof Error ? error.message : "Failed to process attendance." },
+      { status: 500 }
+    );
+  }
 
   if (!result.ok || !result.award) {
     return NextResponse.json(

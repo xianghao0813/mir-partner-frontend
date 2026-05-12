@@ -10,9 +10,9 @@ import {
   buildBossLastHitPublicState,
   createBossLastHitRewardReceipt,
   getRewardClaimDateInShanghai,
-  getTodayRewardClaimed,
   parseBossLastHitState,
 } from "@/lib/bossLastHit";
+import { markBossLastHitRewardClaimed, readBossLastHitDailyState } from "@/lib/bossLastHitDb";
 
 export async function POST(request: NextRequest) {
   const supabase = await createClient();
@@ -32,7 +32,8 @@ export async function POST(request: NextRequest) {
   }
 
   const today = getRewardClaimDateInShanghai();
-  const rewardClaimedDate = getTodayRewardClaimed(user.user_metadata);
+  const dailyState = await readBossLastHitDailyState(user.id, user.user_metadata);
+  const rewardClaimedDate = dailyState.rewardClaimedDate;
   const ledgerTransactions = await readPointTransactionsFromDb(user.id);
   const ledgerPoints = ledgerTransactions.reduce((sum, entry) => sum + entry.points, 0);
   const baseMetadata =
@@ -70,8 +71,6 @@ export async function POST(request: NextRequest) {
   const { error } = await supabaseAdmin.auth.admin.updateUserById(user.id, {
     user_metadata: compactAuthMetadata({
       ...pointAward.metadata,
-      boss_last_hit_reward_date: today,
-      boss_last_hit_reward_receipt: receipt,
     }),
   });
 
@@ -83,6 +82,22 @@ export async function POST(request: NextRequest) {
     ...gameState,
     rewardClaimedDate: today,
   };
+
+  try {
+    await markBossLastHitRewardClaimed({
+      userId: user.id,
+      dayKey: today,
+      receipt,
+      bestScore: Math.max(gameState.bestScore, dailyState.bestScore),
+      dailyBestScore: Math.max(gameState.dailyBestScore, dailyState.dailyBestScore),
+      dailyRunCount: Math.max(gameState.dailyRunCount, dailyState.dailyRunCount),
+    });
+  } catch (claimError) {
+    return NextResponse.json(
+      { message: claimError instanceof Error ? claimError.message : "Failed to save reward claim." },
+      { status: 500 }
+    );
+  }
   const pointTransactions = Array.isArray(pointAward.metadata.mir_point_transactions)
     ? pointAward.metadata.mir_point_transactions
     : [];

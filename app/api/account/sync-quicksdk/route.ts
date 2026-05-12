@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import type { User } from "@supabase/supabase-js";
-import { buildAttendanceSummary } from "@/lib/attendance";
+import { readAttendanceSummaryFromDb } from "@/lib/attendanceDb";
 import { buildPartnerProfileSummary } from "@/lib/partnerProfile";
 import { createClient } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
@@ -66,7 +66,7 @@ async function buildSyncPayload(
     syncedAt: readString(user.user_metadata?.mir_quicksdk_synced_at),
     profile,
     wallet,
-    attendance: buildAttendanceSummary(user.user_metadata),
+    attendance: await readAttendanceSummaryFromDb(user.id, user.user_metadata),
   };
 }
 
