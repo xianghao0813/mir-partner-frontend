@@ -4,7 +4,7 @@ import { requireRealNameVerified } from "@/lib/accountSecurity";
 import { readMirPoints } from "@/lib/mirPoints";
 import { createClient } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { getTierCouponClaimState, grantTierCoupons } from "@/lib/tierCoupons";
+import { getGrantedTierCouponIdFromDb, getTierCouponClaimState, grantTierCoupons } from "@/lib/tierCoupons";
 import { readPointTransactionsFromDb } from "@/lib/userLedgers";
 
 export async function POST() {
@@ -31,7 +31,17 @@ export async function POST() {
         }
       : user.user_metadata;
   const points = readMirPoints(metadata);
-  const claimState = getTierCouponClaimState(metadata, points);
+  const dbGrantedTierId = await getGrantedTierCouponIdFromDb({
+    supabaseAdmin,
+    userId: user.id,
+  });
+  const metadataClaimState = getTierCouponClaimState(metadata, points);
+  const claimMetadata = {
+    ...(metadata ?? {}),
+    mir_coupon_grant_month_key: metadataClaimState.monthKey,
+    mir_coupon_grant_tier_id: Math.max(dbGrantedTierId, metadataClaimState.grantedTierId),
+  };
+  const claimState = getTierCouponClaimState(claimMetadata, points);
 
   if (!claimState.claimable) {
     return NextResponse.json(
@@ -43,7 +53,7 @@ export async function POST() {
   const grant = await grantTierCoupons({
     supabaseAdmin,
     userId: user.id,
-    metadata,
+    metadata: claimMetadata,
     targetTierId: claimState.currentTierId,
     reason: "tier_upgrade_claim",
   });

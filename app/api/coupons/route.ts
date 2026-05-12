@@ -12,7 +12,7 @@ import { requireRealNameVerified } from "@/lib/accountSecurity";
 import { getCurrentTier, readMirPoints } from "@/lib/mirPoints";
 import { createClient } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { getGrantedTierCouponId, grantTierCoupons } from "@/lib/tierCoupons";
+import { getGrantedTierCouponId, getGrantedTierCouponIdFromDb, grantTierCoupons } from "@/lib/tierCoupons";
 
 export async function GET() {
   const supabase = await createClient();
@@ -122,7 +122,8 @@ export async function GET() {
 }
 
 async function ensureMonthlyTierCoupons(userId: string, metadata: Record<string, unknown> | undefined) {
-  if (getGrantedTierCouponId(metadata) > 0) {
+  const dbGrantedTierId = await getGrantedTierCouponIdFromDb({ supabaseAdmin, userId });
+  if (Math.max(getGrantedTierCouponId(metadata), dbGrantedTierId) > 0) {
     return;
   }
 

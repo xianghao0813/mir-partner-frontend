@@ -8,7 +8,13 @@ import {
   type MirPartnerTier,
 } from "@/lib/mirPoints";
 import { getQuickSdkUserOrders, type QuickSdkOrderData } from "@/lib/quicksdk";
-import { getTierCouponBenefits, getTierCouponClaimState, type TierCouponBenefit } from "@/lib/tierCoupons";
+import {
+  getGrantedTierCouponIdFromDb,
+  getTierCouponBenefits,
+  getTierCouponClaimState,
+  type TierCouponBenefit,
+} from "@/lib/tierCoupons";
+import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { readPointTransactionsFromDb } from "@/lib/userLedgers";
 
 export { MIR_PARTNER_TIERS, type MirPartnerTier };
@@ -83,6 +89,19 @@ export async function buildPartnerProfileSummary(
             .reduce((sum, entry) => sum + Math.max(0, entry.points), 0)
       : pointsSummary.monthlyPoints;
   const currentTier = getCurrentTier(effectivePoints);
+  const dbGrantedTierId = await getGrantedTierCouponIdFromDb({
+    supabaseAdmin,
+    userId: user.id,
+    monthKey,
+  });
+  const claimBaseMetadata = {
+    ...recalculatedMetadata(user.user_metadata, pointTransactions),
+    mir_coupon_grant_month_key: monthKey,
+    mir_coupon_grant_tier_id: Math.max(
+      dbGrantedTierId,
+      getTierCouponClaimState(user.user_metadata, effectivePoints).grantedTierId
+    ),
+  };
   const nextTier = MIR_PARTNER_TIERS.find((tier) => tier.id === currentTier.id + 1) ?? null;
   const pointsToNextTier = nextTier ? Math.max(nextTier.minPoints - effectivePoints, 0) : 0;
   const progressPercent = nextTier
@@ -109,10 +128,7 @@ export async function buildPartnerProfileSummary(
     upgradedThisMonth: pointsSummary.upgradedThisMonth,
     pointTransactions,
     couponBenefits: getTierCouponBenefits(currentTier.id),
-    tierCouponClaim: getTierCouponClaimState(
-      recalculatedMetadata(user.user_metadata, pointTransactions),
-      effectivePoints
-    ),
+    tierCouponClaim: getTierCouponClaimState(claimBaseMetadata, effectivePoints),
   };
 }
 

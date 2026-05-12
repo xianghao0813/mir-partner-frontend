@@ -58,6 +58,34 @@ export function getGrantedTierCouponId(metadata: UserMetadata | undefined, month
   return readNumber(metadata?.mir_coupon_grant_tier_id);
 }
 
+export async function getGrantedTierCouponIdFromDb({
+  supabaseAdmin,
+  userId,
+  monthKey = getShanghaiMonthKey(),
+}: {
+  supabaseAdmin: SupabaseClient;
+  userId: string;
+  monthKey?: string;
+}) {
+  const monthCompact = monthKey.replace("-", "");
+  const { data, error } = await supabaseAdmin
+    .from("user_coupons")
+    .select("coupon_code")
+    .eq("user_id", userId)
+    .like("coupon_code", `MIR-${monthCompact}-T%`);
+
+  if (error) {
+    console.error("[tier coupon db grant lookup]", error);
+    return 0;
+  }
+
+  return (data ?? []).reduce((maxTier, coupon) => {
+    const match = readString(coupon.coupon_code).match(/^MIR-\d{6}-T(\d+)-/);
+    const tierId = match ? Number(match[1]) : 0;
+    return Number.isFinite(tierId) ? Math.max(maxTier, tierId) : maxTier;
+  }, 0);
+}
+
 export async function grantTierCoupons({
   supabaseAdmin,
   userId,
@@ -74,7 +102,10 @@ export async function grantTierCoupons({
   now?: Date;
 }): Promise<TierCouponGrantResult> {
   const monthKey = getShanghaiMonthKey(now);
-  const fromTierId = getGrantedTierCouponId(metadata, monthKey);
+  const fromTierId = Math.max(
+    getGrantedTierCouponId(metadata, monthKey),
+    await getGrantedTierCouponIdFromDb({ supabaseAdmin, userId, monthKey })
+  );
   const toTierId = Math.max(1, Math.min(MIR_PARTNER_TIERS.length, Math.floor(targetTierId || 1)));
 
   if (toTierId <= fromTierId) {
