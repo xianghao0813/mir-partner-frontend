@@ -28,7 +28,7 @@ export default function FrozenAccountPage() {
 }
 
 const pageStyle: React.CSSProperties = {
-  minHeight: "100vh",
+  minHeight: "100dvh",
   display: "grid",
   placeItems: "center",
   padding: "24px",
@@ -83,7 +83,7 @@ const descriptionStyle: React.CSSProperties = {
 
 const buttonRowStyle: React.CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "1fr 1fr",
+  gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))",
   gap: "10px",
 };
 

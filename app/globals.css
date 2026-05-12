@@ -545,6 +545,57 @@ a {
   color: #fff;
 }
 
+.notice-rich-content table {
+  min-width: 520px;
+}
+
+@media (max-width: 768px) {
+  .profile-page-shell,
+  .wallet-page-shell,
+  .points-page-shell {
+    height: calc(100dvh - 63px) !important;
+    margin: -18px !important;
+    width: calc(100% + 36px) !important;
+    padding: 28px 12px 80px !important;
+  }
+
+  .attendance-layout {
+    grid-template-columns: 1fr !important;
+  }
+
+  .attendance-calendar {
+    padding: 12px !important;
+    border-radius: 16px !important;
+  }
+
+  .attendance-weekdays,
+  .attendance-days {
+    gap: 5px !important;
+  }
+
+  .attendance-day {
+    min-height: 62px !important;
+    border-radius: 11px !important;
+  }
+
+  .notice-rich-content {
+    font-size: 14px;
+  }
+
+  .notice-rich-content h2 {
+    font-size: 22px;
+  }
+
+  .notice-rich-content h3 {
+    font-size: 18px;
+  }
+
+  .notice-rich-content table {
+    display: block;
+    overflow-x: auto;
+  }
+}
+
 @media (max-width: 420px) {
   .site-header-inner {
     padding: 9px 10px !important;
@@ -569,5 +620,26 @@ a {
   .home-hero-section,
   .home-showcase-section {
     min-height: calc(100dvh - 57px) !important;
+  }
+
+  .profile-page-shell,
+  .wallet-page-shell,
+  .points-page-shell {
+    height: calc(100dvh - 57px) !important;
+    padding: 22px 10px 72px !important;
+  }
+
+  .attendance-calendar {
+    padding: 10px !important;
+  }
+
+  .attendance-weekdays,
+  .attendance-days {
+    gap: 3px !important;
+  }
+
+  .attendance-day {
+    min-height: 54px !important;
+    border-radius: 9px !important;
   }
 }

@@ -153,7 +153,7 @@ export default function PointsActivityContent({
   }
 
   return (
-    <main className="hide-scrollbar" style={pageStyle}>
+    <main className="hide-scrollbar points-page-shell" style={pageStyle}>
       <div className="auth-bg" style={{ position: "fixed" }} />
       <div className="auth-overlay" style={{ position: "fixed" }} />
 
@@ -195,7 +195,7 @@ export default function PointsActivityContent({
             </button>
           </div>
 
-          <div style={attendanceGridStyle}>
+          <div className="attendance-layout" style={attendanceGridStyle}>
             <div style={attendanceStatsStyle}>
               <InfoTile label="本月签到" value={`${attendance.monthlyCheckedCount.toLocaleString()} 天`} accent="#facc15" />
               <InfoTile label="当前连续" value={`${attendance.currentStreak.toLocaleString()} 天`} accent="#86efac" />
@@ -222,7 +222,7 @@ export default function PointsActivityContent({
               {message ? <div style={messageStyle}>{message}</div> : null}
             </div>
 
-            <div style={calendarShellStyle}>
+            <div className="attendance-calendar" style={calendarShellStyle}>
               <div style={calendarTopStyle}>
                 <button type="button" onClick={() => setSelectedMonth(shiftMonth(selectedMonth, -1))} style={monthButtonStyle} aria-label="上个月">
                   ‹
@@ -233,14 +233,15 @@ export default function PointsActivityContent({
                 </button>
               </div>
 
-              <div style={weekdayGridStyle}>
+              <div className="attendance-weekdays" style={weekdayGridStyle}>
                 {["一", "二", "三", "四", "五", "六", "日"].map((day) => (
                   <div key={day} style={weekdayStyle}>{day}</div>
                 ))}
               </div>
-              <div style={calendarGridStyle}>
+              <div className="attendance-days" style={calendarGridStyle}>
                 {calendar.map((day) => (
                   <div
+                    className="attendance-day"
                     key={day.key}
                     style={{
                       ...dayCellStyle,

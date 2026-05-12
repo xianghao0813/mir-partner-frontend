@@ -627,7 +627,7 @@ export default function WalletPage() {
   }
 
   return (
-    <main className="hide-scrollbar" style={pageStyle}>
+    <main className="hide-scrollbar wallet-page-shell" style={pageStyle}>
       <style jsx global>{`
         .wallet-lift {
           transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease, background 180ms ease;

@@ -991,7 +991,7 @@ const pointsBadgeStyle: React.CSSProperties = {
 
 const mainGridStyle: React.CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "minmax(0, 1.65fr) minmax(300px, 0.9fr)",
+  gridTemplateColumns: "repeat(auto-fit, minmax(min(300px, 100%), 1fr))",
   gap: 22,
 };
 
@@ -1005,7 +1005,7 @@ const arenaCardStyle: React.CSSProperties = {
 
 const arenaTopBarStyle: React.CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+  gridTemplateColumns: "repeat(auto-fit, minmax(88px, 1fr))",
   gap: 12,
 };
 

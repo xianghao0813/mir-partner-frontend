@@ -164,7 +164,7 @@ export default function ProfileContent({ profile }: ProfileContentProps) {
   }
 
   return (
-    <main className="hide-scrollbar" style={pageStyle}>
+    <main className="hide-scrollbar profile-page-shell" style={pageStyle}>
       <div className="auth-bg" style={{ position: "fixed" }} />
       <div className="auth-overlay" style={{ position: "fixed" }} />
 
