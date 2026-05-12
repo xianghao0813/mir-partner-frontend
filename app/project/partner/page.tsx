@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
+import { createClient } from "@/lib/supabase/client";
 
 type Section = {
   id: string;
@@ -98,6 +99,35 @@ export default function PartnerPage() {
   const currentIndexRef = useRef(0);
   const isAnimatingRef = useRef(false);
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+
+  useEffect(() => {
+    const supabase = createClient();
+    let active = true;
+
+    async function loadSession() {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (active) {
+        setIsLoggedIn(Boolean(user));
+      }
+    }
+
+    void loadSession();
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setIsLoggedIn(Boolean(session?.user));
+    });
+
+    return () => {
+      active = false;
+      subscription.unsubscribe();
+    };
+  }, []);
 
   function getSectionTop(index: number) {
     const el = containerRef.current;
@@ -392,7 +422,7 @@ export default function PartnerPage() {
                   }}
                 >
                   <Link
-                    href="/signup"
+                    href={isLoggedIn ? "/profile" : "/signup"}
                     style={{
                       textDecoration: "none",
                       padding: "14px 28px",
@@ -403,7 +433,7 @@ export default function PartnerPage() {
                       boxShadow: "0 0 20px rgba(124,58,237,0.28)",
                     }}
                   >
-                    立即加入合伙人计划
+                    {isLoggedIn ? "进入合伙人中心" : "立即加入合伙人计划"}
                   </Link>
 
                   <Link
