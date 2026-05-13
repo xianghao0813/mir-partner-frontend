@@ -30,6 +30,7 @@ export async function GET() {
 
   await expireCouponCheckoutSessions(supabaseAdmin);
   await expireCouponGiftTransfers(supabaseAdmin);
+  await releaseUnpaidCouponReservations(user.id);
   await ensureMonthlyTierCoupons(user.id, user.user_metadata);
 
   const now = new Date();
@@ -145,6 +146,55 @@ async function ensureMonthlyTierCoupons(userId: string, metadata: Record<string,
 
   if (error) {
     console.error("[coupon initial monthly grant metadata update]", error);
+  }
+}
+
+async function releaseUnpaidCouponReservations(userId: string) {
+  const { data: coupons, error } = await supabaseAdmin
+    .from("user_coupons")
+    .select("id,used_order_no")
+    .eq("user_id", userId)
+    .not("used_at", "is", null)
+    .not("used_order_no", "is", null);
+
+  if (error) {
+    console.error("[coupon unpaid reservation lookup]", error);
+    return;
+  }
+
+  for (const coupon of coupons ?? []) {
+    const orderNo = typeof coupon.used_order_no === "string" ? coupon.used_order_no.trim() : "";
+    if (!orderNo) {
+      continue;
+    }
+
+    const { data: walletTransaction, error: walletError } = await supabaseAdmin
+      .from("wallet_transactions")
+      .select("id")
+      .eq("user_id", userId)
+      .eq("transaction_key", `sdk-order-${orderNo}`)
+      .maybeSingle();
+
+    if (walletError || walletTransaction) {
+      if (walletError) {
+        console.error("[coupon unpaid reservation wallet lookup]", walletError);
+      }
+      continue;
+    }
+
+    await supabaseAdmin
+      .from("user_coupons")
+      .update({ used_at: null, used_order_no: null })
+      .eq("id", coupon.id)
+      .eq("user_id", userId)
+      .eq("used_order_no", orderNo);
+
+    await supabaseAdmin
+      .from("coupon_checkout_sessions")
+      .update({ status: "closed" })
+      .eq("user_id", userId)
+      .eq("cp_order_no", orderNo)
+      .eq("status", "consumed");
   }
 }
 
