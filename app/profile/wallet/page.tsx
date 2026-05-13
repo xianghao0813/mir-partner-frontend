@@ -292,6 +292,11 @@ export default function WalletPage() {
   }
 
   function ensureRealNameVerified() {
+    if (security === null) {
+      void loadSecurity();
+      return true;
+    }
+
     if (security?.realNameVerified) {
       return true;
     }
