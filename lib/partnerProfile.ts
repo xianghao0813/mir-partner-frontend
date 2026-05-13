@@ -16,6 +16,7 @@ import {
 } from "@/lib/tierCoupons";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { readPointTransactionsFromDb } from "@/lib/userLedgers";
+import { getRechargeDisplayName } from "@/lib/rechargeDisplay";
 
 export { MIR_PARTNER_TIERS, type MirPartnerTier };
 
@@ -210,7 +211,7 @@ async function readQuickSdkPointTransactions(uid: string): Promise<PartnerPointT
 
       return {
         id: `point-sdk-order-${orderId}`,
-        title: "云币充值积分",
+        title: getRechargeDisplayName(order.productName),
         description: `订单 ${orderId} 自动发放`,
         points: Math.floor(amount * 100),
         createdAt: createDateFromSdkTimestamp(order.payTime ?? order.createTime).toISOString(),

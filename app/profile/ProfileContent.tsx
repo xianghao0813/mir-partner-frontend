@@ -21,7 +21,7 @@ const profileTierList = [
 export default function ProfileContent({ profile }: ProfileContentProps) {
   const [currentPoints, setCurrentPoints] = useState(profile.points);
   const [currentMonthlyPoints, setCurrentMonthlyPoints] = useState(profile.monthlyPoints);
-  const [ledgerMonth, setLedgerMonth] = useState(getCurrentMonth());
+  const [ledgerMonth, setLedgerMonth] = useState("");
   const [pointTransactions, setPointTransactions] = useState(profile.pointTransactions);
   const [tierCouponClaim, setTierCouponClaim] = useState(profile.tierCouponClaim);
   const [claimingTierCoupons, setClaimingTierCoupons] = useState(false);
@@ -339,6 +339,9 @@ export default function ProfileContent({ profile }: ProfileContentProps) {
                 onChange={(event) => setLedgerMonth(event.target.value)}
                 style={monthInputStyle}
               />
+              <button type="button" onClick={() => setLedgerMonth("")} style={ledgerFilterButtonStyle}>
+                全部
+              </button>
               <div style={pointsBadgeStyle}>合计 {filteredPointTotal.toLocaleString()} 分</div>
             </div>
           </div>
@@ -782,6 +785,17 @@ const monthInputStyle: React.CSSProperties = {
   color: "white",
   colorScheme: "dark",
   outline: "none",
+};
+
+const ledgerFilterButtonStyle: React.CSSProperties = {
+  minHeight: "40px",
+  border: "1px solid rgba(192,132,252,0.28)",
+  borderRadius: "14px",
+  padding: "0 14px",
+  background: "rgba(124,58,237,0.14)",
+  color: "#f5d0fe",
+  fontWeight: 800,
+  cursor: "pointer",
 };
 
 const emptyLedgerStyle: React.CSSProperties = {

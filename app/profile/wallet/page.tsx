@@ -96,7 +96,7 @@ export default function WalletPage() {
   const [couponOpen, setCouponOpen] = useState(false);
   const [couponTab, setCouponTab] = useState<CouponTab>("unused");
   const [coupons, setCoupons] = useState<CouponGroups>(emptyCouponGroups);
-  const [historyMonth, setHistoryMonth] = useState(getCurrentMonth());
+  const [historyMonth, setHistoryMonth] = useState("");
   const [submittingTierId, setSubmittingTierId] = useState<number | null>(null);
   const [submittingCouponId, setSubmittingCouponId] = useState<string | null>(null);
   const [giftingCouponId, setGiftingCouponId] = useState<string | null>(null);

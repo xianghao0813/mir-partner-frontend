@@ -2,6 +2,7 @@
 import { compactAuthMetadata } from "@/lib/authMetadata";
 import { getCloudCoinPackage } from "@/lib/cloudCoinPackages";
 import { createPartnerCode } from "@/lib/partnerProfile";
+import { getRechargeDisplayName } from "@/lib/rechargeDisplay";
 import {
   getQuickSdkUserOrders,
   getQuickSdkWalletAmount,
@@ -155,7 +156,7 @@ export async function reconcileQuickSdkRechargePoints(user: User) {
     if (shouldAwardPoints && !hasPointTransaction) {
       await insertPointTransaction(user.id, {
         id: `point-${transactionId}`,
-        title: "云币充值积分",
+        title: getRechargeDisplayName(order.productName),
         description: `订单 ${orderId} 自动发放`,
         points: Math.floor(amount * 100),
         createdAt: paidAt.toISOString(),
