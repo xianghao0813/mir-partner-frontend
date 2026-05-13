@@ -31,7 +31,6 @@ export async function GET() {
   await expireCouponCheckoutSessions(supabaseAdmin);
   await expireCouponGiftTransfers(supabaseAdmin);
   await ensureMonthlyTierCoupons(user.id, user.user_metadata);
-  await ensureTestPaymentCoupon(user.id);
 
   const now = new Date();
   const cleanupBefore = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();

@@ -177,8 +177,8 @@ export function getTierCouponClaimState(metadata: UserMetadata | undefined, poin
     monthKey,
     currentTierId: currentTier.id,
     grantedTierId,
-    pendingCount: currentTier.id > grantedTierId ? pending : 0,
-    claimable: currentTier.id > grantedTierId,
+    pendingCount: grantedTierId > 0 && currentTier.id > grantedTierId ? pending : 0,
+    claimable: grantedTierId > 0 && currentTier.id > grantedTierId,
   };
 }
 
