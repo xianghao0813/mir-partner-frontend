@@ -223,7 +223,7 @@ export async function POST(request: NextRequest) {
           description: transaction.desc,
           pay_method: transaction.payMethod || null,
           status: "processing",
-          occurred_at: `${transaction.date}T00:00:00+08:00`,
+          occurred_at: new Date().toISOString(),
         })
         .select("id")
         .maybeSingle();

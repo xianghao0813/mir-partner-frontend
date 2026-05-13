@@ -729,10 +729,6 @@ export default function BossSlashTrial({
             收集道路上的 MIR 硬币获得积分。普通硬币 2 分，高位紫色硬币 5 分，每天最多 5 局，领取最高分的一局。
           </p>
         </div>
-        <div style={pointsBadgeStyle}>
-          <span style={{ fontSize: 12, opacity: 0.72 }}>当前 MIR 积分</span>
-          <strong style={{ fontSize: 28 }}>{mirPoints}</strong>
-        </div>
       </div>
 
       <div style={mainGridStyle}>
@@ -978,15 +974,6 @@ const subtitleStyle: React.CSSProperties = {
   maxWidth: 620,
   color: "rgba(246,239,225,0.76)",
   lineHeight: 1.7,
-};
-
-const pointsBadgeStyle: React.CSSProperties = {
-  minWidth: 164,
-  padding: "16px 18px",
-  borderRadius: 18,
-  background: "rgba(255,255,255,0.06)",
-  display: "grid",
-  gap: 8,
 };
 
 const mainGridStyle: React.CSSProperties = {
