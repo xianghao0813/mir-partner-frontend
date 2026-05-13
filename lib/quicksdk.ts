@@ -56,7 +56,13 @@ export type QuickSdkOrderData = {
   payType: string;
 };
 
-type QuickSdkPhoneCodePurpose = "login" | "register" | "bind" | "unbind" | "reset-password";
+type QuickSdkPhoneCodePurpose =
+  | "login"
+  | "register"
+  | "bind"
+  | "unbind"
+  | "reset-password"
+  | "wallet-password";
 
 export function getQuickSdkConfig(): QuickSdkConfig {
   const baseUrl =
@@ -325,6 +331,32 @@ export async function resetQuickSdkPassword({
 
   const result = await postQuickSdkForm("/webOpen/setNewPass", payload);
   return result.data;
+}
+
+export async function setQuickSdkWalletPassword({
+  userId,
+  phone,
+  code,
+  paypass,
+}: {
+  userId: string;
+  phone: string;
+  code: string;
+  paypass: string;
+}) {
+  const config = getQuickSdkConfig();
+  const payload = buildSignedParams({
+    openId: config.openId,
+    productCode: config.productCode,
+    channelCode: config.channelCode,
+    phone,
+    code,
+    userId,
+    paypass: md5Hex(paypass),
+  });
+
+  const result = await postQuickSdkForm("/webOpen/setWalletPass", payload);
+  return normalizeQuickSdkBoolean(result.data) || result.status;
 }
 
 export async function verifyQuickSdkRealName({
@@ -677,6 +709,8 @@ function getQuickSdkSendType(purpose: QuickSdkPhoneCodePurpose) {
       return 3;
     case "reset-password":
       return 4;
+    case "wallet-password":
+      return 5;
     case "login":
     case "register":
     default:

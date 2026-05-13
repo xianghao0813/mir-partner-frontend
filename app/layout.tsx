@@ -295,6 +295,13 @@ export default function RootLayout({
                         >
                           修改密码
                         </Link>
+                        <Link
+                          href="/profile/payment-password"
+                          style={accountDropdownItemStyle}
+                          onClick={() => setAccountMenuOpen(false)}
+                        >
+                          设置支付密码
+                        </Link>
                         <button onClick={handleLogout} style={accountActionButtonStyle}>
                           退出登录
                         </button>
