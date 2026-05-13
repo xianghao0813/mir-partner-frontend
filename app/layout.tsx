@@ -56,6 +56,8 @@ export default function RootLayout({
   const accountMenuRef = useRef<HTMLDivElement | null>(null);
   const pathname = usePathname();
   const isCheckoutPage = pathname?.startsWith("/coupon/checkout/");
+  const isPaymentResultPage = pathname === "/payment/result";
+  const hideSiteChrome = isCheckoutPage || isPaymentResultPage;
 
   useEffect(() => {
     async function loadUser() {
@@ -127,7 +129,7 @@ export default function RootLayout({
             '"Microsoft YaHei", "PingFang SC", "Hiragino Sans GB", "Noto Sans SC", Arial, sans-serif',
         }}
       >
-        {!isCheckoutPage ? (
+        {!hideSiteChrome ? (
         <header
           className="site-header"
           style={{
@@ -310,7 +312,7 @@ export default function RootLayout({
         </header>
         ) : null}
 
-        <div className="site-content" style={{ padding: isCheckoutPage ? 0 : "40px" }}>{children}</div>
+        <div className="site-content" style={{ padding: hideSiteChrome ? 0 : "40px" }}>{children}</div>
       </body>
     </html>
   );

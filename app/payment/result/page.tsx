@@ -1,23 +1,20 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 
-type Props = {
-  searchParams?: Promise<{
-    status?: string;
-    coupon?: string;
-  }>;
-};
+export default function PaymentResultPage() {
+  return (
+    <Suspense fallback={<ResultCard status="success" countdown={3} onClose={() => undefined} />}>
+      <PaymentResultContent />
+    </Suspense>
+  );
+}
 
-export default function PaymentResultPage({ searchParams }: Props) {
+function PaymentResultContent() {
+  const searchParams = useSearchParams();
   const [countdown, setCountdown] = useState(3);
-  const [status, setStatus] = useState("success");
-
-  useEffect(() => {
-    void Promise.resolve(searchParams).then((params) => {
-      setStatus(params?.status === "cancel" ? "cancel" : "success");
-    });
-  }, [searchParams]);
+  const status = searchParams.get("status") === "cancel" ? "cancel" : "success";
 
   useEffect(() => {
     if (countdown <= 0) {
@@ -29,6 +26,10 @@ export default function PaymentResultPage({ searchParams }: Props) {
     return () => window.clearTimeout(timer);
   }, [countdown]);
 
+  return <ResultCard status={status} countdown={countdown} onClose={() => window.close()} />;
+}
+
+function ResultCard({ status, countdown, onClose }: { status: "success" | "cancel"; countdown: number; onClose: () => void }) {
   const copy = useMemo(() => {
     if (status === "cancel") {
       return {
@@ -41,9 +42,9 @@ export default function PaymentResultPage({ searchParams }: Props) {
 
     return {
       title: "支付成功",
-      description: "支付已完成，到账可能需要等待服务器通知。",
+      description: "支付已完成，窗口将在倒计时结束后自动关闭。",
       accent: "#86efac",
-      icon: "✓",
+      icon: "OK",
     };
   }, [status]);
 
@@ -54,7 +55,7 @@ export default function PaymentResultPage({ searchParams }: Props) {
         <h1 style={titleStyle}>{copy.title}</h1>
         <p style={descriptionStyle}>{copy.description}</p>
         <div style={countdownStyle}>{countdown} 秒后自动关闭</div>
-        <button type="button" onClick={() => window.close()} style={buttonStyle}>
+        <button type="button" onClick={onClose} style={buttonStyle}>
           立即关闭
         </button>
       </section>
@@ -78,7 +79,7 @@ const cardStyle: React.CSSProperties = {
   justifyItems: "center",
   gap: "14px",
   padding: "30px 24px",
-  borderRadius: "22px",
+  borderRadius: "18px",
   background: "rgba(16,16,24,0.92)",
   border: "1px solid rgba(255,255,255,0.08)",
   boxShadow: "0 24px 70px rgba(0,0,0,0.42)",
@@ -92,7 +93,7 @@ const iconStyle: React.CSSProperties = {
   display: "grid",
   placeItems: "center",
   border: "2px solid",
-  fontSize: "32px",
+  fontSize: "22px",
   fontWeight: 900,
 };
 

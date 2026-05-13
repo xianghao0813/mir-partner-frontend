@@ -30,6 +30,7 @@ export async function GET() {
 
   await expireCouponCheckoutSessions(supabaseAdmin);
   await expireCouponGiftTransfers(supabaseAdmin);
+  await markPaidCouponReservations(user.id);
   await releaseUnpaidCouponReservations(user.id);
   await ensureMonthlyTierCoupons(user.id, user.user_metadata);
 
@@ -149,6 +150,36 @@ async function ensureMonthlyTierCoupons(userId: string, metadata: Record<string,
   }
 }
 
+async function markPaidCouponReservations(userId: string) {
+  const { data: coupons, error } = await supabaseAdmin
+    .from("user_coupons")
+    .select("id")
+    .eq("user_id", userId)
+    .is("used_at", null);
+
+  if (error) {
+    console.error("[coupon paid reservation lookup]", error);
+    return;
+  }
+
+  for (const coupon of coupons ?? []) {
+    const paidSession = await findPaidCouponSession(userId, coupon.id);
+    if (!paidSession) {
+      continue;
+    }
+
+    await supabaseAdmin
+      .from("user_coupons")
+      .update({
+        used_at: paidSession.consumedAt,
+        used_order_no: paidSession.orderNo,
+      })
+      .eq("id", coupon.id)
+      .eq("user_id", userId)
+      .is("used_at", null);
+  }
+}
+
 async function releaseUnpaidCouponReservations(userId: string) {
   const { data: coupons, error } = await supabaseAdmin
     .from("user_coupons")
@@ -175,10 +206,25 @@ async function releaseUnpaidCouponReservations(userId: string) {
       .eq("transaction_key", `sdk-order-${orderNo}`)
       .maybeSingle();
 
-    if (walletError || walletTransaction) {
-      if (walletError) {
-        console.error("[coupon unpaid reservation wallet lookup]", walletError);
-      }
+    if (walletTransaction) {
+      continue;
+    }
+
+    if (walletError) {
+      console.error("[coupon unpaid reservation wallet lookup]", walletError);
+      continue;
+    }
+
+    const paidSession = await findPaidCouponSession(userId, coupon.id);
+    if (paidSession) {
+      await supabaseAdmin
+        .from("user_coupons")
+        .update({
+          used_at: paidSession.consumedAt,
+          used_order_no: paidSession.orderNo,
+        })
+        .eq("id", coupon.id)
+        .eq("user_id", userId);
       continue;
     }
 
@@ -196,6 +242,50 @@ async function releaseUnpaidCouponReservations(userId: string) {
       .eq("cp_order_no", orderNo)
       .eq("status", "consumed");
   }
+}
+
+async function findPaidCouponSession(userId: string, couponId: string) {
+  const { data: sessions, error } = await supabaseAdmin
+    .from("coupon_checkout_sessions")
+    .select("cp_order_no,consumed_at")
+    .eq("user_id", userId)
+    .eq("coupon_id", couponId)
+    .eq("status", "consumed")
+    .not("cp_order_no", "is", null)
+    .order("consumed_at", { ascending: false });
+
+  if (error) {
+    console.error("[coupon paid session lookup]", error);
+    return null;
+  }
+
+  for (const session of sessions ?? []) {
+    const orderNo = typeof session.cp_order_no === "string" ? session.cp_order_no.trim() : "";
+    if (!orderNo) {
+      continue;
+    }
+
+    const { data: walletTransaction, error: walletError } = await supabaseAdmin
+      .from("wallet_transactions")
+      .select("id")
+      .eq("user_id", userId)
+      .eq("transaction_key", `sdk-order-${orderNo}`)
+      .maybeSingle();
+
+    if (walletError) {
+      console.error("[coupon paid session wallet lookup]", walletError);
+      continue;
+    }
+
+    if (walletTransaction) {
+      return {
+        orderNo,
+        consumedAt: typeof session.consumed_at === "string" ? session.consumed_at : new Date().toISOString(),
+      };
+    }
+  }
+
+  return null;
 }
 
 async function ensureTestPaymentCoupon(userId: string) {

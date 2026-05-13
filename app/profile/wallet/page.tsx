@@ -437,6 +437,8 @@ export default function WalletPage() {
         return;
       }
 
+      setCouponOpen(false);
+      setCouponMessage("");
       popup.location.replace(payload.checkoutUrl);
       showTemporaryMessage("优惠券专用支付窗口已打开。");
       watchPopupClose(popup, "优惠券专用支付窗口已打开。");
@@ -817,10 +819,10 @@ export default function WalletPage() {
                         </>
                       ) : (
                         <>
-                          <button type="button" onClick={() => void useCoupon(coupon)} disabled={submittingCouponId === coupon.id} style={primaryButtonStyle}>
+                          <button type="button" onClick={() => void useCoupon(coupon)} disabled={submittingCouponId !== null || giftingCouponId !== null} style={primaryButtonStyle}>
                             {submittingCouponId === coupon.id ? "生成中..." : "立即使用"}
                           </button>
-                          <button type="button" onClick={() => void giftCoupon(coupon)} disabled={giftingCouponId === coupon.id || coupon.giftClaimed} style={secondarySmallButtonStyle}>
+                          <button type="button" onClick={() => void giftCoupon(coupon)} disabled={submittingCouponId !== null || giftingCouponId !== null || coupon.giftClaimed} style={secondarySmallButtonStyle}>
                             {giftingCouponId === coupon.id ? "生成中..." : coupon.giftClaimed ? "已赠送" : "赠送"}
                           </button>
                         </>
