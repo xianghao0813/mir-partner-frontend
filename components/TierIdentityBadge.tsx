@@ -11,15 +11,15 @@ type TierIdentityBadgeProps = {
   size?: "lg" | "sm";
 };
 
-const tierAccents: Record<number, { color: string; glow: string; text: string }> = {
-  1: { color: "#94a3b8", glow: "rgba(148,163,184,0.2)", text: "新星身份" },
-  2: { color: "#60a5fa", glow: "rgba(96,165,250,0.22)", text: "一星身份" },
-  3: { color: "#22c55e", glow: "rgba(34,197,94,0.22)", text: "二星身份" },
-  4: { color: "#14b8a6", glow: "rgba(20,184,166,0.22)", text: "三星身份" },
-  5: { color: "#f59e0b", glow: "rgba(245,158,11,0.24)", text: "四星身份" },
-  6: { color: "#fb7185", glow: "rgba(251,113,133,0.24)", text: "五星身份" },
-  7: { color: "#c084fc", glow: "rgba(192,132,252,0.24)", text: "六星身份" },
-  8: { color: "#facc15", glow: "rgba(250,204,21,0.28)", text: "合伙人身份" },
+const tierAccents: Record<number, { color: string; glow: string }> = {
+  1: { color: "#94a3b8", glow: "rgba(148,163,184,0.2)" },
+  2: { color: "#60a5fa", glow: "rgba(96,165,250,0.22)" },
+  3: { color: "#22c55e", glow: "rgba(34,197,94,0.22)" },
+  4: { color: "#14b8a6", glow: "rgba(20,184,166,0.22)" },
+  5: { color: "#f59e0b", glow: "rgba(245,158,11,0.24)" },
+  6: { color: "#fb7185", glow: "rgba(251,113,133,0.24)" },
+  7: { color: "#c084fc", glow: "rgba(192,132,252,0.24)" },
+  8: { color: "#facc15", glow: "rgba(250,204,21,0.28)" },
 };
 
 export default function TierIdentityBadge({ tier, size = "lg" }: TierIdentityBadgeProps) {
@@ -27,12 +27,9 @@ export default function TierIdentityBadge({ tier, size = "lg" }: TierIdentityBad
   const compact = size === "sm";
 
   return (
-    <div style={badgeStyle(accent.color, accent.glow, compact)} aria-label={`${tier.label} 专属身份标识`}>
+    <div style={badgeStyle(accent.color, accent.glow, compact)} aria-label={`${tier.label} 身份徽章`}>
       <div style={sealStyle(accent.color, compact)}>{tier.id >= 8 ? "尊" : tier.id}</div>
-      <div>
-        <div style={nameStyle(accent.color, compact)}>{tier.label}</div>
-        {!compact ? <div style={captionStyle}>{accent.text}</div> : null}
-      </div>
+      <div style={nameStyle(accent.color, compact)}>{tier.label}</div>
     </div>
   );
 }
@@ -72,10 +69,3 @@ const nameStyle = (color: string, compact: boolean): CSSProperties => ({
   fontWeight: 950,
   lineHeight: 1.05,
 });
-
-const captionStyle: CSSProperties = {
-  marginTop: "5px",
-  color: "#94a3b8",
-  fontSize: "12px",
-  fontWeight: 700,
-};

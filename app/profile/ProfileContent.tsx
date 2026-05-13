@@ -185,12 +185,14 @@ export default function ProfileContent({ profile }: ProfileContentProps) {
           </div>
 
           <div style={identityGridStyle}>
-            <InfoCard label="UID" value={profile.uid || "-"} />
+            <article style={infoCardStyle}>
+              <div style={infoLabelStyle}>UID</div>
+              <div style={uidWithBadgeStyle}>
+                <div style={infoValueStyle}>{profile.uid || "-"}</div>
+                <TierIdentityBadge tier={currentTier} size="sm" />
+              </div>
+            </article>
             <InfoCard label="合伙人编号" value={profile.partnerCode} accent="#fde68a" />
-          </div>
-
-          <div style={identityBadgeWrapStyle}>
-            <TierIdentityBadge tier={currentTier} />
           </div>
 
           <div style={tierDashboardStyle}>
@@ -678,10 +680,6 @@ const identityGridStyle: React.CSSProperties = {
   gap: "14px",
 };
 
-const identityBadgeWrapStyle: React.CSSProperties = {
-  marginTop: "16px",
-};
-
 const tierDashboardStyle: React.CSSProperties = {
   marginTop: "16px",
   display: "grid",
@@ -847,6 +845,14 @@ const infoValueStyle: React.CSSProperties = {
   fontSize: "24px",
   fontWeight: 700,
   wordBreak: "break-word",
+};
+
+const uidWithBadgeStyle: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+  gap: "12px",
+  flexWrap: "wrap",
 };
 
 const sectionHeaderStyle: React.CSSProperties = {
