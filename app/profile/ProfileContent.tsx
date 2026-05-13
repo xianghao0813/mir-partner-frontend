@@ -21,7 +21,8 @@ const profileTierList = [
 export default function ProfileContent({ profile }: ProfileContentProps) {
   const [currentPoints, setCurrentPoints] = useState(profile.points);
   const [currentMonthlyPoints, setCurrentMonthlyPoints] = useState(profile.monthlyPoints);
-  const [ledgerMonth, setLedgerMonth] = useState("");
+  const [ledgerModalOpen, setLedgerModalOpen] = useState(false);
+  const [ledgerModalMonth, setLedgerModalMonth] = useState(getCurrentMonth());
   const [pointTransactions, setPointTransactions] = useState(profile.pointTransactions);
   const [tierCouponClaim, setTierCouponClaim] = useState(profile.tierCouponClaim);
   const [claimingTierCoupons, setClaimingTierCoupons] = useState(false);
@@ -31,11 +32,12 @@ export default function ProfileContent({ profile }: ProfileContentProps) {
   const [activeTierIndex, setActiveTierIndex] = useState(
     Math.max(0, profileTierList.findIndex((tier) => tier.id === profile.currentTier.id))
   );
+  const currentMonthKey = getCurrentMonth();
   const currentTier = getTierForPoints(currentPoints);
   const monthStartPoints = Math.max(
     0,
     currentPoints - pointTransactions
-      .filter((entry) => (entry.createdAt ?? "").startsWith(getCurrentMonth()))
+      .filter((entry) => (entry.createdAt ?? "").startsWith(currentMonthKey))
       .reduce((sum, entry) => sum + Math.max(0, entry.points), 0)
   );
   const crossedCurrentTierThisMonth =
@@ -75,10 +77,14 @@ export default function ProfileContent({ profile }: ProfileContentProps) {
     progressPercent > 0 && progressPercent < 1
       ? `${progressPercent.toFixed(1)}%`
       : `${Math.round(progressPercent)}%`;
-  const filteredPointTransactions = pointTransactions.filter((entry) =>
-    ledgerMonth ? (entry.createdAt ?? "").startsWith(ledgerMonth) : true
+  const currentMonthPointTransactions = pointTransactions.filter((entry) =>
+    (entry.createdAt ?? "").startsWith(currentMonthKey)
   );
-  const filteredPointTotal = filteredPointTransactions.reduce((sum, entry) => sum + entry.points, 0);
+  const currentMonthPointTotal = currentMonthPointTransactions.reduce((sum, entry) => sum + entry.points, 0);
+  const modalPointTransactions = pointTransactions.filter((entry) =>
+    (entry.createdAt ?? "").startsWith(ledgerModalMonth)
+  );
+  const modalPointTotal = modalPointTransactions.reduce((sum, entry) => sum + entry.points, 0);
 
   useEffect(() => {
     const currentIndex = profileTierList.findIndex((tier) => tier.id === currentTier.id);
@@ -330,43 +336,102 @@ export default function ProfileContent({ profile }: ProfileContentProps) {
           <div style={sectionHeaderStyle}>
             <div>
               <div style={eyebrowStyle}>Point Ledger</div>
-              <h2 style={sectionTitleStyle}>MIR 积分月度明细</h2>
+              <h2 style={sectionTitleStyle}>MIR 积分本月明细</h2>
             </div>
             <div style={ledgerControlStyle}>
-              <input
-                type="month"
-                value={ledgerMonth}
-                onChange={(event) => setLedgerMonth(event.target.value)}
-                style={monthInputStyle}
-              />
-              <button type="button" onClick={() => setLedgerMonth("")} style={ledgerFilterButtonStyle}>
+              <button
+                type="button"
+                onClick={() => {
+                  setLedgerModalMonth(currentMonthKey);
+                  setLedgerModalOpen(true);
+                }}
+                style={ledgerFilterButtonStyle}
+              >
                 全部
               </button>
-              <div style={pointsBadgeStyle}>合计 {filteredPointTotal.toLocaleString()} 分</div>
+              <div style={pointsBadgeStyle}>本月合计 {currentMonthPointTotal.toLocaleString()} 分</div>
             </div>
           </div>
 
-          {filteredPointTransactions.length === 0 ? (
-            <div style={emptyLedgerStyle}>该月份暂无积分记录。</div>
+          {currentMonthPointTransactions.length === 0 ? (
+            <div style={emptyLedgerStyle}>本月暂无积分记录。</div>
           ) : (
             <div style={ledgerListStyle}>
-              {filteredPointTransactions.map((entry) => (
-                <article key={entry.id} style={ledgerItemStyle}>
-                  <div>
-                    <div style={ledgerTitleStyle}>{entry.title}</div>
-                    <div style={ledgerDescriptionStyle}>{entry.description}</div>
-                    <div style={ledgerDateStyle}>{formatDate(entry.createdAt)}</div>
-                  </div>
-                  <div style={entry.points < 0 ? ledgerNegativeAmountStyle : ledgerAmountStyle}>
-                    {entry.points > 0 ? "+" : ""}
-                    {entry.points.toLocaleString()}
-                  </div>
-                </article>
+              {currentMonthPointTransactions.map((entry) => (
+                <PointLedgerItem key={entry.id} entry={entry} />
               ))}
             </div>
           )}
         </section>
       </div>
+
+      {ledgerModalOpen ? (
+        <div style={modalOverlayStyle} onClick={() => setLedgerModalOpen(false)}>
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="point-ledger-modal-title"
+            style={ledgerModalStyle}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div style={modalHeaderStyle}>
+              <div>
+                <div style={eyebrowStyle}>Point Ledger</div>
+                <h3 id="point-ledger-modal-title" style={modalTitleStyle}>积分明细</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setLedgerModalOpen(false)}
+                style={modalCloseButtonStyle}
+                aria-label="关闭积分明细"
+              >
+                ×
+              </button>
+            </div>
+
+            <div style={modalLedgerToolbarStyle}>
+              <div style={ledgerControlStyle}>
+                <button
+                  type="button"
+                  onClick={() => setLedgerModalMonth((month) => shiftMonth(month, -1))}
+                  style={ledgerMonthNavButtonStyle}
+                  aria-label="上个月"
+                >
+                  ‹
+                </button>
+                <input
+                  type="month"
+                  value={ledgerModalMonth}
+                  onChange={(event) => setLedgerModalMonth(event.target.value || currentMonthKey)}
+                  style={monthInputStyle}
+                />
+                <button
+                  type="button"
+                  onClick={() => setLedgerModalMonth((month) => shiftMonth(month, 1))}
+                  style={ledgerMonthNavButtonStyle}
+                  aria-label="下个月"
+                >
+                  ›
+                </button>
+                <button type="button" onClick={() => setLedgerModalMonth(currentMonthKey)} style={ledgerFilterButtonStyle}>
+                  本月
+                </button>
+              </div>
+              <div style={pointsBadgeStyle}>合计 {modalPointTotal.toLocaleString()} 分</div>
+            </div>
+
+            {modalPointTransactions.length === 0 ? (
+              <div style={emptyLedgerStyle}>该月份暂无积分记录。</div>
+            ) : (
+              <div style={modalLedgerListStyle}>
+                {modalPointTransactions.map((entry) => (
+                  <PointLedgerItem key={entry.id} entry={entry} />
+                ))}
+              </div>
+            )}
+          </section>
+        </div>
+      ) : null}
     </main>
   );
 }
@@ -410,6 +475,22 @@ function MetricCard({
   );
 }
 
+function PointLedgerItem({ entry }: { entry: PartnerPointTransaction }) {
+  return (
+    <article style={ledgerItemStyle}>
+      <div>
+        <div style={ledgerTitleStyle}>{entry.title}</div>
+        <div style={ledgerDescriptionStyle}>{entry.description}</div>
+        <div style={ledgerDateStyle}>{formatDate(entry.createdAt)}</div>
+      </div>
+      <div style={entry.points < 0 ? ledgerNegativeAmountStyle : ledgerAmountStyle}>
+        {entry.points > 0 ? "+" : ""}
+        {entry.points.toLocaleString()}
+      </div>
+    </article>
+  );
+}
+
 function getTierForPoints(points: number) {
   return [...profileTierList]
     .reverse()
@@ -443,6 +524,15 @@ function getTierBenefits(tierId: number, tierLabel: string) {
 function getCurrentMonth() {
   const now = new Date();
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function shiftMonth(monthKey: string, offset: number) {
+  const [yearValue, monthValue] = monthKey.split("-").map(Number);
+  const base = Number.isFinite(yearValue) && Number.isFinite(monthValue)
+    ? new Date(yearValue, monthValue - 1 + offset, 1)
+    : new Date();
+
+  return `${base.getFullYear()}-${String(base.getMonth() + 1).padStart(2, "0")}`;
 }
 
 function formatDate(value: string | null) {
@@ -851,6 +941,84 @@ const ledgerAmountStyle: React.CSSProperties = {
 const ledgerNegativeAmountStyle: React.CSSProperties = {
   ...ledgerAmountStyle,
   color: "#fca5a5",
+};
+
+const modalOverlayStyle: React.CSSProperties = {
+  position: "fixed",
+  inset: 0,
+  zIndex: 50,
+  display: "grid",
+  placeItems: "center",
+  padding: "18px",
+  background: "rgba(2,6,23,0.72)",
+  backdropFilter: "blur(10px)",
+};
+
+const ledgerModalStyle: React.CSSProperties = {
+  width: "min(760px, 100%)",
+  maxHeight: "min(760px, calc(100vh - 36px))",
+  overflow: "hidden",
+  borderRadius: "24px",
+  background: "linear-gradient(145deg, rgba(18,18,28,0.98), rgba(10,10,16,0.98))",
+  border: "1px solid rgba(255,255,255,0.12)",
+  boxShadow: "0 28px 80px rgba(0,0,0,0.55), 0 0 36px rgba(124,58,237,0.18)",
+  padding: "24px",
+  display: "grid",
+  gap: "18px",
+};
+
+const modalHeaderStyle: React.CSSProperties = {
+  display: "flex",
+  alignItems: "flex-start",
+  justifyContent: "space-between",
+  gap: "16px",
+};
+
+const modalTitleStyle: React.CSSProperties = {
+  margin: 0,
+  color: "white",
+  fontSize: "24px",
+  lineHeight: 1.2,
+};
+
+const modalCloseButtonStyle: React.CSSProperties = {
+  width: "40px",
+  height: "40px",
+  borderRadius: "14px",
+  border: "1px solid rgba(255,255,255,0.12)",
+  background: "rgba(255,255,255,0.06)",
+  color: "#f8fafc",
+  fontSize: "24px",
+  lineHeight: 1,
+  cursor: "pointer",
+};
+
+const modalLedgerToolbarStyle: React.CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  gap: "12px",
+  flexWrap: "wrap",
+};
+
+const ledgerMonthNavButtonStyle: React.CSSProperties = {
+  width: "42px",
+  height: "42px",
+  border: "1px solid rgba(192,132,252,0.28)",
+  borderRadius: "14px",
+  background: "rgba(124,58,237,0.14)",
+  color: "#f5d0fe",
+  fontSize: "22px",
+  fontWeight: 900,
+  cursor: "pointer",
+};
+
+const modalLedgerListStyle: React.CSSProperties = {
+  display: "grid",
+  gap: "10px",
+  maxHeight: "min(520px, calc(100vh - 260px))",
+  overflowY: "auto",
+  paddingRight: "4px",
 };
 
 const tierCarouselStyle: React.CSSProperties = {

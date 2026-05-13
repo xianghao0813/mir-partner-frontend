@@ -279,7 +279,6 @@ export default function PointsActivityContent({
               <div style={eyebrowStyle}>Mini Game</div>
               <h2 style={sectionTitleStyle}>遗迹冲刺</h2>
             </div>
-            <div style={smallBadgeStyle}>MIR Points: {points.toLocaleString()}</div>
           </div>
 
           <BossSlashTrial
@@ -710,16 +709,6 @@ const makeupButtonStyle: React.CSSProperties = {
   fontSize: "11px",
   fontWeight: 900,
   cursor: "pointer",
-};
-
-const smallBadgeStyle: React.CSSProperties = {
-  padding: "10px 14px",
-  borderRadius: "999px",
-  background: "rgba(124,58,237,0.2)",
-  border: "1px solid rgba(192,132,252,0.3)",
-  color: "#f5d0fe",
-  fontSize: "14px",
-  fontWeight: 700,
 };
 
 const modalOverlayStyle: React.CSSProperties = {
