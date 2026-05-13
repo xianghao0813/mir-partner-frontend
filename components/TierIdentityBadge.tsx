@@ -30,7 +30,6 @@ export default function TierIdentityBadge({ tier, size = "lg" }: TierIdentityBad
     <div style={badgeStyle(accent.color, accent.glow, compact)} aria-label={`${tier.label} 专属身份标识`}>
       <div style={sealStyle(accent.color, compact)}>{tier.id >= 8 ? "尊" : tier.id}</div>
       <div>
-        <div style={labelStyle(compact)}>专属身份标识</div>
         <div style={nameStyle(accent.color, compact)}>{tier.label}</div>
         {!compact ? <div style={captionStyle}>{accent.text}</div> : null}
       </div>
@@ -67,15 +66,7 @@ const sealStyle = (color: string, compact: boolean): CSSProperties => ({
   boxShadow: `inset 0 0 16px ${color}33`,
 });
 
-const labelStyle = (compact: boolean): CSSProperties => ({
-  color: "#cbd5e1",
-  fontSize: compact ? "10px" : "11px",
-  fontWeight: 800,
-  textTransform: "uppercase",
-});
-
 const nameStyle = (color: string, compact: boolean): CSSProperties => ({
-  marginTop: compact ? "1px" : "3px",
   color,
   fontSize: compact ? "15px" : "22px",
   fontWeight: 950,
