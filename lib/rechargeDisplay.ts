@@ -1,7 +1,7 @@
 export function getRechargeDisplayName(productName: string | undefined) {
   const value = typeof productName === "string" ? productName.trim() : "";
 
-  if (value.includes("暮光双龙官网H5")) {
+  if (value.includes("暮光双龙官网H5") || value.includes("MirPartner")) {
     return "官网云币充值";
   }
 
