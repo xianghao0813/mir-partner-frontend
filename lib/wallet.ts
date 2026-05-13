@@ -52,6 +52,7 @@ export async function buildWalletSummary(
   const metadataTransactions = readWalletTransactions(user.user_metadata);
   const localTransactions = mergeWalletTransactions([...dbTransactions, ...metadataTransactions]);
   const localCloudCoins = readCloudCoins(user.user_metadata);
+  const websiteCloudCoins = calculateWebsiteCloudCoinBalance(localTransactions);
   const sdkOrderTransactions = sdkWallet?.orders.map(mapOrderToTransaction) ?? [];
 
   return {
@@ -68,7 +69,7 @@ export async function buildWalletSummary(
         "mirPartnerCode",
       ]) || createPartnerCode(user.id),
     status: "正常",
-    cloudCoins: Math.max(sdkWallet?.amount ?? 0, localCloudCoins),
+    cloudCoins: Math.max(sdkWallet?.amount ?? 0, localCloudCoins, websiteCloudCoins),
     transactions: mergeWalletTransactions([...localTransactions, ...sdkOrderTransactions]),
   };
 }
@@ -305,6 +306,15 @@ function mergeWalletTransactions(items: WalletTransaction[]) {
   return [...byId.values()]
     .sort((a, b) => b.date.localeCompare(a.date))
     .slice(0, 300);
+}
+
+function calculateWebsiteCloudCoinBalance(items: WalletTransaction[]) {
+  return Math.max(
+    0,
+    items
+      .filter((item) => item.id.startsWith("sdk-order-cp"))
+      .reduce((total, item) => total + item.coins, 0)
+  );
 }
 
 function shouldAwardMirPointsForOrder(order: QuickSdkOrderData) {
