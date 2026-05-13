@@ -101,6 +101,18 @@ a {
   user-select: auto;
 }
 
+.profile-page-shell :where(:not(input):not(textarea):not(select)),
+.wallet-page-shell :where(:not(input):not(textarea):not(select)),
+.points-page-shell :where(:not(input):not(textarea):not(select)) {
+  caret-color: transparent;
+}
+
+.profile-page-shell :where(input, textarea, select),
+.wallet-page-shell :where(input, textarea, select),
+.points-page-shell :where(input, textarea, select) {
+  caret-color: auto;
+}
+
 .auth-bg {
   position: absolute;
   inset: 0;

@@ -258,7 +258,7 @@ export function settleMonthlyMirPoints(metadata: UserMetadata | undefined, now =
   }
 
   const shouldSkipPenalty = summary.upgradedThisMonth;
-  const penalty = shouldSkipPenalty ? 0 : Math.floor(summary.currentTier.minPoints * 0.2);
+  const penalty = shouldSkipPenalty ? 0 : Math.floor(summary.currentTier.minPoints * 0.1);
   const afterPoints = Math.max(0, summary.points - penalty);
   const afterTier = getCurrentTier(afterPoints);
 

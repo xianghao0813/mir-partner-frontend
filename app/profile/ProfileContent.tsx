@@ -47,7 +47,7 @@ export default function ProfileContent({ profile }: ProfileContentProps) {
   const effectiveUpgradedThisMonth = profile.upgradedThisMonth || crossedCurrentTierThisMonth;
   const nextTier = getNextTier(currentTier.id);
   const pointsToNextTier = nextTier ? Math.max(nextTier.minPoints - currentPoints, 0) : 0;
-  const retentionPenalty = currentTier.id > 1 ? Math.floor(currentTier.minPoints * 0.2) : 0;
+  const retentionPenalty = currentTier.id > 1 ? Math.floor(currentTier.minPoints * 0.1) : 0;
   const retentionTarget = currentTier.minPoints + retentionPenalty;
   const retentionPointsLeft = Math.max(0, retentionTarget - currentPoints);
   const upgradedThisMonth = effectiveUpgradedThisMonth;
@@ -506,11 +506,59 @@ function getTierLabel(tierId: number) {
 }
 
 function getCouponBenefitsForTier(tierId: number) {
-  const extraCount = Math.max(0, tierId - 1) * 2;
-  return [
-    `100元云币充值：立减8元 x ${3 + extraCount}张`,
-    `300元云币充值：立减28元 x ${1 + extraCount}张`,
-  ];
+  const plans: Record<number, Array<{ amount: number; discount: number; count: number }>> = {
+    1: [
+      { amount: 100, discount: 9, count: 2 },
+      { amount: 300, discount: 27, count: 1 },
+    ],
+    2: [
+      { amount: 100, discount: 9, count: 3 },
+      { amount: 300, discount: 27, count: 2 },
+    ],
+    3: [
+      { amount: 100, discount: 9, count: 4 },
+      { amount: 300, discount: 27, count: 3 },
+      { amount: 500, discount: 46, count: 1 },
+    ],
+    4: [
+      { amount: 100, discount: 9, count: 5 },
+      { amount: 300, discount: 27, count: 4 },
+      { amount: 500, discount: 46, count: 2 },
+      { amount: 1000, discount: 94, count: 1 },
+    ],
+    5: [
+      { amount: 100, discount: 9, count: 6 },
+      { amount: 300, discount: 27, count: 5 },
+      { amount: 500, discount: 46, count: 3 },
+      { amount: 1000, discount: 94, count: 2 },
+    ],
+    6: [
+      { amount: 100, discount: 9, count: 6 },
+      { amount: 300, discount: 27, count: 5 },
+      { amount: 500, discount: 46, count: 3 },
+      { amount: 1000, discount: 94, count: 3 },
+      { amount: 5000, discount: 480, count: 1 },
+    ],
+    7: [
+      { amount: 100, discount: 9, count: 8 },
+      { amount: 300, discount: 27, count: 6 },
+      { amount: 500, discount: 46, count: 4 },
+      { amount: 1000, discount: 94, count: 4 },
+      { amount: 5000, discount: 480, count: 2 },
+      { amount: 10000, discount: 980, count: 1 },
+    ],
+    8: [
+      { amount: 100, discount: 9, count: 10 },
+      { amount: 300, discount: 27, count: 8 },
+      { amount: 500, discount: 46, count: 5 },
+      { amount: 1000, discount: 94, count: 5 },
+      { amount: 5000, discount: 480, count: 3 },
+      { amount: 10000, discount: 980, count: 2 },
+    ],
+  };
+  const normalizedTierId = Math.max(1, Math.min(profileTierList.length, Math.floor(tierId || 1)));
+  return (plans[normalizedTierId] ?? plans[1])
+    .map((item) => `${item.amount}元云币充值：立减${item.discount}元 x ${item.count}张`);
 }
 
 function getTierBenefits(tierId: number, tierLabel: string) {

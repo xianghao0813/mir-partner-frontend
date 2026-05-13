@@ -2,7 +2,7 @@ import type { SupabaseClient, UserMetadata } from "@supabase/supabase-js";
 import { getCurrentTier, getShanghaiMonthKey, MIR_PARTNER_TIERS } from "@/lib/mirPoints";
 
 export type TierCouponBenefit = {
-  key: "coupon-100-8" | "coupon-300-28";
+  key: "coupon-100-9" | "coupon-300-27" | "coupon-500-46" | "coupon-1000-94" | "coupon-5000-480" | "coupon-10000-980";
   title: string;
   description: string;
   minAmount: number;
@@ -20,30 +20,67 @@ export type TierCouponGrantResult = {
   metadata: UserMetadata;
 };
 
+type TierCouponPlanItem = Omit<TierCouponBenefit, "title" | "description">;
+
+const TIER_COUPON_PLANS: Record<number, TierCouponPlanItem[]> = {
+  1: [
+    { key: "coupon-100-9", minAmount: 100, discountValue: 9, applicablePackageIds: [1], count: 2 },
+    { key: "coupon-300-27", minAmount: 300, discountValue: 27, applicablePackageIds: [2], count: 1 },
+  ],
+  2: [
+    { key: "coupon-100-9", minAmount: 100, discountValue: 9, applicablePackageIds: [1], count: 3 },
+    { key: "coupon-300-27", minAmount: 300, discountValue: 27, applicablePackageIds: [2], count: 2 },
+  ],
+  3: [
+    { key: "coupon-100-9", minAmount: 100, discountValue: 9, applicablePackageIds: [1], count: 4 },
+    { key: "coupon-300-27", minAmount: 300, discountValue: 27, applicablePackageIds: [2], count: 3 },
+    { key: "coupon-500-46", minAmount: 500, discountValue: 46, applicablePackageIds: [3], count: 1 },
+  ],
+  4: [
+    { key: "coupon-100-9", minAmount: 100, discountValue: 9, applicablePackageIds: [1], count: 5 },
+    { key: "coupon-300-27", minAmount: 300, discountValue: 27, applicablePackageIds: [2], count: 4 },
+    { key: "coupon-500-46", minAmount: 500, discountValue: 46, applicablePackageIds: [3], count: 2 },
+    { key: "coupon-1000-94", minAmount: 1000, discountValue: 94, applicablePackageIds: [4], count: 1 },
+  ],
+  5: [
+    { key: "coupon-100-9", minAmount: 100, discountValue: 9, applicablePackageIds: [1], count: 6 },
+    { key: "coupon-300-27", minAmount: 300, discountValue: 27, applicablePackageIds: [2], count: 5 },
+    { key: "coupon-500-46", minAmount: 500, discountValue: 46, applicablePackageIds: [3], count: 3 },
+    { key: "coupon-1000-94", minAmount: 1000, discountValue: 94, applicablePackageIds: [4], count: 2 },
+  ],
+  6: [
+    { key: "coupon-100-9", minAmount: 100, discountValue: 9, applicablePackageIds: [1], count: 6 },
+    { key: "coupon-300-27", minAmount: 300, discountValue: 27, applicablePackageIds: [2], count: 5 },
+    { key: "coupon-500-46", minAmount: 500, discountValue: 46, applicablePackageIds: [3], count: 3 },
+    { key: "coupon-1000-94", minAmount: 1000, discountValue: 94, applicablePackageIds: [4], count: 3 },
+    { key: "coupon-5000-480", minAmount: 5000, discountValue: 480, applicablePackageIds: [5], count: 1 },
+  ],
+  7: [
+    { key: "coupon-100-9", minAmount: 100, discountValue: 9, applicablePackageIds: [1], count: 8 },
+    { key: "coupon-300-27", minAmount: 300, discountValue: 27, applicablePackageIds: [2], count: 6 },
+    { key: "coupon-500-46", minAmount: 500, discountValue: 46, applicablePackageIds: [3], count: 4 },
+    { key: "coupon-1000-94", minAmount: 1000, discountValue: 94, applicablePackageIds: [4], count: 4 },
+    { key: "coupon-5000-480", minAmount: 5000, discountValue: 480, applicablePackageIds: [5], count: 2 },
+    { key: "coupon-10000-980", minAmount: 10000, discountValue: 980, applicablePackageIds: [6], count: 1 },
+  ],
+  8: [
+    { key: "coupon-100-9", minAmount: 100, discountValue: 9, applicablePackageIds: [1], count: 10 },
+    { key: "coupon-300-27", minAmount: 300, discountValue: 27, applicablePackageIds: [2], count: 8 },
+    { key: "coupon-500-46", minAmount: 500, discountValue: 46, applicablePackageIds: [3], count: 5 },
+    { key: "coupon-1000-94", minAmount: 1000, discountValue: 94, applicablePackageIds: [4], count: 5 },
+    { key: "coupon-5000-480", minAmount: 5000, discountValue: 480, applicablePackageIds: [5], count: 3 },
+    { key: "coupon-10000-980", minAmount: 10000, discountValue: 980, applicablePackageIds: [6], count: 2 },
+  ],
+};
+
 export function getTierCouponBenefits(tierId: number): TierCouponBenefit[] {
   const normalizedTierId = Math.max(1, Math.min(MIR_PARTNER_TIERS.length, Math.floor(tierId || 1)));
-  const extraCount = (normalizedTierId - 1) * 2;
 
-  return [
-    {
-      key: "coupon-100-8",
-      title: "100元云币充值券",
-      description: "购买 100 元云币商品时可立减 8 元。",
-      minAmount: 100,
-      discountValue: 8,
-      applicablePackageIds: [1],
-      count: 3 + extraCount,
-    },
-    {
-      key: "coupon-300-28",
-      title: "300元云币充值券",
-      description: "购买 300 元云币商品时可立减 28 元。",
-      minAmount: 300,
-      discountValue: 28,
-      applicablePackageIds: [2],
-      count: 1 + extraCount,
-    },
-  ];
+  return (TIER_COUPON_PLANS[normalizedTierId] ?? TIER_COUPON_PLANS[1]).map((benefit) => ({
+    ...benefit,
+    title: `${benefit.minAmount}元云币充值券`,
+    description: `购买 ${benefit.minAmount} 元云币商品时可立减 ${benefit.discountValue} 元。`,
+  }));
 }
 
 export function getTierCouponTotalCount(tierId: number) {
