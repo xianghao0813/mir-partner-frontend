@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+﻿import { NextRequest, NextResponse } from "next/server";
 import { compactAuthMetadata } from "@/lib/authMetadata";
 import { readAttendanceSummaryFromDb, applyAttendanceActionInDb } from "@/lib/attendanceDb";
 import { applyMirPointDelta, readMirPoints } from "@/lib/mirPoints";

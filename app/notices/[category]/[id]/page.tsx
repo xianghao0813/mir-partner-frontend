@@ -235,8 +235,11 @@ function sanitizeRichTextHtml(html: string) {
     .replace(/<iframe[\s\S]*?>[\s\S]*?<\/iframe>/gi, "")
     .replace(/<\/?(?:object|embed|form|input|button|textarea|select|option|meta|link)[^>]*>/gi, "")
     .replace(/\s+on\w+=(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, "")
+    .replace(/\s+style=(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, "")
     .replace(/\s+(href|src)=(["'])\s*javascript:[\s\S]*?\2/gi, "")
-    .replace(/\s+(href|src)=javascript:[^\s>]+/gi, "");
+    .replace(/\s+(href|src)=javascript:[^\s>]+/gi, "")
+    .replace(/\s+(href|src)=(["'])\s*data:(?!image\/(?:png|jpeg|jpg|gif|webp);)[\s\S]*?\2/gi, "")
+    .replace(/\s+(href|src)=data:(?!image\/(?:png|jpeg|jpg|gif|webp);)[^\s>]+/gi, "");
 }
 
 function escapeHtml(value: string) {

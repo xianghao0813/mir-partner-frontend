@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+﻿import { NextRequest, NextResponse } from "next/server";
 import { compactAuthMetadata } from "@/lib/authMetadata";
 import { getCloudCoinPackage } from "@/lib/cloudCoinPackages";
 import { applyCouponDiscount, expireCouponCheckoutSessions, getCouponStatus, isPackageApplicable, type UserCouponRecord } from "@/lib/coupons";
@@ -6,17 +6,23 @@ import { changeQuickSdkPlatformCoins, normalizeQuickSdkCallbackPayload } from "@
 import { awardMirPoints } from "@/lib/mirPoints";
 import { recordRiskEvent } from "@/lib/riskControl";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { insertPointTransaction, insertWalletTransaction } from "@/lib/userLedgers";
+import { insertPointTransaction } from "@/lib/userLedgers";
 import { appendWalletTransaction, readCloudCoins, readWalletTransactions } from "@/lib/wallet";
 
 export async function POST(request: NextRequest) {
   const rawPayload = await readCallbackPayload(request);
   const normalized = normalizeQuickSdkCallbackPayload(rawPayload);
   const payload = normalized.payload as Record<string, unknown> | null;
-  console.log("[QuickSDK callback]", {
+  console.info("[QuickSDK callback]", {
     encrypted: normalized.encrypted,
     signValid: normalized.signValid,
-    payload,
+    cpOrderNo:
+      readString(payload?.cpOrderNo) ||
+      readString(payload?.orderNo) ||
+      readString(payload?.cp_order_no) ||
+      "",
+    status: readString(payload?.status) || readString(payload?.orderStatus) || readString(payload?.payStatus),
+    amount: readNumber(payload?.amount) || readNumber(payload?.money) || readNumber(payload?.realAmount),
   });
 
   const cpOrderNo = readString(payload?.cpOrderNo) || readString(payload?.orderNo) || readString(payload?.cp_order_no);
@@ -150,6 +156,24 @@ export async function POST(request: NextRequest) {
     return new NextResponse("SUCCESS");
   }
 
+  const { data: existingDbTransaction, error: existingDbTransactionError } = await supabaseAdmin
+    .from("wallet_transactions")
+    .select("id,status")
+    .eq("transaction_key", transactionId)
+    .maybeSingle();
+
+  if (existingDbTransactionError) {
+    console.error("[QuickSDK callback wallet transaction lookup failed]", {
+      cpOrderNo,
+      error: existingDbTransactionError.message,
+    });
+    return new NextResponse("SUCCESS");
+  }
+
+  if (existingDbTransaction && existingDbTransaction.status !== "failed") {
+    return new NextResponse("SUCCESS");
+  }
+
   const sdkUid = readString(user.user_metadata?.quicksdk_uid);
   if (!sdkUid) {
     return NextResponse.json({
@@ -184,13 +208,6 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  const nextSdkAmount = await changeQuickSdkPlatformCoins({
-    userId: sdkUid,
-    amount: String(coins),
-    remark: `MIR Partner recharge ${cpOrderNo}`,
-  });
-  const fallbackAmount = readCloudCoins(user.user_metadata) + coins;
-  const nextCoins = Math.max(0, Math.floor(nextSdkAmount || fallbackAmount));
   const transaction = {
     id: transactionId,
     type: "recharge" as const,
@@ -201,6 +218,72 @@ export async function POST(request: NextRequest) {
     payMethod,
     status: "success" as const,
   };
+
+  const claimResult = existingDbTransaction?.status === "failed"
+    ? await supabaseAdmin
+        .from("wallet_transactions")
+        .update({ status: "processing" })
+        .eq("transaction_key", transaction.id)
+        .eq("user_id", userId)
+        .eq("status", "failed")
+        .select("id")
+        .maybeSingle()
+    : await supabaseAdmin
+        .from("wallet_transactions")
+        .insert({
+          user_id: userId,
+          transaction_key: transaction.id,
+          type: transaction.type,
+          amount: transaction.amount,
+          coins: transaction.coins,
+          description: transaction.desc,
+          pay_method: transaction.payMethod || null,
+          status: "processing",
+          occurred_at: `${transaction.date}T00:00:00+08:00`,
+        })
+        .select("id")
+        .maybeSingle();
+  const claimedTransaction = claimResult.data;
+  const claimTransactionError = claimResult.error;
+
+  if (claimTransactionError || !claimedTransaction) {
+    if (claimTransactionError?.code !== "23505") {
+      console.error("[QuickSDK callback wallet transaction claim failed]", {
+        cpOrderNo,
+        error: claimTransactionError?.message,
+      });
+    }
+    return new NextResponse("SUCCESS");
+  }
+
+  let nextSdkAmount = 0;
+  try {
+    nextSdkAmount = await changeQuickSdkPlatformCoins({
+      userId: sdkUid,
+      amount: String(coins),
+      remark: `MIR Partner recharge ${cpOrderNo}`,
+    });
+  } catch (sdkError) {
+    await supabaseAdmin
+      .from("wallet_transactions")
+      .update({ status: "failed" })
+      .eq("transaction_key", transaction.id)
+      .eq("user_id", userId);
+    console.error("[QuickSDK callback coin issue failed]", {
+      cpOrderNo,
+      error: sdkError instanceof Error ? sdkError.message : "unknown",
+    });
+    return new NextResponse("SUCCESS");
+  }
+
+  const fallbackAmount = readCloudCoins(user.user_metadata) + coins;
+  const nextCoins = Math.max(0, Math.floor(nextSdkAmount || fallbackAmount));
+  await supabaseAdmin
+    .from("wallet_transactions")
+    .update({ status: "success" })
+    .eq("transaction_key", transaction.id)
+    .eq("user_id", userId);
+
   const shouldAwardPoints = !containsPlatformCoin(productName) && !containsPlatformCoin(payTypeName);
   const awardedMirPoints = shouldAwardPoints ? Math.floor((paidAmount || coins) * 100) : 0;
   const pointAward = awardMirPoints({
@@ -211,7 +294,6 @@ export async function POST(request: NextRequest) {
     title: "云币充值积分",
     description: `订单 ${cpOrderNo} 自动发放`,
   });
-  await insertWalletTransaction(userId, transaction);
   const pointTransaction = readLatestPointTransaction(pointAward.metadata);
   if (pointTransaction) {
     await insertPointTransaction(userId, pointTransaction);
