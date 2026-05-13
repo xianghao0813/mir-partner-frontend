@@ -150,6 +150,16 @@ export async function POST(request: NextRequest) {
 
   const user = data.user;
   const transactionId = `sdk-order-${cpOrderNo}`;
+  await markPaymentOrderPaid({
+    paymentOrderId: orderVerification.paymentOrderId,
+    cpOrderNo,
+    userId,
+    packageId: Math.floor(Number(extras?.packageId ?? 0)),
+    coins,
+    paidAmount,
+    payMethod,
+    payload,
+  });
   const existingTransactions = readWalletTransactions(user.user_metadata);
 
   if (existingTransactions.some((item) => item.id === transactionId)) {
@@ -180,32 +190,6 @@ export async function POST(request: NextRequest) {
       success: false,
       message: "missing_quicksdk_uid",
     });
-  }
-
-  if (orderVerification.paymentOrderId) {
-    const { data: claimedOrder, error: claimError } = await supabaseAdmin
-      .from("payment_orders")
-      .update({
-        status: "paid",
-        paid_amount: paidAmount,
-        paid_at: new Date().toISOString(),
-        raw_callback: payload ?? {},
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", orderVerification.paymentOrderId)
-      .neq("status", "paid")
-      .select("id")
-      .maybeSingle();
-
-    if (claimError || !claimedOrder) {
-      console.error("[QuickSDK callback payment order claim failed]", {
-        cpOrderNo,
-        paymentOrderId: orderVerification.paymentOrderId,
-        error: claimError?.message,
-      });
-
-      return new NextResponse("SUCCESS");
-    }
   }
 
   const transaction = {
@@ -664,6 +648,80 @@ async function verifyCallbackOrder({
     paymentOrderId,
     alreadyPaid: false,
   };
+}
+
+async function markPaymentOrderPaid({
+  paymentOrderId,
+  cpOrderNo,
+  userId,
+  packageId,
+  coins,
+  paidAmount,
+  payMethod,
+  payload,
+}: {
+  paymentOrderId: string;
+  cpOrderNo: string;
+  userId: string;
+  packageId: number;
+  coins: number;
+  paidAmount: number;
+  payMethod: "wechat" | "alipay";
+  payload: Record<string, unknown> | null;
+}) {
+  const nowIso = new Date().toISOString();
+  const paidOrder = {
+    status: "paid",
+    paid_amount: paidAmount,
+    paid_at: nowIso,
+    raw_callback: payload ?? {},
+    updated_at: nowIso,
+  };
+
+  if (paymentOrderId) {
+    const { error } = await supabaseAdmin
+      .from("payment_orders")
+      .update(paidOrder)
+      .eq("id", paymentOrderId);
+
+    if (error) {
+      console.error("[QuickSDK callback payment order update failed]", {
+        cpOrderNo,
+        paymentOrderId,
+        error: error.message,
+      });
+    }
+    return;
+  }
+
+  const normalizedPackageId = Math.max(0, Math.floor(packageId));
+  const normalizedCoins = Math.max(0, Math.floor(coins));
+  if (!normalizedPackageId || !normalizedCoins || paidAmount <= 0) {
+    return;
+  }
+
+  const { error } = await supabaseAdmin
+    .from("payment_orders")
+    .upsert(
+      {
+        cp_order_no: cpOrderNo,
+        user_id: userId,
+        package_id: normalizedPackageId,
+        coins: normalizedCoins,
+        expected_amount: paidAmount,
+        pay_method: payMethod,
+        expires_at: nowIso,
+        ...paidOrder,
+      },
+      { onConflict: "cp_order_no" }
+    );
+
+  if (error) {
+    console.error("[QuickSDK callback payment order upsert failed]", {
+      cpOrderNo,
+      error: error.message,
+    });
+  }
 }
 
 function isSameMoney(actual: number, expected: number) {
