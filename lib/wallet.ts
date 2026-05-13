@@ -53,8 +53,11 @@ export async function buildWalletSummary(
   const localTransactions = mergeWalletTransactions([...dbTransactions, ...metadataTransactions]);
   const localCloudCoins = readCloudCoins(user.user_metadata);
   const websiteCloudCoins = calculateWebsiteCloudCoinBalance(localTransactions);
+  const localTransactionById = new Map(localTransactions.map((transaction) => [transaction.id, transaction]));
   const sdkOrderTransactions = sdkWallet
-    ? await Promise.all(sdkWallet.orders.map((order) => mapOrderToTransaction(user.id, order)))
+    ? (
+        await Promise.all(sdkWallet.orders.map((order) => mapOrderToTransaction(user.id, order)))
+      ).map((transaction) => localTransactionById.get(transaction.id) ?? transaction)
     : [];
 
   return {
@@ -72,7 +75,7 @@ export async function buildWalletSummary(
       ]) || createPartnerCode(user.id),
     status: "正常",
     cloudCoins: Math.max(sdkWallet?.amount ?? 0, localCloudCoins, websiteCloudCoins),
-    transactions: mergeWalletTransactions([...localTransactions, ...sdkOrderTransactions]),
+    transactions: normalizeWalletLedgerTransactions(mergeWalletTransactions([...localTransactions, ...sdkOrderTransactions])),
   };
 }
 
@@ -320,6 +323,13 @@ function calculateWebsiteCloudCoinBalance(items: WalletTransaction[]) {
       .filter((item) => item.id.startsWith("sdk-order-cp"))
       .reduce((total, item) => total + item.coins, 0)
   );
+}
+
+function normalizeWalletLedgerTransactions(items: WalletTransaction[]) {
+  return items.map((item) => ({
+    ...item,
+    coins: item.type === "consume" ? -Math.abs(Math.floor(item.coins)) : Math.abs(Math.floor(item.coins)),
+  }));
 }
 
 function shouldAwardMirPointsForOrder(order: QuickSdkOrderData) {
