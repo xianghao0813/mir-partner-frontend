@@ -2,11 +2,14 @@
 
 import { useEffect, useMemo, useState } from "react";
 import BossSlashTrial from "@/components/BossSlashTrial";
+import TierIdentityBadge from "@/components/TierIdentityBadge";
 import type { AttendanceAward, AttendanceSummary } from "@/lib/attendance";
+import type { MirPartnerTier } from "@/lib/mirPoints";
 import type { PartnerPointTransaction } from "@/lib/partnerProfile";
 
 type PointsActivityContentProps = {
   initialPoints: number;
+  initialTier: MirPartnerTier;
   initialSummary: AttendanceSummary;
 };
 
@@ -22,6 +25,7 @@ type AttendanceAction = "checkin" | "makeup";
 
 export default function PointsActivityContent({
   initialPoints,
+  initialTier,
   initialSummary,
 }: PointsActivityContentProps) {
   const [points, setPoints] = useState(initialPoints);
@@ -170,6 +174,7 @@ export default function PointsActivityContent({
             </div>
           </div>
           <div style={pointsPanelStyle}>
+            <TierIdentityBadge tier={initialTier} size="sm" />
             <span style={pointsLabelStyle}>当前 MIR 积分</span>
             <strong style={pointsValueStyle}>{points.toLocaleString()}</strong>
           </div>

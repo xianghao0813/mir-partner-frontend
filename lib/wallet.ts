@@ -3,6 +3,7 @@ import { compactAuthMetadata } from "@/lib/authMetadata";
 import { getCloudCoinPackage } from "@/lib/cloudCoinPackages";
 import { createPartnerCode } from "@/lib/partnerProfile";
 import { getRechargeDisplayName } from "@/lib/rechargeDisplay";
+import { getCurrentTier, readMirPoints, type MirPartnerTier } from "@/lib/mirPoints";
 import {
   getQuickSdkUserOrders,
   getQuickSdkWalletAmount,
@@ -34,6 +35,7 @@ export type WalletSummary = {
   partnerCode: string;
   status: string;
   cloudCoins: number;
+  currentTier: MirPartnerTier;
   transactions: WalletTransaction[];
 };
 
@@ -75,6 +77,7 @@ export async function buildWalletSummary(
       ]) || createPartnerCode(user.id),
     status: "正常",
     cloudCoins: Math.max(sdkWallet?.amount ?? 0, localCloudCoins, websiteCloudCoins),
+    currentTier: getCurrentTier(readMirPoints(user.user_metadata)),
     transactions: normalizeWalletLedgerTransactions(mergeWalletTransactions([...localTransactions, ...sdkOrderTransactions])),
   };
 }

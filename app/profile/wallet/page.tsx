@@ -2,6 +2,8 @@
 
 import type { CSSProperties, ReactNode } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import TierIdentityBadge from "@/components/TierIdentityBadge";
+import type { MirPartnerTier } from "@/lib/mirPoints";
 
 type CoinTier = {
   id: number;
@@ -31,6 +33,7 @@ type WalletSummary = {
   partnerCode: string;
   status: string;
   cloudCoins: number;
+  currentTier: MirPartnerTier;
   transactions: WalletTransaction[];
 };
 
@@ -680,6 +683,7 @@ export default function WalletPage() {
             </div>
 
             <div style={balanceBadgeStyle}>
+              {wallet?.currentTier ? <TierIdentityBadge tier={wallet.currentTier} size="sm" /> : null}
               <div style={balanceLabelStyle}>当前持有</div>
               <div style={balanceValueStyle}>{(wallet?.cloudCoins ?? 0).toLocaleString()} 云币</div>
               <button type="button" onClick={() => setHistoryOpen(true)} style={balanceDetailButtonStyle}>
@@ -966,6 +970,7 @@ function isWalletSummary(value: unknown): value is WalletSummary {
     typeof candidate.partnerCode === "string" &&
     typeof candidate.status === "string" &&
     typeof candidate.cloudCoins === "number" &&
+    Boolean(candidate.currentTier) &&
     Array.isArray(candidate.transactions)
   );
 }

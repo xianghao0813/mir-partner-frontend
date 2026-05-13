@@ -21,6 +21,7 @@ export default async function PointsActivityPage() {
   return (
     <PointsActivityContent
       initialPoints={profile.points}
+      initialTier={profile.currentTier}
       initialSummary={await readAttendanceSummaryFromDb(user.id, user.user_metadata)}
     />
   );

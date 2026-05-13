@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import TierIdentityBadge from "@/components/TierIdentityBadge";
 import type { PartnerPointTransaction, PartnerProfileSummary } from "@/lib/partnerProfile";
 
 type ProfileContentProps = {
@@ -186,6 +187,10 @@ export default function ProfileContent({ profile }: ProfileContentProps) {
           <div style={identityGridStyle}>
             <InfoCard label="UID" value={profile.uid || "-"} />
             <InfoCard label="合伙人编号" value={profile.partnerCode} accent="#fde68a" />
+          </div>
+
+          <div style={identityBadgeWrapStyle}>
+            <TierIdentityBadge tier={currentTier} />
           </div>
 
           <div style={tierDashboardStyle}>
@@ -671,6 +676,10 @@ const identityGridStyle: React.CSSProperties = {
   display: "grid",
   gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
   gap: "14px",
+};
+
+const identityBadgeWrapStyle: React.CSSProperties = {
+  marginTop: "16px",
 };
 
 const tierDashboardStyle: React.CSSProperties = {
