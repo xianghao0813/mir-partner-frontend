@@ -53,7 +53,9 @@ export async function buildWalletSummary(
   const localTransactions = mergeWalletTransactions([...dbTransactions, ...metadataTransactions]);
   const localCloudCoins = readCloudCoins(user.user_metadata);
   const websiteCloudCoins = calculateWebsiteCloudCoinBalance(localTransactions);
-  const sdkOrderTransactions = sdkWallet?.orders.map(mapOrderToTransaction) ?? [];
+  const sdkOrderTransactions = sdkWallet
+    ? await Promise.all(sdkWallet.orders.map((order) => mapOrderToTransaction(user.id, order)))
+    : [];
 
   return {
     account,
@@ -279,16 +281,17 @@ async function readQuickSdkWallet(uid: string) {
   }
 }
 
-function mapOrderToTransaction(order: QuickSdkOrderData): WalletTransaction {
+async function mapOrderToTransaction(userId: string, order: QuickSdkOrderData): Promise<WalletTransaction> {
   const id = order.productOrderNo || order.orderNo;
   const amount = order.dealAmount || order.amount;
   const isCoinConsume = isPlatformCoinOrder(order);
+  const coins = isCoinConsume ? Math.floor(amount) : await resolveWalletOrderCoins(userId, order);
 
   return {
     id: `sdk-order-${id}`,
     type: isCoinConsume ? "consume" : "recharge",
     amount,
-    coins: isCoinConsume ? -Math.floor(amount) : Math.floor(amount),
+    coins: isCoinConsume ? -coins : coins,
     desc: isCoinConsume ? order.productName || "云币使用" : order.productName || "云币充值",
     date: formatSdkTimestamp(order.payTime ?? order.createTime),
     payMethod: "",

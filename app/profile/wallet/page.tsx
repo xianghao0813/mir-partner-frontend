@@ -132,12 +132,29 @@ export default function WalletPage() {
     const paymentState = new URLSearchParams(window.location.search).get("payment");
     if (paymentState === "success") {
       setMessage("支付已完成，请等待服务器到账通知。");
-      void loadWallet();
+      void syncQuickSdkWallet();
       void loadCoupons();
     } else if (paymentState === "cancel") {
       setMessage("你已取消本次支付。");
       void loadCoupons();
     }
+  }, []);
+
+  useEffect(() => {
+    function refreshLatestWallet() {
+      if (document.visibilityState === "visible") {
+        void syncQuickSdkWallet();
+        void loadCoupons();
+      }
+    }
+
+    window.addEventListener("focus", refreshLatestWallet);
+    document.addEventListener("visibilitychange", refreshLatestWallet);
+
+    return () => {
+      window.removeEventListener("focus", refreshLatestWallet);
+      document.removeEventListener("visibilitychange", refreshLatestWallet);
+    };
   }, []);
 
   useEffect(() => {
@@ -326,7 +343,7 @@ export default function WalletPage() {
 
       window.clearInterval(intervalId);
       setMessage((current) => (current === messageText ? "" : current));
-      void loadWallet();
+      void syncQuickSdkWallet();
       void loadCoupons();
     }, 1000);
 
@@ -343,7 +360,7 @@ export default function WalletPage() {
         }
 
         setMessage((current) => (current === messageText ? "支付窗口已超过 1 分钟有效期，订单已取消。" : current));
-        void loadWallet();
+        void syncQuickSdkWallet();
         void loadCoupons();
       })();
     }, 60 * 1000);
@@ -769,7 +786,7 @@ export default function WalletPage() {
                   </div>
                   <div style={historyValueStyle(item.coins >= 0)}>
                     {item.coins >= 0 ? "+" : ""}
-                    {item.coins}
+                    {item.coins.toLocaleString()} 云币
                   </div>
                 </article>
               ))
