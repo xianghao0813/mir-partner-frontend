@@ -300,7 +300,9 @@ function mergeWalletTransactions(items: WalletTransaction[]) {
   const byId = new Map<string, WalletTransaction>();
 
   for (const item of items) {
-    byId.set(item.id, item);
+    if (!byId.has(item.id)) {
+      byId.set(item.id, item);
+    }
   }
 
   return [...byId.values()]
