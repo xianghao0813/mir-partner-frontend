@@ -171,7 +171,7 @@ async function ensureTestPaymentCoupon(userId: string) {
     user_id: userId,
     coupon_code: couponCode,
     title: "2元测试支付券",
-    description: "购买 100 云币测试商品时立减 1 元。",
+    description: "购买 2 云币测试商品时立减 1 元。",
     discount_type: "amount",
     discount_value: 1,
     min_amount: 2,
