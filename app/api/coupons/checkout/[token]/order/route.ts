@@ -167,7 +167,7 @@ export async function POST(
     const publicBaseUrl = getQuickSdkPublicBaseUrl(requestUrl.origin);
     const callbackUrl = new URL("/api/payment/quicksdk/callback", publicBaseUrl).toString();
     const successUrl = new URL("/profile/wallet?payment=success&coupon=used", publicBaseUrl).toString();
-    const cancelUrl = new URL("/profile/wallet?payment=cancel&coupon=used", publicBaseUrl).toString();
+    const cancelUrl = new URL("/profile/wallet?payment=cancel&coupon=pending", publicBaseUrl).toString();
     const extrasParams = Buffer.from(
       JSON.stringify({
         packageId: selectedPackage.id,
@@ -202,21 +202,6 @@ export async function POST(
 
     if (!consumedSession) {
       return NextResponse.json({ message: "优惠券使用链接已被使用，请重新领取。" }, { status: 409 });
-    }
-
-    const { data: usedCoupon, error: couponUpdateError } = await supabaseAdmin
-      .from("user_coupons")
-      .update({
-        used_at: nowIso,
-        used_order_no: cpOrderNo,
-      })
-      .eq("id", couponRecord.id)
-      .is("used_at", null)
-      .select("id")
-      .maybeSingle();
-
-    if (couponUpdateError || !usedCoupon) {
-      return NextResponse.json({ message: couponUpdateError?.message ?? "优惠券已经被使用。" }, { status: 409 });
     }
 
     const payUrl = await createQuickSdkPayUrl({

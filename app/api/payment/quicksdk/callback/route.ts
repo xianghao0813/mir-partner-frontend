@@ -113,6 +113,30 @@ export async function POST(request: NextRequest) {
     return new NextResponse("SUCCESS");
   }
 
+  if (extras?.couponId) {
+    const { data: usedCoupon, error: couponUseError } = await supabaseAdmin
+      .from("user_coupons")
+      .update({
+        used_at: new Date().toISOString(),
+        used_order_no: cpOrderNo,
+      })
+      .eq("id", extras.couponId)
+      .eq("user_id", userId)
+      .or(`used_at.is.null,used_order_no.eq.${cpOrderNo}`)
+      .select("id")
+      .maybeSingle();
+
+    if (couponUseError || !usedCoupon) {
+      console.error("[QuickSDK callback coupon claim failed]", {
+        couponId: extras.couponId,
+        userId,
+        cpOrderNo,
+        error: couponUseError?.message,
+      });
+      return new NextResponse("SUCCESS");
+    }
+  }
+
   const { data, error } = await supabaseAdmin.auth.admin.getUserById(userId);
   if (error || !data.user) {
     return new NextResponse("SUCCESS");
@@ -417,7 +441,7 @@ async function resolveExpectedPaidAmount(
     const source = session as Record<string, unknown>;
     sessionCpOrderNo = readString(source.cp_order_no);
     const sessionStatus = readString(source.status);
-    if (sessionStatus !== "consumed" && sessionStatus !== "expired") {
+    if (sessionStatus !== "consumed" || sessionCpOrderNo !== cpOrderNo) {
       return 0;
     }
   }
@@ -425,15 +449,16 @@ async function resolveExpectedPaidAmount(
   const couponOrderMatches =
     couponRecord.used_order_no === cpOrderNo ||
     (!!sessionCpOrderNo && couponRecord.used_order_no === sessionCpOrderNo);
+  const couponStatus = getCouponStatus(couponRecord);
 
-  if (getCouponStatus(couponRecord) !== "used" || !couponOrderMatches) {
+  if (couponStatus !== "unused" && (couponStatus !== "used" || !couponOrderMatches)) {
     console.error("[QuickSDK callback coupon order mismatch]", {
       couponId,
       userId,
       cpOrderNo,
       sessionCpOrderNo,
       couponOrderNo: couponRecord.used_order_no,
-      status: getCouponStatus(couponRecord),
+      status: couponStatus,
     });
     return 0;
   }
