@@ -71,8 +71,8 @@ export async function POST(request: NextRequest) {
     const requestUrl = new URL(request.url);
     const publicBaseUrl = getQuickSdkPublicBaseUrl(requestUrl.origin);
     const callbackUrl = new URL("/api/payment/quicksdk/callback", publicBaseUrl).toString();
-    const successUrl = new URL("/profile/wallet?payment=success", publicBaseUrl).toString();
-    const cancelUrl = new URL("/profile/wallet?payment=cancel", publicBaseUrl).toString();
+    const successUrl = new URL("/payment/result?status=success", publicBaseUrl).toString();
+    const cancelUrl = new URL("/payment/result?status=cancel", publicBaseUrl).toString();
     const cpOrderNo = buildOrderNo(user.id, selectedPackage.id);
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
 

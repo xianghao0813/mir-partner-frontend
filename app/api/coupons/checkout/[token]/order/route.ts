@@ -166,8 +166,8 @@ export async function POST(
     const requestUrl = new URL(request.url);
     const publicBaseUrl = getQuickSdkPublicBaseUrl(requestUrl.origin);
     const callbackUrl = new URL("/api/payment/quicksdk/callback", publicBaseUrl).toString();
-    const successUrl = new URL("/profile/wallet?payment=success&coupon=used", publicBaseUrl).toString();
-    const cancelUrl = new URL("/profile/wallet?payment=cancel&coupon=pending", publicBaseUrl).toString();
+    const successUrl = new URL("/payment/result?status=success&coupon=used", publicBaseUrl).toString();
+    const cancelUrl = new URL("/payment/result?status=cancel&coupon=pending", publicBaseUrl).toString();
     const extrasParams = Buffer.from(
       JSON.stringify({
         packageId: selectedPackage.id,
