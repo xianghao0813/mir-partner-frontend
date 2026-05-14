@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Script from "next/script";
 import "./globals.css";
 import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
@@ -12,6 +13,26 @@ type NavGroup = {
   label: string;
   items: { href: string; label: string }[];
 };
+
+type QuickServiceApi = {
+  setAppId: (value: string) => QuickServiceApi;
+  setUid: (value: string) => QuickServiceApi;
+  setUsername?: (value: string) => QuickServiceApi;
+  setNickName?: (value: string) => QuickServiceApi;
+  setParams?: (value: Record<string, string>) => QuickServiceApi;
+  setWidth: (value: string | number) => QuickServiceApi;
+  setHeight: (value: string | number) => QuickServiceApi;
+  show: (position?: number) => void;
+};
+
+declare global {
+  interface Window {
+    QuickService?: QuickServiceApi;
+  }
+}
+
+const quickServiceAppId =
+  process.env.NEXT_PUBLIC_QUICKSERVICE_APP_ID?.trim() || "c62228e47a5b3ce1d0ff59f0a6ba87f6";
 
 const navGroups: NavGroup[] = [
   {
@@ -52,6 +73,7 @@ export default function RootLayout({
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [accountDisplayName, setAccountDisplayName] = useState<string | null>(null);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
   const accountMenuRef = useRef<HTMLDivElement | null>(null);
   const pathname = usePathname();
@@ -67,6 +89,7 @@ export default function RootLayout({
 
       setUserEmail(user?.email ?? null);
       setAccountDisplayName(user ? getAccountDisplayName(user) : null);
+      setCurrentUser(user ?? null);
       setAuthLoading(false);
     }
 
@@ -77,6 +100,7 @@ export default function RootLayout({
     } = supabase.auth.onAuthStateChange((_event, session) => {
       setUserEmail(session?.user?.email ?? null);
       setAccountDisplayName(session?.user ? getAccountDisplayName(session.user) : null);
+      setCurrentUser(session?.user ?? null);
       setAuthLoading(false);
     });
 
@@ -115,7 +139,53 @@ export default function RootLayout({
     setAccountMenuOpen(false);
     setUserEmail(null);
     setAccountDisplayName(null);
+    setCurrentUser(null);
     window.location.href = "/";
+  }
+
+  function openCustomerService() {
+    const quickService = window.QuickService;
+
+    if (!quickService) {
+      window.open("https://kf.gamewemade.com/web/demo", "_blank", "noopener,noreferrer");
+      return;
+    }
+
+    const metadata = currentUser?.user_metadata ?? {};
+    const quickSdkUid = readMetadataString(metadata.quicksdk_uid);
+    const username =
+      readMetadataString(metadata.quicksdk_username) ||
+      readMetadataString(metadata.username) ||
+      currentUser?.email ||
+      accountDisplayName ||
+      "guest";
+    const uid = quickSdkUid || currentUser?.id || `guest-${Date.now()}`;
+    const params: Record<string, string> = {
+      uid,
+      username,
+      nickName: accountDisplayName || username,
+    };
+
+    if (quickSdkUid) {
+      params.qkUid = quickSdkUid;
+    }
+
+    try {
+      const service = quickService
+        .setAppId(quickServiceAppId)
+        .setUid(uid)
+        .setWidth("450px")
+        .setHeight("100%");
+
+      if (service.setParams) {
+        service.setParams(params).show(1);
+      } else {
+        service.setUsername?.(username).setNickName?.(accountDisplayName || username);
+        service.show(1);
+      }
+    } catch {
+      window.open("https://kf.gamewemade.com/web/demo", "_blank", "noopener,noreferrer");
+    }
   }
 
   return (
@@ -129,6 +199,9 @@ export default function RootLayout({
             '"Microsoft YaHei", "PingFang SC", "Hiragino Sans GB", "Noto Sans SC", Arial, sans-serif',
         }}
       >
+        {!hideSiteChrome ? (
+          <Script src="https://kf.gamewemade.com/static/app/libQuickService.js" strategy="afterInteractive" />
+        ) : null}
         {!hideSiteChrome ? (
         <header
           className="site-header"
@@ -320,6 +393,11 @@ export default function RootLayout({
         ) : null}
 
         <div className="site-content" style={{ padding: hideSiteChrome ? 0 : "40px" }}>{children}</div>
+        {!hideSiteChrome ? (
+          <button type="button" onClick={openCustomerService} style={customerServiceButtonStyle}>
+            联系客服
+          </button>
+        ) : null}
       </body>
     </html>
   );
@@ -467,4 +545,20 @@ const accountActionButtonStyle: React.CSSProperties = {
   cursor: "pointer",
   fontSize: "14px",
   fontWeight: 600,
+};
+
+const customerServiceButtonStyle: React.CSSProperties = {
+  position: "fixed",
+  right: "22px",
+  bottom: "22px",
+  zIndex: 130,
+  border: "1px solid rgba(192,132,252,0.38)",
+  background: "linear-gradient(135deg, rgba(124,58,237,0.94), rgba(79,70,229,0.94))",
+  color: "white",
+  borderRadius: "999px",
+  padding: "13px 18px",
+  boxShadow: "0 16px 36px rgba(76,29,149,0.38)",
+  fontSize: "14px",
+  fontWeight: 900,
+  cursor: "pointer",
 };
