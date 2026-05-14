@@ -413,12 +413,12 @@ a {
   }
 
   .home-game-icon-card {
-    width: 92px !important;
-    border-radius: 20px !important;
+    width: 118px !important;
+    border-radius: 24px !important;
   }
 
   .home-game-icon-track {
-    gap: 12px !important;
+    gap: 14px !important;
   }
 
   .home-showcase-panel {

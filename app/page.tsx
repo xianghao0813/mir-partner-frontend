@@ -79,26 +79,31 @@ const showcaseGameIcons = [
   {
     title: "MIR5",
     shortTitle: "MIR5",
+    image: "https://cache.wemade.com/wemade/assets/opt_video/home/home-games-mir4-m-poster.webp",
     accent: "#60a5fa",
   },
   {
     title: "Golf Super Crew",
     shortTitle: "GOLF",
+    image: "https://play-lh.googleusercontent.com/A3Ltj9ZGJTAIHOBaizMmmwsLcGVDL5Wn3gfaenuKetx1THs0fxJC7-fPxQCA2D4ekFI",
     accent: "#86efac",
   },
   {
     title: "Fantastic Baseball",
     shortTitle: "BASE",
+    image: "https://play-lh.googleusercontent.com/biRFwWPfXF71ks4Pg3z8Gvy9TYwcStZ4bvciipEksYwsUFdve8YBA6d5UIs9Cz5ndoU5RARlM4e-ZgEStDotbw",
     accent: "#fb923c",
   },
   {
     title: "The Legend of Mir 3",
     shortTitle: "MIR3",
+    image: "/games/mir-m.jpg",
     accent: "#fbbf24",
   },
   {
     title: "The Legend of Mir 2",
     shortTitle: "MIR2",
+    image: "/banners/mir4-main.jpg",
     accent: "#f472b6",
   },
 ];
@@ -379,12 +384,12 @@ function GameIconCard({ item }: { item: (typeof showcaseGameIcons)[number] }) {
       className="home-game-icon-card"
       style={{
         position: "relative",
-        width: "clamp(112px, 10vw, 158px)",
+        width: "clamp(148px, 13vw, 210px)",
         aspectRatio: "1 / 1",
-        borderRadius: "30px",
+        borderRadius: "36px",
         overflow: "hidden",
         flex: "0 0 auto",
-        boxShadow: `0 22px 46px rgba(0,0,0,0.42), 0 0 28px ${item.accent}22`,
+        boxShadow: `0 28px 58px rgba(0,0,0,0.46), 0 0 34px ${item.accent}28`,
         border: `1px solid ${item.accent}55`,
         background: `radial-gradient(circle at 35% 25%, ${item.accent}55, rgba(9,12,22,0.98) 62%)`,
       }}
@@ -664,10 +669,10 @@ const showcaseOverlayStyle: React.CSSProperties = {
 
 const showcaseBackgroundStyle: React.CSSProperties = {
   position: "absolute",
-  inset: "4% -8%",
+  inset: "0% -10%",
   display: "grid",
   alignContent: "center",
-  gap: "22px",
+  gap: "24px",
   transform: "perspective(1800px) rotateX(8deg) rotateY(-4deg)",
   opacity: 0.82,
   zIndex: 1,
@@ -676,7 +681,7 @@ const showcaseBackgroundStyle: React.CSSProperties = {
 const gameIconTrackStyle: React.CSSProperties = {
   display: "flex",
   width: "max-content",
-  gap: "18px",
+  gap: "22px",
   willChange: "transform",
 };
 
@@ -734,7 +739,7 @@ const showcaseTextStyle: React.CSSProperties = {
 
 const gameIconTitleStyle: React.CSSProperties = {
   color: "#f8fafc",
-  fontSize: "13px",
+  fontSize: "15px",
   lineHeight: 1.15,
   fontWeight: 950,
   textShadow: "0 2px 12px rgba(0,0,0,0.58)",
