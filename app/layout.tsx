@@ -160,29 +160,11 @@ export default function RootLayout({
       accountDisplayName ||
       "guest";
     const uid = quickSdkUid || currentUser?.id || `guest-${Date.now()}`;
-    const params: Record<string, string> = {
-      uid,
-      username,
-      nickName: accountDisplayName || username,
-    };
-
-    if (quickSdkUid) {
-      params.qkUid = quickSdkUid;
-    }
-
     try {
-      const service = quickService
-        .setAppId(quickServiceAppId)
-        .setUid(uid)
-        .setWidth("450px")
-        .setHeight("100%");
-
-      if (service.setParams) {
-        service.setParams(params).show(1);
-      } else {
-        service.setUsername?.(username).setNickName?.(accountDisplayName || username);
-        service.show(1);
-      }
+      const service = quickService.setAppId(quickServiceAppId).setUid(uid).setWidth("800px").setHeight("700px");
+      service.setUsername?.(username);
+      service.setNickName?.(accountDisplayName || username);
+      service.show();
     } catch {
       window.open("https://kf.gamewemade.com/web/demo", "_blank", "noopener,noreferrer");
     }

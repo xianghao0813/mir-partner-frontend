@@ -427,18 +427,6 @@ function GameIconCard({ item }: { item: (typeof showcaseGameIcons)[number] }) {
         }}
       >
         <div style={gameIconTitleStyle}>{item.title}</div>
-        <div
-          style={{
-            marginTop: "4px",
-            color: item.accent,
-            fontSize: "11px",
-            letterSpacing: "0.08em",
-            textTransform: "uppercase",
-            fontWeight: 900,
-          }}
-        >
-          WEMADE
-        </div>
       </div>
     </div>
   );
