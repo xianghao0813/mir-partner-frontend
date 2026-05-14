@@ -3,6 +3,7 @@
 import type { CSSProperties, ReactNode } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import TierIdentityBadge from "@/components/TierIdentityBadge";
+import { CLOUD_COIN_PACKAGES } from "@/lib/cloudCoinPackages";
 import type { MirPartnerTier } from "@/lib/mirPoints";
 
 type CoinTier = {
@@ -74,16 +75,12 @@ type AccountSecurity = {
   phoneRewardClaimed: boolean;
 };
 
-const coinTiers: CoinTier[] = [
-  { id: 1, coins: 100, priceLabel: "¥100", image: "/cloud-coins/tier-1.png" },
-  { id: 2, coins: 300, priceLabel: "¥300", image: "/cloud-coins/tier-2.png" },
-  { id: 3, coins: 500, priceLabel: "¥500", image: "/cloud-coins/tier-3.png" },
-  { id: 4, coins: 1000, priceLabel: "¥1,000", image: "/cloud-coins/tier-4.png" },
-  { id: 5, coins: 5000, priceLabel: "¥5,000", image: "/cloud-coins/tier-5.png" },
-  { id: 6, coins: 10000, priceLabel: "¥10,000", image: "/cloud-coins/tier-6.png" },
-  { id: 7, coins: 20000, priceLabel: "¥20,000", image: "/cloud-coins/tier-7.png" },
-  { id: 8, coins: 30000, priceLabel: "¥30,000", image: "/cloud-coins/tier-8.png" },
-];
+const coinTiers: CoinTier[] = CLOUD_COIN_PACKAGES.map((item) => ({
+  id: item.id,
+  coins: item.coins,
+  priceLabel: `\u00a5${formatPriceLabel(item.amount)}`,
+  image: `/cloud-coins/tier-${item.id}.png`,
+}));
 
 const emptyCouponGroups: CouponGroups = {
   unused: [],
@@ -1023,6 +1020,17 @@ function formatDate(value: string) {
     return value;
   }
   return date.toLocaleString("zh-CN", { hour12: false });
+}
+
+function formatPriceLabel(amount: string) {
+  const value = Number(amount);
+  if (!Number.isFinite(value)) {
+    return amount;
+  }
+  return value.toLocaleString("zh-CN", {
+    minimumFractionDigits: Number.isInteger(value) ? 0 : 2,
+    maximumFractionDigits: 2,
+  });
 }
 
 const pageStyle: CSSProperties = {
