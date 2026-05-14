@@ -16,6 +16,7 @@ type NavGroup = {
 
 type QuickServiceApi = {
   setAppId: (value: string) => QuickServiceApi;
+  setHost?: (value: string) => QuickServiceApi;
   setUid: (value: string) => QuickServiceApi;
   setUsername?: (value: string) => QuickServiceApi;
   setNickName?: (value: string) => QuickServiceApi;
@@ -23,6 +24,7 @@ type QuickServiceApi = {
   setWidth: (value: string | number) => QuickServiceApi;
   setHeight: (value: string | number) => QuickServiceApi;
   show: (position?: number) => void;
+  close?: (keep?: number) => void;
 };
 
 declare global {
@@ -161,13 +163,53 @@ export default function RootLayout({
       "guest";
     const uid = quickSdkUid || currentUser?.id || `guest-${Date.now()}`;
     try {
-      const service = quickService.setAppId(quickServiceAppId).setUid(uid).setWidth("800px").setHeight("700px");
+      const service = (quickService.setHost?.("https://kf.gamewemade.com") ?? quickService)
+        .setAppId(quickServiceAppId)
+        .setUid(uid)
+        .setWidth("800px")
+        .setHeight("700px");
       service.setUsername?.(username);
       service.setNickName?.(accountDisplayName || username);
       service.show();
+      window.setTimeout(attachCustomerServiceCloseButton, 80);
     } catch {
       window.open("https://kf.gamewemade.com/web/demo", "_blank", "noopener,noreferrer");
     }
+  }
+
+  function attachCustomerServiceCloseButton() {
+    const frame = document.getElementById("quickServiceFrame");
+
+    if (!frame || document.getElementById("quickServiceCloseButton")) {
+      return;
+    }
+
+    const button = document.createElement("button");
+    button.id = "quickServiceCloseButton";
+    button.type = "button";
+    button.innerText = "×";
+    button.setAttribute("aria-label", "关闭客服");
+    button.setAttribute(
+      "style",
+      [
+        "position:absolute",
+        "top:8px",
+        "right:10px",
+        "z-index:2",
+        "width:34px",
+        "height:34px",
+        "border-radius:999px",
+        "border:1px solid rgba(15,23,42,0.16)",
+        "background:rgba(15,23,42,0.82)",
+        "color:white",
+        "font-size:24px",
+        "line-height:30px",
+        "cursor:pointer",
+        "box-shadow:0 8px 18px rgba(0,0,0,0.22)",
+      ].join(";")
+    );
+    button.onclick = () => window.QuickService?.close?.();
+    frame.appendChild(button);
   }
 
   return (
