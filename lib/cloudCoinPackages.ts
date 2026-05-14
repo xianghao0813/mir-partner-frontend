@@ -8,7 +8,7 @@ export type CloudCoinPackage = {
 };
 
 export const CLOUD_COIN_PACKAGES: CloudCoinPackage[] = [
-  { id: 1, coins: 100, amount: "100.00", subject: "100云币", desc: "购买100云币", goodsId: "cloud-coins-100" },
+  { id: 1, coins: 1, amount: "100.00", subject: "1云币", desc: "购买1云币", goodsId: "cloud-coins-100" },
   { id: 2, coins: 300, amount: "300.00", subject: "300云币", desc: "购买300云币", goodsId: "cloud-coins-300" },
   { id: 3, coins: 500, amount: "500.00", subject: "500云币", desc: "购买500云币", goodsId: "cloud-coins-500" },
   { id: 4, coins: 1000, amount: "1000.00", subject: "1000云币", desc: "购买1000云币", goodsId: "cloud-coins-1000" },
