@@ -679,11 +679,10 @@ export default function WalletPage() {
             <div>
               <div style={eyebrowStyle}>WALLET</div>
               <h1 style={titleStyle}>我的钱包</h1>
-              <p style={subtitleStyle}>查看账号状态、云币余额、充值记录与优惠券。充值会跳转到 QuickSDK 外部支付页面继续完成。</p>
+              <p style={subtitleStyle}>查看账号状态、云币余额、充值记录与优惠券。</p>
             </div>
 
             <div style={balanceBadgeStyle}>
-              {wallet?.currentTier ? <TierIdentityBadge tier={wallet.currentTier} size="sm" /> : null}
               <div style={balanceLabelStyle}>当前持有</div>
               <div style={balanceValueStyle}>{(wallet?.cloudCoins ?? 0).toLocaleString()} 云币</div>
               <button type="button" onClick={() => setHistoryOpen(true)} style={balanceDetailButtonStyle}>
@@ -702,7 +701,12 @@ export default function WalletPage() {
             {accountInfo.map((item) => (
               <article key={item.label} style={infoCardStyle}>
                 <div style={infoLabelStyle}>{item.label}</div>
-                <div style={infoValueStyle}>{item.value}</div>
+                <div style={item.label === "UID" ? uidValueRowStyle : undefined}>
+                  <div style={infoValueStyle}>{item.value}</div>
+                  {item.label === "UID" && wallet?.currentTier ? (
+                    <TierIdentityBadge tier={wallet.currentTier} size="sm" />
+                  ) : null}
+                </div>
               </article>
             ))}
           </div>
@@ -742,7 +746,7 @@ export default function WalletPage() {
             <div>
               <div style={eyebrowStyle}>CHARGE</div>
               <h2 style={sectionTitleStyle}>云币充值</h2>
-              <p style={sectionTextStyle}>点击卡片即可直接前往充值。优惠券请先从“优惠券”弹窗进入专用支付页使用。</p>
+              <p style={sectionTextStyle}>普通充值可直接点击下方云币卡片；如需使用优惠券，请先点击上方“优惠券”按钮，在优惠券窗口内选择优惠券并进入专用支付页。</p>
             </div>
 
           </div>
@@ -1120,6 +1124,7 @@ const securityGridStyle: CSSProperties = { display: "grid", gridTemplateColumns:
 const infoCardStyle: CSSProperties = { padding: "18px", borderRadius: "16px", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)", display: "grid", gap: "8px" };
 const infoLabelStyle: CSSProperties = { color: "#9ca3af", fontSize: "13px" };
 const infoValueStyle: CSSProperties = { fontSize: "20px", fontWeight: 700, color: "#fff", wordBreak: "break-word" };
+const uidValueRowStyle: CSSProperties = { display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px", flexWrap: "wrap" };
 const statusCardButtonStyle: CSSProperties = {
   width: "fit-content",
   border: "1px solid rgba(255,255,255,0.14)",
