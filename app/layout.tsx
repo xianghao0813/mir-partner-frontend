@@ -166,11 +166,11 @@ export default function RootLayout({
       const service = (quickService.setHost?.("https://kf.gamewemade.com") ?? quickService)
         .setAppId(quickServiceAppId)
         .setUid(uid)
-        .setWidth("800px")
-        .setHeight("700px");
+        .setWidth("450px")
+        .setHeight("100%");
       service.setUsername?.(username);
       service.setNickName?.(accountDisplayName || username);
-      service.show();
+      service.show(1);
       window.setTimeout(attachCustomerServiceCloseButton, 80);
     } catch {
       window.open("https://kf.gamewemade.com/web/demo", "_blank", "noopener,noreferrer");
@@ -193,17 +193,17 @@ export default function RootLayout({
       "style",
       [
         "position:absolute",
-        "top:8px",
-        "right:10px",
+        "top:10px",
+        "left:-46px",
         "z-index:2",
-        "width:34px",
-        "height:34px",
+        "width:38px",
+        "height:38px",
         "border-radius:999px",
-        "border:1px solid rgba(15,23,42,0.16)",
-        "background:rgba(15,23,42,0.82)",
+        "border:1px solid rgba(192,132,252,0.32)",
+        "background:rgba(15,23,42,0.9)",
         "color:white",
         "font-size:24px",
-        "line-height:30px",
+        "line-height:34px",
         "cursor:pointer",
         "box-shadow:0 8px 18px rgba(0,0,0,0.22)",
       ].join(";")
