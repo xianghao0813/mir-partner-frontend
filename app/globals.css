@@ -412,14 +412,13 @@ a {
     transform: perspective(1200px) rotateX(8deg) rotateY(-7deg) !important;
   }
 
-  .home-poster-card {
-    width: 132px !important;
-    height: 232px !important;
-    border-radius: 16px !important;
+  .home-game-icon-card {
+    width: 92px !important;
+    border-radius: 20px !important;
   }
 
-  .home-poster-card.is-short {
-    transform: translateY(24px) !important;
+  .home-game-icon-track {
+    gap: 12px !important;
   }
 
   .home-showcase-panel {

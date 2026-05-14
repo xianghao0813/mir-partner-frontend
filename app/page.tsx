@@ -39,31 +39,67 @@ const postLabelMap: Record<string, string> = {
   update: "更新",
 };
 
-const showcasePosters = [
-  {
-    title: "MIR4",
-    subtitle: "Global Action MMORPG",
-    image: "/banners/mir4-main.jpg",
-  },
-  {
-    title: "暮光双龙",
-    subtitle: "Legacy Reforged For Mobile",
-    image: "/games/mir-m.jpg",
-  },
-  {
-    title: "Night Crows",
-    subtitle: "Dark Medieval Massive War",
-    image: "/games/night-crows.jpg",
-  },
+const showcaseGameIcons = [
   {
     title: "Legend of YMIR",
-    subtitle: "Next Mythic Universe",
-    image: "/games/ymir.jpg",
+    shortTitle: "YMIR",
+    image: "https://cache.wemade.com/wemade/assets/opt_video/home/home-games-ymir-m-poster.webp",
+    accent: "#facc15",
   },
   {
-    title: "Night Crows Event",
-    subtitle: "Live Operation Momentum",
-    image: "/banners/nightcrows-event.jpg",
+    title: "NIGHT CROWS",
+    shortTitle: "NC",
+    image: "https://cache.wemade.com/wemade/assets/opt_video/home/home-games-nightcrows-m-poster.webp",
+    accent: "#93c5fd",
+  },
+  {
+    title: "MIR4",
+    shortTitle: "MIR4",
+    image: "https://cache.wemade.com/wemade/assets/opt_video/home/home-games-mir4-m-poster.webp",
+    accent: "#c084fc",
+  },
+  {
+    title: "The Midnight Walkers",
+    shortTitle: "MW",
+    image: "https://cache.wemade.com/wemade/assets/opt_video/home/home-games-midnight-m-poster.webp",
+    accent: "#f87171",
+  },
+  {
+    title: "Project TAL",
+    shortTitle: "TAL",
+    image: "https://cache.wemade.com/wemade/assets/opt_video/home/home-games-projecttal-m-poster.webp",
+    accent: "#34d399",
+  },
+  {
+    title: "MIR M",
+    shortTitle: "MIR M",
+    image: "/games/mir-m.jpg",
+    accent: "#a78bfa",
+  },
+  {
+    title: "MIR5",
+    shortTitle: "MIR5",
+    accent: "#60a5fa",
+  },
+  {
+    title: "Golf Super Crew",
+    shortTitle: "GOLF",
+    accent: "#86efac",
+  },
+  {
+    title: "Fantastic Baseball",
+    shortTitle: "BASE",
+    accent: "#fb923c",
+  },
+  {
+    title: "The Legend of Mir 3",
+    shortTitle: "MIR3",
+    accent: "#fbbf24",
+  },
+  {
+    title: "The Legend of Mir 2",
+    shortTitle: "MIR2",
+    accent: "#f472b6",
   },
 ];
 
@@ -155,15 +191,9 @@ export default function Home() {
           <div style={showcaseOverlayStyle} />
 
           <div className="home-showcase-background" style={showcaseBackgroundStyle}>
-            <div style={showcaseTrackStyle}>
-              <PosterRow posters={showcasePosters} rowKey="top-a" tallOffset={0} />
-              <PosterRow posters={showcasePosters} rowKey="top-b" tallOffset={0} ariaHidden />
-            </div>
-
-            <div style={showcaseTrackReverseStyle}>
-              <PosterRow posters={showcasePosters.slice().reverse()} rowKey="bottom-a" tallOffset={1} />
-              <PosterRow posters={showcasePosters.slice().reverse()} rowKey="bottom-b" tallOffset={1} ariaHidden />
-            </div>
+            <GameIconMarquee items={showcaseGameIcons} rowKey="top" />
+            <GameIconMarquee items={showcaseGameIcons.slice().reverse()} rowKey="middle" reverse />
+            <GameIconMarquee items={rotateItems(showcaseGameIcons, 4)} rowKey="bottom" />
           </div>
 
           <div className="home-showcase-panel" style={showcasePanelStyle}>
@@ -343,89 +373,101 @@ export default function Home() {
   );
 }
 
-function PosterCard({
-  poster,
-  tall,
-}: {
-  poster: { title: string; subtitle: string; image: string };
-  tall: boolean;
-}) {
+function GameIconCard({ item }: { item: (typeof showcaseGameIcons)[number] }) {
   return (
     <div
-      className={`home-poster-card ${tall ? "is-tall" : "is-short"}`}
+      className="home-game-icon-card"
       style={{
         position: "relative",
-        width: "clamp(150px, 16vw, 240px)",
-        height: tall ? "410px" : "338px",
-        borderRadius: "26px",
+        width: "clamp(112px, 10vw, 158px)",
+        aspectRatio: "1 / 1",
+        borderRadius: "30px",
         overflow: "hidden",
-        transform: `translateY(${tall ? "0px" : "40px"})`,
-        boxShadow: "0 28px 60px rgba(0,0,0,0.45)",
-        border: "1px solid rgba(255,255,255,0.08)",
+        flex: "0 0 auto",
+        boxShadow: `0 22px 46px rgba(0,0,0,0.42), 0 0 28px ${item.accent}22`,
+        border: `1px solid ${item.accent}55`,
+        background: `radial-gradient(circle at 35% 25%, ${item.accent}55, rgba(9,12,22,0.98) 62%)`,
       }}
     >
-      <img
-        src={poster.image}
-        alt={poster.title}
-        style={{
-          width: "100%",
-          height: "100%",
-          objectFit: "cover",
-          display: "block",
-          filter: "saturate(1.08) contrast(1.06)",
-        }}
-      />
+      {item.image ? (
+        <img
+          src={item.image}
+          alt={item.title}
+          style={{
+            width: "100%",
+            height: "100%",
+            objectFit: "cover",
+            display: "block",
+            filter: "saturate(1.08) contrast(1.06)",
+          }}
+        />
+      ) : (
+        <div style={monogramStyle(item.accent)}>{item.shortTitle}</div>
+      )}
       <div
         style={{
           position: "absolute",
           inset: 0,
-          background: "linear-gradient(180deg, rgba(8,8,12,0.08) 0%, rgba(8,8,12,0.72) 100%)",
+          background:
+            "linear-gradient(180deg, rgba(8,8,12,0.02) 0%, rgba(8,8,12,0.24) 46%, rgba(8,8,12,0.76) 100%)",
         }}
       />
       <div
         style={{
           position: "absolute",
-          left: "18px",
-          right: "18px",
-          bottom: "18px",
+          left: "12px",
+          right: "12px",
+          bottom: "12px",
           zIndex: 1,
         }}
       >
-        <div style={{ fontSize: "clamp(20px, 2vw, 30px)", fontWeight: 800 }}>{poster.title}</div>
+        <div style={gameIconTitleStyle}>{item.title}</div>
         <div
           style={{
-            marginTop: "6px",
-            color: "#d8b4fe",
+            marginTop: "4px",
+            color: item.accent,
             fontSize: "11px",
-            letterSpacing: "0.12em",
+            letterSpacing: "0.08em",
             textTransform: "uppercase",
+            fontWeight: 900,
           }}
         >
-          {poster.subtitle}
+          WEMADE
         </div>
       </div>
     </div>
   );
 }
 
-function PosterRow({
-  posters,
+function GameIconMarquee({
+  items,
   rowKey,
-  tallOffset,
-  ariaHidden = false,
+  reverse = false,
 }: {
-  posters: typeof showcasePosters;
+  items: typeof showcaseGameIcons;
   rowKey: string;
-  tallOffset: number;
-  ariaHidden?: boolean;
+  reverse?: boolean;
 }) {
+  const repeated = [...items, ...items];
+
   return (
-    <div className="home-poster-row" aria-hidden={ariaHidden}>
-      {posters.map((poster, index) => (
-        <PosterCard key={`${rowKey}-${poster.title}-${index}`} poster={poster} tall={(index + tallOffset) % 2 === 0} />
+    <div
+      className="home-game-icon-track"
+      style={{
+        ...gameIconTrackStyle,
+        animation: `${reverse ? "showcaseMarqueeReverse" : "showcaseMarquee"} ${reverse ? 46 : 40}s linear infinite`,
+      }}
+      aria-hidden="true"
+    >
+      {repeated.map((item, index) => (
+        <GameIconCard key={`${rowKey}-${item.title}-${index}`} item={item} />
       ))}
     </div>
   );
+}
+
+function rotateItems<T>(items: T[], offset: number) {
+  return [...items.slice(offset), ...items.slice(0, offset)];
 }
 
 function ScrollCue({ accent = "#a855f7" }: { accent?: string }) {
@@ -622,25 +664,20 @@ const showcaseOverlayStyle: React.CSSProperties = {
 
 const showcaseBackgroundStyle: React.CSSProperties = {
   position: "absolute",
-  inset: "8% 4%",
+  inset: "4% -8%",
   display: "grid",
-  gap: "24px",
-  transform: "perspective(1800px) rotateX(9deg) rotateY(-5deg)",
-  opacity: 0.9,
+  alignContent: "center",
+  gap: "22px",
+  transform: "perspective(1800px) rotateX(8deg) rotateY(-4deg)",
+  opacity: 0.82,
   zIndex: 1,
 };
 
-const showcaseTrackStyle: React.CSSProperties = {
+const gameIconTrackStyle: React.CSSProperties = {
   display: "flex",
   width: "max-content",
-  animation: "showcaseMarquee 32s linear infinite",
-};
-
-const showcaseTrackReverseStyle: React.CSSProperties = {
-  display: "flex",
-  width: "max-content",
-  justifySelf: "end",
-  animation: "showcaseMarqueeReverse 40s linear infinite",
+  gap: "18px",
+  willChange: "transform",
 };
 
 const showcasePanelStyle: React.CSSProperties = {
@@ -694,6 +731,27 @@ const showcaseTextStyle: React.CSSProperties = {
   fontSize: "clamp(15px, 2vw, 19px)",
   lineHeight: 1.8,
 };
+
+const gameIconTitleStyle: React.CSSProperties = {
+  color: "#f8fafc",
+  fontSize: "13px",
+  lineHeight: 1.15,
+  fontWeight: 950,
+  textShadow: "0 2px 12px rgba(0,0,0,0.58)",
+  overflowWrap: "anywhere",
+};
+
+const monogramStyle = (accent: string): React.CSSProperties => ({
+  width: "100%",
+  height: "100%",
+  display: "grid",
+  placeItems: "center",
+  color: "#fff",
+  fontSize: "clamp(22px, 2.2vw, 34px)",
+  fontWeight: 950,
+  letterSpacing: "0",
+  background: `radial-gradient(circle at 38% 28%, ${accent}99, ${accent}44 42%, rgba(8,10,18,0.94) 100%)`,
+});
 
 const newsSectionStyle: React.CSSProperties = {
   minHeight: "calc(100vh - 81px)",
