@@ -5,6 +5,7 @@ import { createPartnerCode } from "@/lib/partnerProfile";
 import { getRechargeDisplayName } from "@/lib/rechargeDisplay";
 import { getCurrentTier, readMirPoints, type MirPartnerTier } from "@/lib/mirPoints";
 import {
+  changeQuickSdkPlatformCoins,
   getQuickSdkUserOrders,
   getQuickSdkWalletAmount,
   type QuickSdkOrderData,
@@ -139,6 +140,23 @@ export async function reconcileQuickSdkRechargePoints(user: User) {
     }
 
     const transactionId = `sdk-order-${orderId}`;
+    const settledCloudCoins = await settleMissedWebsiteCoinOrder({
+      userId: user.id,
+      sdkUid: uid,
+      orderId,
+      amount,
+      coins,
+      order,
+    });
+    if (settledCloudCoins !== null) {
+      metadata = {
+        ...metadata,
+        cloud_coins: settledCloudCoins,
+        wallet_last_order_no: orderId,
+      };
+      changed = true;
+    }
+
     const existingWalletTransactions = [
       ...readWalletTransactions(metadata),
       ...(await readWalletTransactionsFromDb(user.id)),
@@ -198,6 +216,121 @@ export async function reconcileQuickSdkRechargePoints(user: User) {
   }
 
   return updateUserMetadata(user.id, compactAuthMetadata(metadata), user.user_metadata);
+}
+
+async function settleMissedWebsiteCoinOrder({
+  userId,
+  sdkUid,
+  orderId,
+  amount,
+  coins,
+  order,
+}: {
+  userId: string;
+  sdkUid: string;
+  orderId: string;
+  amount: number;
+  coins: number;
+  order: QuickSdkOrderData;
+}) {
+  if (isPlatformCoinOrder(order) || coins <= 0) {
+    return null;
+  }
+
+  const { data: paymentOrder, error } = await supabaseAdmin
+    .from("payment_orders")
+    .select("id,status,expected_amount,coins,pay_method")
+    .eq("cp_order_no", orderId)
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (error || !paymentOrder) {
+    if (error) {
+      console.error("[QuickSDK missed coin order lookup]", { orderId, error: error.message });
+    }
+    return null;
+  }
+
+  const source = paymentOrder as Record<string, unknown>;
+  const status = readString(source.status);
+  if (status === "paid" || status === "processing") {
+    return null;
+  }
+
+  const expectedAmount = readNumber(source.expected_amount);
+  const expectedCoins = readNumber(source.coins);
+  if (expectedAmount <= 0 || Math.abs(amount - expectedAmount) > 0.01 || expectedCoins !== coins) {
+    console.error("[QuickSDK missed coin order mismatch]", {
+      orderId,
+      amount,
+      expectedAmount,
+      coins,
+      expectedCoins,
+    });
+    return null;
+  }
+
+  const nowIso = new Date().toISOString();
+  const { data: claimed, error: claimError } = await supabaseAdmin
+    .from("payment_orders")
+    .update({ status: "processing", updated_at: nowIso })
+    .eq("cp_order_no", orderId)
+    .eq("user_id", userId)
+    .in("status", ["pending", "cancelled", "failed"])
+    .select("id")
+    .maybeSingle();
+
+  if (claimError || !claimed) {
+    if (claimError) {
+      console.error("[QuickSDK missed coin order claim]", { orderId, error: claimError.message });
+    }
+    return null;
+  }
+
+  try {
+    const nextSdkAmount = await changeQuickSdkPlatformCoins({
+      userId: sdkUid,
+      amount: String(coins),
+      remark: `MIR Partner missed recharge repair ${orderId}`,
+    });
+
+    const transaction: WalletTransaction = {
+      id: `sdk-order-${orderId}`,
+      type: "recharge",
+      amount,
+      coins,
+      desc: getRechargeDisplayName(order.productName),
+      date: createDateFromSdkTimestamp(order.payTime ?? order.createTime).toISOString().slice(0, 10),
+      payMethod: readString(source.pay_method) === "alipay" ? "alipay" : "wechat",
+      status: "success",
+    };
+    await insertWalletTransaction(userId, transaction);
+
+    await supabaseAdmin
+      .from("payment_orders")
+      .update({
+        status: "paid",
+        paid_amount: amount,
+        paid_at: nowIso,
+        updated_at: nowIso,
+        raw_callback: { repairedByWalletSync: true, orderId, coins },
+      })
+      .eq("cp_order_no", orderId)
+      .eq("user_id", userId);
+
+    return Math.max(0, Math.floor(nextSdkAmount));
+  } catch (settleError) {
+    await supabaseAdmin
+      .from("payment_orders")
+      .update({ status: "failed", updated_at: new Date().toISOString() })
+      .eq("cp_order_no", orderId)
+      .eq("user_id", userId);
+    console.error("[QuickSDK missed coin order settle failed]", {
+      orderId,
+      error: settleError instanceof Error ? settleError.message : "unknown",
+    });
+    return null;
+  }
 }
 
 async function updateUserMetadata(userId: string, metadata: UserMetadata, fallback: UserMetadata | undefined) {
