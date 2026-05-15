@@ -54,10 +54,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ message: "订单验证失败。" }, { status: 401 });
   }
 
-  if (readString(source.status) === "paid") {
-    return NextResponse.json({ ok: true, status: "already_paid" });
-  }
-
   const { data: userData, error: userError } = await supabaseAdmin.auth.admin.getUserById(orderUserId);
   if (userError || !userData.user) {
     return NextResponse.json({ message: userError?.message ?? "账号不存在。" }, { status: 404 });
@@ -85,13 +81,25 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ message: "订单金额或状态不匹配。" }, { status: 409 });
   }
 
+  const transactionKey = `sdk-order-${cpOrderNo}`;
+  const { data: existingTransaction } = await supabaseAdmin
+    .from("wallet_transactions")
+    .select("id,status")
+    .eq("transaction_key", transactionKey)
+    .eq("user_id", orderUserId)
+    .maybeSingle();
+
+  if (readString(source.status) === "paid" && existingTransaction?.status === "success") {
+    return NextResponse.json({ ok: true, status: "already_paid" });
+  }
+
   const nowIso = new Date().toISOString();
   const { data: claimed, error: claimError } = await supabaseAdmin
     .from("payment_orders")
     .update({ status: "processing", updated_at: nowIso })
     .eq("cp_order_no", cpOrderNo)
     .eq("user_id", orderUserId)
-    .in("status", ["pending", "cancelled", "failed"])
+    .in("status", ["pending", "cancelled", "failed", "paid"])
     .select("id")
     .maybeSingle();
 
@@ -114,7 +122,7 @@ export async function POST(request: NextRequest) {
     await supabaseAdmin.from("wallet_transactions").upsert(
       {
         user_id: orderUserId,
-        transaction_key: `sdk-order-${cpOrderNo}`,
+        transaction_key: transactionKey,
         type: "recharge",
         amount: paidAmount,
         coins: expectedCoins,
