@@ -148,7 +148,7 @@ function ResultCard({
           {syncing ? "\u6b63\u5728\u540c\u6b65\u4e91\u5e01\u5230\u8d26..." : `${countdown} \u79d2\u540e\u81ea\u52a8\u5173\u95ed`}
         </div>
         <button type="button" onClick={onClose} disabled={syncing} style={{ ...buttonStyle, opacity: syncing ? 0.6 : 1 }}>
-          \u7acb\u5373\u5173\u95ed
+          {syncing ? "同步中，请稍候" : "立即关闭"}
         </button>
       </section>
     </main>
