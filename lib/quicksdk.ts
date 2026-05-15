@@ -604,6 +604,18 @@ export function normalizeQuickSdkCallbackPayload(payload: Record<string, unknown
     };
   }
 
+  const quickMessage = readQuickSdkString(payload, ["quick_message", "quickMessage"]);
+  if (quickMessage) {
+    return {
+      payload: {
+        ...payload,
+        ...parseQuickSdkCallbackXml(quickMessage),
+      },
+      encrypted: false,
+      signValid: true,
+    };
+  }
+
   const ntData = readQuickSdkString(payload, ["nt_data"]);
   const encryptedSign = readQuickSdkString(payload, ["sign"]);
   const md5Sign = readQuickSdkString(payload, ["md5Sign", "md5sign"]);
@@ -674,7 +686,7 @@ function parseQuickSdkCallbackXml(xml: string) {
 
   return {
     ...values,
-    cpOrderNo: readTag("game_order") || readTag("cpOrderNo") || readTag("cp_order_no"),
+    cpOrderNo: readTag("out_order_no") || readTag("game_order") || readTag("cpOrderNo") || readTag("cp_order_no"),
     orderNo: readTag("order_no") || readTag("orderNo"),
     status: status === "0" ? "success" : status === "1" ? "failed" : status,
     amount: readTag("amount") || readTag("real_amount") || readTag("money"),
