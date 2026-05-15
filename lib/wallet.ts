@@ -286,14 +286,38 @@ async function settleMissedWebsiteCoinOrder({
   }
 
   const nowIso = new Date().toISOString();
-  const { data: claimed, error: claimError } = await supabaseAdmin
-    .from("payment_orders")
-    .update({ status: "processing", updated_at: nowIso })
-    .eq("cp_order_no", orderId)
-    .eq("user_id", userId)
-    .in("status", ["pending", "cancelled", "failed", "paid", "processing"])
-    .select("id")
-    .maybeSingle();
+  const claimResult = existingTransaction
+    ? await supabaseAdmin
+        .from("wallet_transactions")
+        .update({
+          type: "recharge",
+          amount,
+          coins,
+          description: getRechargeDisplayName(order.productName),
+          pay_method: readString(source.pay_method) === "alipay" ? "alipay" : "wechat",
+          status: "processing",
+        })
+        .eq("transaction_key", transactionId)
+        .eq("user_id", userId)
+        .select("id")
+        .maybeSingle()
+    : await supabaseAdmin
+        .from("wallet_transactions")
+        .insert({
+          user_id: userId,
+          transaction_key: transactionId,
+          type: "recharge",
+          amount,
+          coins,
+          description: getRechargeDisplayName(order.productName),
+          pay_method: readString(source.pay_method) === "alipay" ? "alipay" : "wechat",
+          status: "processing",
+          occurred_at: createDateFromSdkTimestamp(order.payTime ?? order.createTime).toISOString(),
+        })
+        .select("id")
+        .maybeSingle();
+  const claimed = claimResult.data;
+  const claimError = claimResult.error;
 
   if (claimError || !claimed) {
     if (claimError) {
@@ -303,6 +327,13 @@ async function settleMissedWebsiteCoinOrder({
     }
     return null;
   }
+
+  await supabaseAdmin
+    .from("payment_orders")
+    .update({ status: "failed", updated_at: nowIso })
+    .eq("cp_order_no", orderId)
+    .eq("user_id", userId)
+    .neq("status", "paid");
 
   try {
     const nextSdkAmount = await changeQuickSdkPlatformCoins({

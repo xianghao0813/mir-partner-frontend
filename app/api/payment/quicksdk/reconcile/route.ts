@@ -89,27 +89,56 @@ export async function POST(request: NextRequest) {
     .eq("user_id", orderUserId)
     .maybeSingle();
 
-  if (readString(source.status) === "paid" && existingTransaction?.status === "success") {
+  if (existingTransaction?.status === "success") {
     return NextResponse.json({ ok: true, status: "already_paid" });
   }
 
   const nowIso = new Date().toISOString();
-  const { data: claimed, error: claimError } = await supabaseAdmin
-    .from("payment_orders")
-    .update({ status: "processing", updated_at: nowIso })
-    .eq("cp_order_no", cpOrderNo)
-    .eq("user_id", orderUserId)
-    .in("status", ["pending", "cancelled", "failed", "paid"])
-    .select("id")
-    .maybeSingle();
+  const claimResult = existingTransaction
+    ? await supabaseAdmin
+        .from("wallet_transactions")
+        .update({
+          type: "recharge",
+          amount: paidAmount,
+          coins: expectedCoins,
+          description: "官网云币充值",
+          pay_method: readString(source.pay_method) || null,
+          status: "processing",
+        })
+        .eq("transaction_key", transactionKey)
+        .eq("user_id", orderUserId)
+        .select("id")
+        .maybeSingle()
+    : await supabaseAdmin
+        .from("wallet_transactions")
+        .insert({
+          user_id: orderUserId,
+          transaction_key: transactionKey,
+          type: "recharge",
+          amount: paidAmount,
+          coins: expectedCoins,
+          description: "官网云币充值",
+          pay_method: readString(source.pay_method) || null,
+          status: "processing",
+          occurred_at: new Date((paidOrder.payTime ?? paidOrder.createTime ?? Date.now() / 1000) * 1000).toISOString(),
+        })
+        .select("id")
+        .maybeSingle();
 
-  if (claimError) {
-    return NextResponse.json({ message: claimError.message }, { status: 500 });
+  if (claimResult.error) {
+    return NextResponse.json({ message: claimResult.error.message }, { status: 500 });
   }
 
-  if (!claimed) {
+  if (!claimResult.data) {
     return NextResponse.json({ ok: true, status: "already_processing" });
   }
+
+  await supabaseAdmin
+    .from("payment_orders")
+    .update({ status: "failed", updated_at: nowIso })
+    .eq("cp_order_no", cpOrderNo)
+    .eq("user_id", orderUserId)
+    .neq("status", "paid");
 
   try {
     const nextSdkAmount = await changeQuickSdkPlatformCoins({
@@ -119,20 +148,11 @@ export async function POST(request: NextRequest) {
     });
     const nextCoins = Math.max(0, Math.floor(nextSdkAmount || await getQuickSdkWalletAmount({ userId: sdkUid })));
 
-    await supabaseAdmin.from("wallet_transactions").upsert(
-      {
-        user_id: orderUserId,
-        transaction_key: transactionKey,
-        type: "recharge",
-        amount: paidAmount,
-        coins: expectedCoins,
-        description: "官网云币充值",
-        pay_method: readString(source.pay_method) || null,
-        status: "success",
-        occurred_at: new Date((paidOrder.payTime ?? paidOrder.createTime ?? Date.now() / 1000) * 1000).toISOString(),
-      },
-      { onConflict: "transaction_key" }
-    );
+    await supabaseAdmin
+      .from("wallet_transactions")
+      .update({ status: "success" })
+      .eq("transaction_key", transactionKey)
+      .eq("user_id", orderUserId);
 
     await supabaseAdmin
       .from("payment_orders")
@@ -156,6 +176,12 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ ok: true, status: "paid", cloudCoins: nextCoins });
   } catch (error) {
+    await supabaseAdmin
+      .from("wallet_transactions")
+      .update({ status: "failed" })
+      .eq("transaction_key", transactionKey)
+      .eq("user_id", orderUserId);
+
     await supabaseAdmin
       .from("payment_orders")
       .update({ status: "failed", updated_at: new Date().toISOString() })
