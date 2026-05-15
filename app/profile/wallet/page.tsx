@@ -359,11 +359,49 @@ export default function WalletPage() {
           popup.close();
         }
 
-        setMessage((current) => (current === messageText ? "支付窗口已超过 1 分钟有效期，订单已取消。" : current));
+        setMessage((current) => (current === messageText ? "支付窗口已超过有效期，订单已取消。" : current));
         void syncQuickSdkWallet();
         void loadCoupons();
       })();
-    }, 60 * 1000);
+    }, 10 * 60 * 1000);
+  }
+
+  function pollPaymentSettlement(cpOrderNo: string) {
+    let attempts = 0;
+    const maxAttempts = 60;
+
+    const intervalId = window.setInterval(() => {
+      attempts += 1;
+      void (async () => {
+        try {
+          const response = await fetch("/api/payment/quicksdk/reconcile", {
+            method: "POST",
+            cache: "no-store",
+            credentials: "include",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ cpOrderNo }),
+          });
+
+          if (response.ok) {
+            window.clearInterval(intervalId);
+            setMessage("支付成功，云币已到账。");
+            await syncQuickSdkWallet();
+            await loadCoupons();
+            return;
+          }
+
+          if (response.status !== 202 || attempts >= maxAttempts) {
+            window.clearInterval(intervalId);
+            await syncQuickSdkWallet();
+            await loadCoupons();
+          }
+        } catch {
+          if (attempts >= maxAttempts) {
+            window.clearInterval(intervalId);
+          }
+        }
+      })();
+    }, 2000);
   }
 
   async function startPayment(payMethod: PayMethod, tierArg?: CoinTier) {
@@ -405,6 +443,7 @@ export default function WalletPage() {
       showTemporaryMessage("支付弹窗已打开。");
       watchPopupClose(popup, "支付弹窗已打开。");
       if (payload.cpOrderNo) {
+        pollPaymentSettlement(payload.cpOrderNo);
         schedulePaymentExpiry(popup, "支付弹窗已打开。", async () => {
           await fetch("/api/payment/quicksdk/order/cancel", {
             method: "POST",
