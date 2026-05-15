@@ -261,7 +261,11 @@ async function settleMissedWebsiteCoinOrder({
     .eq("user_id", userId)
     .maybeSingle();
 
-  if (status === "paid" && existingTransaction?.status === "success") {
+  if (existingTransaction?.status === "success") {
+    return null;
+  }
+
+  if (existingTransaction?.status === "processing") {
     return null;
   }
 
@@ -342,17 +346,11 @@ async function settleMissedWebsiteCoinOrder({
       remark: `MIR Partner missed recharge repair ${orderId}`,
     });
 
-    const transaction: WalletTransaction = {
-      id: transactionId,
-      type: "recharge",
-      amount,
-      coins,
-      desc: getRechargeDisplayName(order.productName),
-      date: createDateFromSdkTimestamp(order.payTime ?? order.createTime).toISOString().slice(0, 10),
-      payMethod: readString(source.pay_method) === "alipay" ? "alipay" : "wechat",
-      status: "success",
-    };
-    await insertWalletTransaction(userId, transaction);
+    await supabaseAdmin
+      .from("wallet_transactions")
+      .update({ status: "success" })
+      .eq("transaction_key", transactionId)
+      .eq("user_id", userId);
 
     await supabaseAdmin
       .from("payment_orders")
