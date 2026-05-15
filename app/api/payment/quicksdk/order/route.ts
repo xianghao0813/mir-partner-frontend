@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import crypto from "node:crypto";
 import { getCloudCoinPackage } from "@/lib/cloudCoinPackages";
 import { requireRealNameVerified } from "@/lib/accountSecurity";
 import { createQuickSdkPayUrl, getQuickSdkPublicBaseUrl } from "@/lib/quicksdk";
@@ -72,8 +73,20 @@ export async function POST(request: NextRequest) {
     const publicBaseUrl = getQuickSdkPublicBaseUrl(requestUrl.origin);
     const callbackUrl = new URL("/api/payment/quicksdk/callback", publicBaseUrl).toString();
     const cpOrderNo = buildOrderNo(user.id, selectedPackage.id);
-    const successUrl = new URL(`/payment/result?status=success&order=${encodeURIComponent(cpOrderNo)}`, publicBaseUrl).toString();
-    const cancelUrl = new URL(`/payment/result?status=cancel&order=${encodeURIComponent(cpOrderNo)}`, publicBaseUrl).toString();
+    const reconcileToken = createReconcileToken({
+      cpOrderNo,
+      userId: user.id,
+      amount: selectedPackage.amount,
+      coins: selectedPackage.coins,
+    });
+    const successUrl = new URL(
+      `/payment/result?status=success&order=${encodeURIComponent(cpOrderNo)}&token=${encodeURIComponent(reconcileToken)}`,
+      publicBaseUrl
+    ).toString();
+    const cancelUrl = new URL(
+      `/payment/result?status=cancel&order=${encodeURIComponent(cpOrderNo)}&token=${encodeURIComponent(reconcileToken)}`,
+      publicBaseUrl
+    ).toString();
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
 
     const { error: orderInsertError } = await supabaseAdmin.from("payment_orders").insert({
@@ -152,4 +165,22 @@ function buildOrderNo(userId: string, packageId: number) {
   const stamp = Date.now();
   const compactUserId = userId.replace(/[^a-zA-Z0-9]/g, "").slice(0, 12) || "user";
   return `mp${stamp}${packageId}${compactUserId}`.slice(0, 40);
+}
+
+function createReconcileToken({
+  cpOrderNo,
+  userId,
+  amount,
+  coins,
+}: {
+  cpOrderNo: string;
+  userId: string;
+  amount: string;
+  coins: number;
+}) {
+  const secret = process.env.QUICKSDK_LOCAL_AUTH_SECRET || process.env.SUPABASE_SERVICE_ROLE_KEY || "";
+  return crypto
+    .createHmac("sha256", secret)
+    .update(`${cpOrderNo}:${userId}:${amount}:${coins}`, "utf8")
+    .digest("hex");
 }

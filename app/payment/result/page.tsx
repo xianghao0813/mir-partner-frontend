@@ -15,6 +15,7 @@ function PaymentResultContent() {
   const searchParams = useSearchParams();
   const status = searchParams.get("status") === "cancel" ? "cancel" : "success";
   const cpOrderNo = searchParams.get("order")?.trim() ?? "";
+  const token = searchParams.get("token")?.trim() ?? "";
   const [countdown, setCountdown] = useState(3);
   const [syncing, setSyncing] = useState(status === "success");
 
@@ -31,7 +32,7 @@ function PaymentResultContent() {
     const controller = new AbortController();
     const timeoutId = window.setTimeout(() => controller.abort(), 12000);
 
-    void reconcilePayment(cpOrderNo, controller.signal)
+    void reconcilePayment(cpOrderNo, token, controller.signal)
       .then(() =>
         fetch("/api/account/sync-quicksdk?force=1&wallet=1", {
           method: "POST",
@@ -50,7 +51,7 @@ function PaymentResultContent() {
       window.clearTimeout(timeoutId);
       controller.abort();
     };
-  }, [cpOrderNo, status]);
+  }, [cpOrderNo, status, token]);
 
   useEffect(() => {
     if (syncing) {
@@ -80,7 +81,7 @@ function PaymentResultContent() {
   );
 }
 
-async function reconcilePayment(cpOrderNo: string, signal: AbortSignal) {
+async function reconcilePayment(cpOrderNo: string, token: string, signal: AbortSignal) {
   if (!cpOrderNo) {
     return;
   }
@@ -91,7 +92,7 @@ async function reconcilePayment(cpOrderNo: string, signal: AbortSignal) {
       cache: "no-store",
       credentials: "include",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ cpOrderNo }),
+      body: JSON.stringify({ cpOrderNo, token }),
       signal,
     });
 
