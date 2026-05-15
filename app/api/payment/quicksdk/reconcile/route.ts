@@ -93,6 +93,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: true, status: "already_paid" });
   }
 
+  if (existingTransaction?.status === "processing") {
+    return NextResponse.json({ ok: false, status: "processing" }, { status: 202 });
+  }
+
   const nowIso = new Date().toISOString();
   const claimResult = existingTransaction
     ? await supabaseAdmin
