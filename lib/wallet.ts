@@ -1,6 +1,7 @@
 ﻿import type { User, UserMetadata } from "@supabase/supabase-js";
 import { compactAuthMetadata } from "@/lib/authMetadata";
 import { getCloudCoinPackage } from "@/lib/cloudCoinPackages";
+import { applyCouponDiscount, isPackageApplicable, type UserCouponRecord } from "@/lib/coupons";
 import { createPartnerCode } from "@/lib/partnerProfile";
 import { getRechargeDisplayName } from "@/lib/rechargeDisplay";
 import { getCurrentTier, readMirPoints, type MirPartnerTier } from "@/lib/mirPoints";
@@ -244,15 +245,38 @@ async function settleMissedWebsiteCoinOrder({
     .eq("user_id", userId)
     .maybeSingle();
 
-  if (error || !paymentOrder) {
+  if (error) {
     if (error) {
       console.error("[QuickSDK missed coin order lookup]", { orderId, error: error.message });
     }
     return null;
   }
 
-  const source = paymentOrder as Record<string, unknown>;
-  const status = readString(source.status);
+  let source = paymentOrder as Record<string, unknown> | null;
+  let sourceKind: "payment" | "coupon" = "payment";
+  let couponId = "";
+  let packageId = 0;
+  let status = readString(source?.status);
+  let expectedAmount = readNumber(source?.expected_amount);
+  let expectedCoins = readNumber(source?.coins);
+  let payMethod: "wechat" | "alipay" = readString(source?.pay_method) === "alipay" ? "alipay" : "wechat";
+
+  if (!source) {
+    const couponSource = await resolveCouponSettlementSource({ userId, orderId });
+    if (!couponSource) {
+      return null;
+    }
+
+    source = couponSource.source;
+    sourceKind = "coupon";
+    couponId = couponSource.couponId;
+    packageId = couponSource.packageId;
+    status = couponSource.status;
+    expectedAmount = couponSource.expectedAmount;
+    expectedCoins = couponSource.expectedCoins;
+    payMethod = "wechat";
+  }
+
   const transactionId = `sdk-order-${orderId}`;
   const { data: existingTransaction } = await supabaseAdmin
     .from("wallet_transactions")
@@ -276,8 +300,6 @@ async function settleMissedWebsiteCoinOrder({
     return null;
   }
 
-  const expectedAmount = readNumber(source.expected_amount);
-  const expectedCoins = readNumber(source.coins);
   if (expectedAmount <= 0 || Math.abs(amount - expectedAmount) > 0.01 || expectedCoins !== coins) {
     console.error("[QuickSDK missed coin order mismatch]", {
       orderId,
@@ -298,7 +320,7 @@ async function settleMissedWebsiteCoinOrder({
           amount,
           coins,
           description: getRechargeDisplayName(order.productName),
-          pay_method: readString(source.pay_method) === "alipay" ? "alipay" : "wechat",
+          pay_method: payMethod,
           status: "processing",
         })
         .eq("transaction_key", transactionId)
@@ -314,7 +336,7 @@ async function settleMissedWebsiteCoinOrder({
           amount,
           coins,
           description: getRechargeDisplayName(order.productName),
-          pay_method: readString(source.pay_method) === "alipay" ? "alipay" : "wechat",
+          pay_method: payMethod,
           status: "processing",
           occurred_at: createDateFromSdkTimestamp(order.payTime ?? order.createTime).toISOString(),
         })
@@ -352,17 +374,49 @@ async function settleMissedWebsiteCoinOrder({
       .eq("transaction_key", transactionId)
       .eq("user_id", userId);
 
-    await supabaseAdmin
-      .from("payment_orders")
-      .update({
-        status: "paid",
-        paid_amount: amount,
-        paid_at: nowIso,
-        updated_at: nowIso,
-        raw_callback: { repairedByWalletSync: true, orderId, coins },
-      })
-      .eq("cp_order_no", orderId)
-      .eq("user_id", userId);
+    if (sourceKind === "coupon") {
+      await supabaseAdmin
+        .from("user_coupons")
+        .update({
+          used_at: nowIso,
+          used_order_no: orderId,
+        })
+        .eq("id", couponId)
+        .eq("user_id", userId)
+        .or(`used_at.is.null,used_order_no.eq.${orderId}`);
+
+      await supabaseAdmin
+        .from("payment_orders")
+        .upsert(
+          {
+            cp_order_no: orderId,
+            user_id: userId,
+            package_id: packageId,
+            coins,
+            expected_amount: expectedAmount,
+            pay_method: payMethod,
+            status: "paid",
+            paid_amount: amount,
+            paid_at: nowIso,
+            expires_at: nowIso,
+            updated_at: nowIso,
+            raw_callback: { repairedCouponByWalletSync: true, orderId, coins },
+          },
+          { onConflict: "cp_order_no" }
+        );
+    } else {
+      await supabaseAdmin
+        .from("payment_orders")
+        .update({
+          status: "paid",
+          paid_amount: amount,
+          paid_at: nowIso,
+          updated_at: nowIso,
+          raw_callback: { repairedByWalletSync: true, orderId, coins },
+        })
+        .eq("cp_order_no", orderId)
+        .eq("user_id", userId);
+    }
 
     return Math.max(0, Math.floor(nextSdkAmount));
   } catch (settleError) {
@@ -377,6 +431,78 @@ async function settleMissedWebsiteCoinOrder({
     });
     return null;
   }
+}
+
+async function resolveCouponSettlementSource({
+  userId,
+  orderId,
+}: {
+  userId: string;
+  orderId: string;
+}) {
+  const { data: session, error: sessionError } = await supabaseAdmin
+    .from("coupon_checkout_sessions")
+    .select("id,user_id,coupon_id,package_id,status,cp_order_no")
+    .eq("cp_order_no", orderId)
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (sessionError) {
+    console.error("[QuickSDK missed coupon session lookup]", { orderId, error: sessionError.message });
+    return null;
+  }
+
+  if (!session || readString(session.status) !== "consumed") {
+    return null;
+  }
+
+  const packageId = Math.floor(readNumber(session.package_id));
+  const packageItem = getCloudCoinPackage(packageId);
+  if (!packageItem) {
+    return null;
+  }
+
+  const couponId = readString(session.coupon_id);
+  const { data: coupon, error: couponError } = await supabaseAdmin
+    .from("user_coupons")
+    .select("*")
+    .eq("id", couponId)
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (couponError || !coupon) {
+    console.error("[QuickSDK missed coupon lookup]", {
+      orderId,
+      couponId,
+      error: couponError?.message,
+    });
+    return null;
+  }
+
+  const couponRecord = coupon as UserCouponRecord;
+  const couponOrderNo = readString(couponRecord.used_order_no);
+  if (couponOrderNo && couponOrderNo !== orderId) {
+    return null;
+  }
+
+  if (!isPackageApplicable(couponRecord, packageItem)) {
+    return null;
+  }
+
+  return {
+    source: {
+      status: "pending",
+      expected_amount: applyCouponDiscount(readNumber(packageItem.amount), couponRecord),
+      coins: packageItem.coins,
+      pay_method: "wechat",
+      updated_at: new Date().toISOString(),
+    },
+    status: "pending",
+    expectedAmount: applyCouponDiscount(readNumber(packageItem.amount), couponRecord),
+    expectedCoins: packageItem.coins,
+    couponId,
+    packageId,
+  };
 }
 
 async function updateUserMetadata(userId: string, metadata: UserMetadata, fallback: UserMetadata | undefined) {
