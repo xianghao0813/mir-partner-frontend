@@ -150,16 +150,6 @@ export async function POST(request: NextRequest) {
 
   const user = data.user;
   const transactionId = `sdk-order-${cpOrderNo}`;
-  await markPaymentOrderPaid({
-    paymentOrderId: orderVerification.paymentOrderId,
-    cpOrderNo,
-    userId,
-    packageId: Math.floor(Number(extras?.packageId ?? 0)),
-    coins,
-    paidAmount,
-    payMethod,
-    payload,
-  });
   const { data: existingDbTransaction, error: existingDbTransactionError } = await supabaseAdmin
     .from("wallet_transactions")
     .select("id,status")
@@ -175,6 +165,10 @@ export async function POST(request: NextRequest) {
   }
 
   if (existingDbTransaction?.status === "processing") {
+    return new NextResponse("SUCCESS");
+  }
+
+  if (existingDbTransaction?.status === "success") {
     return new NextResponse("SUCCESS");
   }
 
@@ -266,6 +260,17 @@ export async function POST(request: NextRequest) {
     .update({ status: "success" })
     .eq("transaction_key", transaction.id)
     .eq("user_id", userId);
+
+  await markPaymentOrderPaid({
+    paymentOrderId: orderVerification.paymentOrderId,
+    cpOrderNo,
+    userId,
+    packageId: Math.floor(Number(extras?.packageId ?? 0)),
+    coins,
+    paidAmount,
+    payMethod,
+    payload,
+  });
 
   const shouldAwardPoints = !containsPlatformCoin(productName) && !containsPlatformCoin(payTypeName);
   const awardedMirPoints = shouldAwardPoints ? Math.floor((paidAmount || coins) * 100) : 0;
@@ -606,16 +611,8 @@ async function verifyCallbackOrder({
   const extrasPackageId = Math.floor(Number(extras?.packageId ?? 0));
   const extrasCoins = Math.floor(Number(extras?.coins ?? 0));
 
-  if (orderStatus === "paid") {
-    return {
-      expectedAmount,
-      paymentOrderId,
-      alreadyPaid: true,
-    };
-  }
-
   if (
-    (orderStatus !== "pending" && orderStatus !== "cancelled") ||
+    (orderStatus !== "pending" && orderStatus !== "cancelled" && orderStatus !== "paid") ||
     !Number.isFinite(expiresAt) ||
     orderUserId !== userId ||
     orderPackageId !== extrasPackageId ||
