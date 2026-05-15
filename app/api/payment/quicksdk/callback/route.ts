@@ -160,12 +160,6 @@ export async function POST(request: NextRequest) {
     payMethod,
     payload,
   });
-  const existingTransactions = readWalletTransactions(user.user_metadata);
-
-  if (existingTransactions.some((item) => item.id === transactionId)) {
-    return new NextResponse("SUCCESS");
-  }
-
   const { data: existingDbTransaction, error: existingDbTransactionError } = await supabaseAdmin
     .from("wallet_transactions")
     .select("id,status")
@@ -180,7 +174,7 @@ export async function POST(request: NextRequest) {
     return new NextResponse("SUCCESS");
   }
 
-  if (existingDbTransaction && existingDbTransaction.status !== "failed") {
+  if (existingDbTransaction?.status === "processing") {
     return new NextResponse("SUCCESS");
   }
 
@@ -203,13 +197,18 @@ export async function POST(request: NextRequest) {
     status: "success" as const,
   };
 
-  const claimResult = existingDbTransaction?.status === "failed"
+  const claimResult = existingDbTransaction
     ? await supabaseAdmin
         .from("wallet_transactions")
-        .update({ status: "processing" })
+        .update({
+          amount: transaction.amount,
+          coins: transaction.coins,
+          description: transaction.desc,
+          pay_method: transaction.payMethod || null,
+          status: "processing",
+        })
         .eq("transaction_key", transaction.id)
         .eq("user_id", userId)
-        .eq("status", "failed")
         .select("id")
         .maybeSingle()
     : await supabaseAdmin
