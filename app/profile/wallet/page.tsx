@@ -140,23 +140,6 @@ export default function WalletPage() {
   }, []);
 
   useEffect(() => {
-    function refreshLatestWallet() {
-      if (document.visibilityState === "visible") {
-        void syncQuickSdkWallet();
-        void loadCoupons();
-      }
-    }
-
-    window.addEventListener("focus", refreshLatestWallet);
-    document.addEventListener("visibilitychange", refreshLatestWallet);
-
-    return () => {
-      window.removeEventListener("focus", refreshLatestWallet);
-      document.removeEventListener("visibilitychange", refreshLatestWallet);
-    };
-  }, []);
-
-  useEffect(() => {
     if (phoneCodeCooldown <= 0) {
       return;
     }
@@ -246,11 +229,17 @@ export default function WalletPage() {
       }
 
       setWallet(payload.wallet);
+      if (options?.silent) {
+        setSyncMessage("");
+        return;
+      }
       setSyncMessage(payload.status === "skipped" ? "已显示最新同步数据。" : "同步完成。");
     } catch {
       setSyncMessage("同步失败，当前显示最近一次数据。");
     } finally {
-      setSyncingWallet(false);
+      if (!options?.silent) {
+        setSyncingWallet(false);
+      }
     }
   }
 
@@ -731,8 +720,13 @@ export default function WalletPage() {
             </div>
           </div>
 
-          <div style={syncStatusStyle(syncingWallet)}>
+          <div style={syncRowStyle}>
+            <div style={syncStatusStyle(syncingWallet)}>
             {syncingWallet ? "同步中..." : syncMessage || "已加载最近一次数据。"}
+            </div>
+            <button type="button" onClick={() => void syncQuickSdkWallet()} disabled={syncingWallet} style={syncButtonStyle(syncingWallet)}>
+              同步
+            </button>
           </div>
 
           {message ? <div style={messageStyle}>{message}</div> : null}
@@ -1133,11 +1127,17 @@ const eyebrowStyle: CSSProperties = {
 
 const titleStyle: CSSProperties = { margin: 0, fontSize: "32px", color: "#fff" };
 const subtitleStyle: CSSProperties = { marginTop: "8px", marginBottom: 0, color: "#b8b8c5", fontSize: "14px", lineHeight: 1.6 };
+const syncRowStyle: CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: "10px",
+  flexWrap: "wrap",
+  marginTop: "16px",
+};
 const syncStatusStyle = (active: boolean): CSSProperties => ({
   display: "inline-flex",
   alignItems: "center",
   minHeight: "30px",
-  marginTop: "16px",
   padding: "0 12px",
   borderRadius: "999px",
   background: active ? "rgba(59,130,246,0.14)" : "rgba(255,255,255,0.05)",
@@ -1145,6 +1145,17 @@ const syncStatusStyle = (active: boolean): CSSProperties => ({
   color: active ? "#bfdbfe" : "#a1a1aa",
   fontSize: "12px",
   fontWeight: 800,
+});
+const syncButtonStyle = (disabled: boolean): CSSProperties => ({
+  border: "1px solid rgba(255,255,255,0.14)",
+  background: disabled ? "rgba(255,255,255,0.04)" : "rgba(255,255,255,0.08)",
+  color: disabled ? "#71717a" : "#fff",
+  borderRadius: "999px",
+  minHeight: "30px",
+  padding: "0 12px",
+  fontSize: "12px",
+  fontWeight: 800,
+  cursor: disabled ? "not-allowed" : "pointer",
 });
 const heroHeaderStyle: CSSProperties = { display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "16px", flexWrap: "wrap" };
 
