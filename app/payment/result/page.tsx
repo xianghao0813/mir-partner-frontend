@@ -5,7 +5,7 @@ import { useSearchParams } from "next/navigation";
 
 export default function PaymentResultPage() {
   return (
-    <Suspense fallback={<ResultCard status="success" countdown={3} onClose={() => undefined} />}>
+    <Suspense fallback={<ResultCard status="success" countdown={3} syncing={false} onClose={() => undefined} />}>
       <PaymentResultContent />
     </Suspense>
   );
@@ -13,10 +13,46 @@ export default function PaymentResultPage() {
 
 function PaymentResultContent() {
   const searchParams = useSearchParams();
-  const [countdown, setCountdown] = useState(3);
   const status = searchParams.get("status") === "cancel" ? "cancel" : "success";
+  const [countdown, setCountdown] = useState(3);
+  const [syncing, setSyncing] = useState(status === "success");
 
   useEffect(() => {
+    setCountdown(3);
+    setSyncing(status === "success");
+  }, [status]);
+
+  useEffect(() => {
+    if (status !== "success") {
+      return;
+    }
+
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => controller.abort(), 8000);
+
+    void fetch("/api/account/sync-quicksdk?force=1&wallet=1", {
+      method: "POST",
+      cache: "no-store",
+      credentials: "include",
+      signal: controller.signal,
+    })
+      .catch(() => null)
+      .finally(() => {
+        window.clearTimeout(timeoutId);
+        setSyncing(false);
+      });
+
+    return () => {
+      window.clearTimeout(timeoutId);
+      controller.abort();
+    };
+  }, [status]);
+
+  useEffect(() => {
+    if (syncing) {
+      return;
+    }
+
     if (countdown <= 0) {
       window.close();
       return;
@@ -24,29 +60,52 @@ function PaymentResultContent() {
 
     const timer = window.setTimeout(() => setCountdown((value) => value - 1), 1000);
     return () => window.clearTimeout(timer);
-  }, [countdown]);
+  }, [countdown, syncing]);
 
-  return <ResultCard status={status} countdown={countdown} onClose={() => window.close()} />;
+  return (
+    <ResultCard
+      status={status}
+      countdown={countdown}
+      syncing={syncing}
+      onClose={() => {
+        if (!syncing) {
+          window.close();
+        }
+      }}
+    />
+  );
 }
 
-function ResultCard({ status, countdown, onClose }: { status: "success" | "cancel"; countdown: number; onClose: () => void }) {
+function ResultCard({
+  status,
+  countdown,
+  syncing,
+  onClose,
+}: {
+  status: "success" | "cancel";
+  countdown: number;
+  syncing: boolean;
+  onClose: () => void;
+}) {
   const copy = useMemo(() => {
     if (status === "cancel") {
       return {
-        title: "支付已取消",
-        description: "本次支付未完成，优惠券不会被使用。",
+        title: "\u652f\u4ed8\u5df2\u53d6\u6d88",
+        description: "\u672c\u6b21\u652f\u4ed8\u672a\u5b8c\u6210\uff0c\u4f18\u60e0\u5238\u4e0d\u4f1a\u88ab\u4f7f\u7528\u3002",
         accent: "#fbbf24",
         icon: "!",
       };
     }
 
     return {
-      title: "支付成功",
-      description: "支付已完成，窗口将在倒计时结束后自动关闭。",
+      title: "\u652f\u4ed8\u6210\u529f",
+      description: syncing
+        ? "\u652f\u4ed8\u5df2\u5b8c\u6210\uff0c\u6b63\u5728\u540c\u6b65\u4e91\u5e01\u5230\u8d26\u3002"
+        : "\u4e91\u5e01\u540c\u6b65\u5df2\u5904\u7406\uff0c\u7a97\u53e3\u5c06\u5728\u5012\u8ba1\u65f6\u7ed3\u675f\u540e\u81ea\u52a8\u5173\u95ed\u3002",
       accent: "#86efac",
       icon: "OK",
     };
-  }, [status]);
+  }, [status, syncing]);
 
   return (
     <main style={pageStyle}>
@@ -54,9 +113,11 @@ function ResultCard({ status, countdown, onClose }: { status: "success" | "cance
         <div style={{ ...iconStyle, color: copy.accent, borderColor: copy.accent }}>{copy.icon}</div>
         <h1 style={titleStyle}>{copy.title}</h1>
         <p style={descriptionStyle}>{copy.description}</p>
-        <div style={countdownStyle}>{countdown} 秒后自动关闭</div>
-        <button type="button" onClick={onClose} style={buttonStyle}>
-          立即关闭
+        <div style={countdownStyle}>
+          {syncing ? "\u6b63\u5728\u540c\u6b65\u4e91\u5e01\u5230\u8d26..." : `${countdown} \u79d2\u540e\u81ea\u52a8\u5173\u95ed`}
+        </div>
+        <button type="button" onClick={onClose} disabled={syncing} style={{ ...buttonStyle, opacity: syncing ? 0.6 : 1 }}>
+          \u7acb\u5373\u5173\u95ed
         </button>
       </section>
     </main>
