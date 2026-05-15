@@ -14,6 +14,7 @@ export default function PaymentResultPage() {
 function PaymentResultContent() {
   const searchParams = useSearchParams();
   const status = searchParams.get("status") === "cancel" ? "cancel" : "success";
+  const cpOrderNo = searchParams.get("order")?.trim() ?? "";
   const [countdown, setCountdown] = useState(3);
   const [syncing, setSyncing] = useState(status === "success");
 
@@ -28,14 +29,17 @@ function PaymentResultContent() {
     }
 
     const controller = new AbortController();
-    const timeoutId = window.setTimeout(() => controller.abort(), 8000);
+    const timeoutId = window.setTimeout(() => controller.abort(), 12000);
 
-    void fetch("/api/account/sync-quicksdk?force=1&wallet=1", {
-      method: "POST",
-      cache: "no-store",
-      credentials: "include",
-      signal: controller.signal,
-    })
+    void reconcilePayment(cpOrderNo, controller.signal)
+      .then(() =>
+        fetch("/api/account/sync-quicksdk?force=1&wallet=1", {
+          method: "POST",
+          cache: "no-store",
+          credentials: "include",
+          signal: controller.signal,
+        })
+      )
       .catch(() => null)
       .finally(() => {
         window.clearTimeout(timeoutId);
@@ -46,7 +50,7 @@ function PaymentResultContent() {
       window.clearTimeout(timeoutId);
       controller.abort();
     };
-  }, [status]);
+  }, [cpOrderNo, status]);
 
   useEffect(() => {
     if (syncing) {
@@ -74,6 +78,33 @@ function PaymentResultContent() {
       }}
     />
   );
+}
+
+async function reconcilePayment(cpOrderNo: string, signal: AbortSignal) {
+  if (!cpOrderNo) {
+    return;
+  }
+
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const response = await fetch("/api/payment/quicksdk/reconcile", {
+      method: "POST",
+      cache: "no-store",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ cpOrderNo }),
+      signal,
+    });
+
+    if (response.ok) {
+      return;
+    }
+
+    if (response.status !== 202) {
+      throw new Error("reconcile_failed");
+    }
+
+    await new Promise((resolve) => window.setTimeout(resolve, 1800));
+  }
 }
 
 function ResultCard({
