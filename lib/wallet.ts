@@ -239,7 +239,7 @@ async function settleMissedWebsiteCoinOrder({
 
   const { data: paymentOrder, error } = await supabaseAdmin
     .from("payment_orders")
-    .select("id,status,expected_amount,coins,pay_method")
+    .select("id,status,expected_amount,coins,pay_method,updated_at")
     .eq("cp_order_no", orderId)
     .eq("user_id", userId)
     .maybeSingle();
@@ -253,7 +253,22 @@ async function settleMissedWebsiteCoinOrder({
 
   const source = paymentOrder as Record<string, unknown>;
   const status = readString(source.status);
-  if (status === "paid" || status === "processing") {
+  const transactionId = `sdk-order-${orderId}`;
+  const { data: existingTransaction } = await supabaseAdmin
+    .from("wallet_transactions")
+    .select("id,status")
+    .eq("transaction_key", transactionId)
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (status === "paid" && existingTransaction?.status === "success") {
+    return null;
+  }
+
+  const updatedAt = new Date(readString(source.updated_at)).getTime();
+  const processingIsFresh =
+    status === "processing" && Number.isFinite(updatedAt) && Date.now() - updatedAt < 2 * 60 * 1000;
+  if (processingIsFresh) {
     return null;
   }
 
@@ -276,13 +291,15 @@ async function settleMissedWebsiteCoinOrder({
     .update({ status: "processing", updated_at: nowIso })
     .eq("cp_order_no", orderId)
     .eq("user_id", userId)
-    .in("status", ["pending", "cancelled", "failed"])
+    .in("status", ["pending", "cancelled", "failed", "paid", "processing"])
     .select("id")
     .maybeSingle();
 
   if (claimError || !claimed) {
     if (claimError) {
       console.error("[QuickSDK missed coin order claim]", { orderId, error: claimError.message });
+    } else {
+      console.warn("[QuickSDK missed coin order claim skipped]", { orderId, status });
     }
     return null;
   }
@@ -295,7 +312,7 @@ async function settleMissedWebsiteCoinOrder({
     });
 
     const transaction: WalletTransaction = {
-      id: `sdk-order-${orderId}`,
+      id: transactionId,
       type: "recharge",
       amount,
       coins,
