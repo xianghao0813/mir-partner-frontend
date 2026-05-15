@@ -117,8 +117,7 @@ export default function WalletPage() {
   const [phoneCodeCooldown, setPhoneCodeCooldown] = useState(0);
 
   useEffect(() => {
-    void loadWallet();
-    void syncQuickSdkWallet();
+    void syncQuickSdkWallet({ silent: true, fallbackToCachedWallet: true });
     void loadSecurity();
     void loadCoupons();
     return () => {
@@ -223,8 +222,10 @@ export default function WalletPage() {
     }
   }
 
-  async function syncQuickSdkWallet() {
-    setSyncingWallet(true);
+  async function syncQuickSdkWallet(options?: { silent?: boolean; fallbackToCachedWallet?: boolean }) {
+    if (!options?.silent) {
+      setSyncingWallet(true);
+    }
 
     try {
       const response = await fetch("/api/account/sync-quicksdk?force=1&wallet=1", {
@@ -237,6 +238,9 @@ export default function WalletPage() {
       } | null;
 
       if (!response.ok || !payload?.wallet) {
+        if (options?.fallbackToCachedWallet) {
+          await loadWallet();
+        }
         setSyncMessage(payload?.message ?? "同步失败，当前显示最近一次数据。");
         return;
       }

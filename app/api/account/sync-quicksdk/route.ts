@@ -4,7 +4,7 @@ import { readAttendanceSummaryFromDb } from "@/lib/attendanceDb";
 import { buildPartnerProfileSummary } from "@/lib/partnerProfile";
 import { createClient } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { buildWalletSummary, reconcileQuickSdkRechargePoints } from "@/lib/wallet";
+import { buildWalletSummary, readCloudCoins, reconcileQuickSdkRechargePoints } from "@/lib/wallet";
 
 const SYNC_COOLDOWN_MS = 60 * 1000;
 
@@ -34,20 +34,29 @@ export async function POST(request: Request) {
     mir_quicksdk_synced_at: new Date().toISOString(),
   };
 
-  await supabaseAdmin.auth.admin.updateUserById(user.id, {
+  const syncedUser = {
+    ...user,
     user_metadata: syncedMetadata,
+  };
+  const payload = await buildSyncPayload(syncedUser, "synced", includeWalletRealtime);
+  const realtimeCloudCoins = payload.wallet?.cloudCoins;
+  const persistedMetadata =
+    includeWalletRealtime &&
+    typeof realtimeCloudCoins === "number" &&
+    Number.isFinite(realtimeCloudCoins) &&
+    realtimeCloudCoins !== readCloudCoins(syncedMetadata)
+      ? {
+          ...syncedMetadata,
+          cloud_coins: realtimeCloudCoins,
+          wallet_coins: realtimeCloudCoins,
+        }
+      : syncedMetadata;
+
+  await supabaseAdmin.auth.admin.updateUserById(user.id, {
+    user_metadata: persistedMetadata,
   });
 
-  return NextResponse.json(
-    await buildSyncPayload(
-      {
-        ...user,
-        user_metadata: syncedMetadata,
-      },
-      "synced",
-      includeWalletRealtime
-    )
-  );
+  return NextResponse.json(payload);
 }
 
 async function buildSyncPayload(
