@@ -4,7 +4,11 @@ import {
   buildMirPointSummary,
   getCurrentTier,
   getShanghaiMonthKey,
+  hasMirImportBaselineOverride,
+  isAtOrAfterMirImportBaseline,
   MIR_PARTNER_TIERS,
+  readMirImportBaselineAt,
+  readMirImportBaselinePoints,
   type MirPartnerTier,
 } from "@/lib/mirPoints";
 import { getQuickSdkUserOrders, type QuickSdkOrderData } from "@/lib/quicksdk";
@@ -68,24 +72,44 @@ export async function buildPartnerProfileSummary(
     readPointTransactionsFromDb(user.id),
     readPointTransactionsFromDb(user.id, monthKey),
   ]);
+  const importBaselineAt = readMirImportBaselineAt(user.user_metadata);
+  const importBaselinePoints = readMirImportBaselinePoints(user.user_metadata);
+  const hasImportBaseline = hasMirImportBaselineOverride(user.user_metadata);
   const metadataPointTransactions = readPointTransactions(user.user_metadata);
   const fallbackPointTransactions =
     metadataPointTransactions.length > 0
-      ? metadataPointTransactions
+      ? filterImportedPointTransactions(metadataPointTransactions, user.user_metadata)
       : includeQuickSdkFallback
-        ? await readQuickSdkPointTransactions(uid)
+        ? await readQuickSdkPointTransactions(uid, user.user_metadata)
         : [];
-  const pointTransactions = dbPointTransactions.length > 0 ? dbPointTransactions : fallbackPointTransactions;
+  const usableDbPointTransactions = filterImportedPointTransactions(dbPointTransactions, user.user_metadata);
+  const usableDbMonthlyPointTransactions = filterImportedPointTransactions(dbMonthlyPointTransactions, user.user_metadata);
+  const earnedPointTransactions = dbPointTransactions.length > 0 ? usableDbPointTransactions : fallbackPointTransactions;
+  const baselineTransaction = hasImportBaseline
+    ? [{
+        id: `import-baseline-${importBaselineAt?.getTime() ?? "unknown"}`,
+        title: "导入初始积分",
+        description: "管理员导入的积分基准，基准时间之前的充值不再重复计入积分。",
+        points: importBaselinePoints,
+        createdAt: importBaselineAt?.toISOString() ?? null,
+        source: "admin_import_baseline",
+      }]
+    : [];
+  const pointTransactions = [...baselineTransaction, ...earnedPointTransactions];
   const pointsSummary = buildMirPointSummary(
     recalculatedMetadata(user.user_metadata, pointTransactions)
   );
-  const recalculatedPoints = pointTransactions.reduce((sum, entry) => sum + entry.points, 0);
-  const effectivePoints = pointTransactions.length > 0 ? Math.max(0, recalculatedPoints) : pointsSummary.points;
+  const recalculatedPoints = earnedPointTransactions.reduce((sum, entry) => sum + entry.points, 0);
+  const effectivePoints = hasImportBaseline
+    ? Math.max(0, importBaselinePoints + recalculatedPoints)
+    : pointTransactions.length > 0
+      ? Math.max(0, pointTransactions.reduce((sum, entry) => sum + entry.points, 0))
+      : pointsSummary.points;
   const effectiveMonthlyPoints =
     dbMonthlyPointTransactions.length > 0
-      ? dbMonthlyPointTransactions.reduce((sum, entry) => sum + Math.max(0, entry.points), 0)
-      : pointTransactions.length > 0
-        ? pointTransactions
+      ? usableDbMonthlyPointTransactions.reduce((sum, entry) => sum + Math.max(0, entry.points), 0)
+      : earnedPointTransactions.length > 0
+        ? earnedPointTransactions
             .filter((entry) => (entry.createdAt ?? "").startsWith(monthKey))
             .reduce((sum, entry) => sum + Math.max(0, entry.points), 0)
       : pointsSummary.monthlyPoints;
@@ -193,7 +217,28 @@ function normalizePointTransaction(item: unknown, index: number): PartnerPointTr
   };
 }
 
-async function readQuickSdkPointTransactions(uid: string): Promise<PartnerPointTransaction[]> {
+function filterImportedPointTransactions(
+  transactions: PartnerPointTransaction[],
+  metadata: User["user_metadata"]
+) {
+  if (!hasMirImportBaselineOverride(metadata)) {
+    return transactions;
+  }
+
+  return transactions.filter((transaction) => {
+    if (transaction.source === "admin_import_baseline") {
+      return false;
+    }
+
+    const createdAt = transaction.createdAt ? new Date(transaction.createdAt) : null;
+    return createdAt && !Number.isNaN(createdAt.getTime()) && isAtOrAfterMirImportBaseline(metadata, createdAt);
+  });
+}
+
+async function readQuickSdkPointTransactions(
+  uid: string,
+  metadata?: User["user_metadata"]
+): Promise<PartnerPointTransaction[]> {
   if (!uid) {
     return [];
   }
@@ -204,7 +249,10 @@ async function readQuickSdkPointTransactions(uid: string): Promise<PartnerPointT
   });
 
   return orders
-    .filter((order) => !isPlatformCoinOrder(order))
+    .filter((order) =>
+      !isPlatformCoinOrder(order) &&
+      isAtOrAfterMirImportBaseline(metadata, createDateFromSdkTimestamp(order.payTime ?? order.createTime))
+    )
     .map((order) => {
       const orderId = order.productOrderNo || order.orderNo;
       const amount = order.dealAmount || order.amount;

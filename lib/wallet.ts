@@ -4,7 +4,12 @@ import { getCloudCoinPackage } from "@/lib/cloudCoinPackages";
 import { applyCouponDiscount, isPackageApplicable, type UserCouponRecord } from "@/lib/coupons";
 import { createPartnerCode } from "@/lib/partnerProfile";
 import { getRechargeDisplayName } from "@/lib/rechargeDisplay";
-import { getCurrentTier, readMirPoints, type MirPartnerTier } from "@/lib/mirPoints";
+import {
+  getCurrentTier,
+  isAtOrAfterMirImportBaseline,
+  readMirPoints,
+  type MirPartnerTier,
+} from "@/lib/mirPoints";
 import {
   changeQuickSdkPlatformCoins,
   getQuickSdkUserOrders,
@@ -104,7 +109,7 @@ export async function reconcileQuickSdkRechargePoints(user: User) {
     return changed ? await updateUserMetadata(user.id, metadata, user.user_metadata) : metadata;
   }
 
-  const eligibleOrders = orders.filter((order) => shouldAwardMirPointsForOrder(order));
+  const eligibleOrders = orders.filter((order) => shouldAwardMirPointsForOrder(order, metadata));
   const walletRechargePoints = eligibleOrders.reduce((total, order) => {
     const amount = order.dealAmount || order.amount;
     return total + Math.floor(amount * 100);
@@ -172,7 +177,7 @@ export async function reconcileQuickSdkRechargePoints(user: User) {
       return source.id === `point-${transactionId}` || source.referenceId === transactionId;
     });
 
-    const shouldAwardPoints = shouldAwardMirPointsForOrder(order);
+    const shouldAwardPoints = shouldAwardMirPointsForOrder(order, metadata);
     const shouldRecordWallet = true;
 
     if ((hasWalletTransaction || !shouldRecordWallet) && (hasPointTransaction || !shouldAwardPoints)) {
@@ -640,8 +645,9 @@ function normalizeWalletLedgerTransactions(items: WalletTransaction[]) {
   }));
 }
 
-function shouldAwardMirPointsForOrder(order: QuickSdkOrderData) {
-  return !isPlatformCoinOrder(order);
+function shouldAwardMirPointsForOrder(order: QuickSdkOrderData, metadata?: UserMetadata) {
+  return !isPlatformCoinOrder(order) &&
+    isAtOrAfterMirImportBaseline(metadata, createDateFromSdkTimestamp(order.payTime ?? order.createTime));
 }
 
 async function resolveWalletOrderCoins(userId: string, order: QuickSdkOrderData) {

@@ -290,6 +290,33 @@ export function readMirPoints(metadata: UserMetadata | undefined) {
   return readNumberFromKeys(metadata, ["mir_points", "partner_points", "total_points", "points"]);
 }
 
+export function hasMirImportBaselineOverride(metadata: UserMetadata | undefined) {
+  return readString(metadata?.mir_import_mode) === "override" && readMirImportBaselineAt(metadata) !== null;
+}
+
+export function readMirImportBaselinePoints(metadata: UserMetadata | undefined) {
+  return readNumber(metadata?.mir_import_baseline_points);
+}
+
+export function readMirImportBaselineAt(metadata: UserMetadata | undefined) {
+  const raw = readString(metadata?.mir_import_baseline_at);
+  if (!raw) {
+    return null;
+  }
+
+  const parsed = new Date(raw);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+export function isAtOrAfterMirImportBaseline(metadata: UserMetadata | undefined, date: Date) {
+  if (!hasMirImportBaselineOverride(metadata)) {
+    return true;
+  }
+
+  const baselineAt = readMirImportBaselineAt(metadata);
+  return !baselineAt || date.getTime() >= baselineAt.getTime();
+}
+
 export function getCurrentTier(points: number) {
   return [...MIR_PARTNER_TIERS]
     .reverse()
