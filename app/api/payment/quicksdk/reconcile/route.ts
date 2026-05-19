@@ -148,6 +148,7 @@ export async function POST(request: NextRequest) {
     const nextSdkAmount = await changeQuickSdkPlatformCoins({
       userId: sdkUid,
       amount: String(expectedCoins),
+      orderNo: cpOrderNo,
       remark: `MIR Partner reconcile ${cpOrderNo}`,
     });
     const nextCoins = Math.max(0, Math.floor(nextSdkAmount || await getQuickSdkWalletAmount({ userId: sdkUid })));

@@ -1,4 +1,9 @@
 import crypto from "node:crypto";
+import {
+  changeAggregatePlatformCoins,
+  getAggregateWalletAmount,
+  isGameWemadeAggregateConfigured,
+} from "@/lib/gamewemadeAggregate";
 
 const QUICKSDK_DEFAULT_BASE_URL = "http://custom-sdkapi.gamewemade.com";
 const QUICKSDK_DEFAULT_CHANNEL_CODE = "website";
@@ -439,6 +444,10 @@ export async function unbindQuickSdkPhone({
 }
 
 export async function getQuickSdkWalletAmount({ userId }: { userId: string }) {
+  if (isGameWemadeAggregateConfigured()) {
+    return getAggregateWalletAmount({ platformUid: userId });
+  }
+
   const config = getQuickSdkConfig();
   const payload = buildSignedParams({
     openId: config.openId,
@@ -454,12 +463,23 @@ export async function getQuickSdkWalletAmount({ userId }: { userId: string }) {
 export async function changeQuickSdkPlatformCoins({
   userId,
   amount,
+  orderNo,
   remark,
 }: {
   userId: string;
   amount: string;
+  orderNo?: string;
   remark?: string;
 }) {
+  if (isGameWemadeAggregateConfigured()) {
+    return changeAggregatePlatformCoins({
+      platformUid: userId,
+      amount,
+      orderNo,
+      remark,
+    });
+  }
+
   const config = getQuickSdkConfig();
   const payload = buildSignedParams({
     openId: config.openId,
@@ -651,25 +671,32 @@ function verifyQuickSdkEncryptedCallbackSign(ntData: string, sign: string, md5Si
     return false;
   }
 
+  const decodedMd5Sign = decryptQuickSdkCallbackValue(md5Sign);
   const expected = crypto
     .createHash("md5")
     .update(`${ntData}${sign}${getQuickSdkConfig().md5Key}`, "utf8")
     .digest("hex");
 
-  return safeEqualHex(md5Sign, expected);
+  return safeEqualHex(decodedMd5Sign, expected);
 }
 
 function decryptQuickSdkCallbackValue(value: string) {
   const key = getQuickSdkConfig().callbackKey;
-  return value
-    .split("@")
-    .filter(Boolean)
-    .map((item, index) => {
-      const code = Number(item);
-      const keyCode = key.charCodeAt(index % key.length);
-      return Number.isFinite(code) ? String.fromCharCode(code - keyCode) : "";
-    })
-    .join("");
+  const matches = [...value.matchAll(/@(\d+)/g)];
+
+  if (matches.length === 0) {
+    return value;
+  }
+
+  const keyBytes = Buffer.from(key, "utf8");
+  const decoded = Buffer.alloc(matches.length);
+
+  matches.forEach((match, index) => {
+    const code = Number(match[1]);
+    decoded[index] = Number.isFinite(code) ? (code - (0xff & keyBytes[index % keyBytes.length])) & 0xff : 0;
+  });
+
+  return decoded.toString("utf8");
 }
 
 function parseQuickSdkCallbackXml(xml: string) {

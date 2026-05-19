@@ -238,6 +238,7 @@ export async function POST(request: NextRequest) {
     nextSdkAmount = await changeQuickSdkPlatformCoins({
       userId: sdkUid,
       amount: String(coins),
+      orderNo: cpOrderNo,
       remark: `MIR Partner recharge ${cpOrderNo}`,
     });
   } catch (sdkError) {

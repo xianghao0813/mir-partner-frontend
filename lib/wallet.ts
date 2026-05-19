@@ -370,6 +370,7 @@ async function settleMissedWebsiteCoinOrder({
     const nextSdkAmount = await changeQuickSdkPlatformCoins({
       userId: sdkUid,
       amount: String(coins),
+      orderNo: orderId,
       remark: `MIR Partner missed recharge repair ${orderId}`,
     });
 
