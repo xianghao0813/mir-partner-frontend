@@ -171,6 +171,10 @@ export default function PartnerPage() {
 
   return (
     <div ref={containerRef} className="partner-project-page hide-scrollbar" style={pageStyle}>
+      <div className="auth-bg" style={{ position: "fixed" }} />
+      <div className="auth-overlay" style={{ position: "fixed" }} />
+      <div className="partner-project-light" />
+
       <div style={indicatorStyle}>
         {sections.map((section, index) => (
           <button
@@ -226,22 +230,9 @@ export default function PartnerPage() {
         </section>
       ))}
 
-      <style jsx>{`
-        .partner-project-page::before {
-          content: "";
-          position: absolute;
-          inset: 0;
-          pointer-events: none;
-          background:
-            linear-gradient(180deg, rgba(5, 5, 8, 0.5), rgba(7, 7, 12, 0.86)),
-            url("/login-bg.png") center / 112% auto;
-          animation: partnerBgMove 24s ease-in-out infinite alternate;
-          z-index: 0;
-        }
-
-        .partner-project-page::after {
-          content: "";
-          position: absolute;
+      <style jsx global>{`
+        .partner-project-light {
+          position: fixed;
           inset: 0;
           pointer-events: none;
           background:
@@ -287,25 +278,25 @@ export default function PartnerPage() {
           animation: barRise 2.9s ease-in-out infinite;
         }
 
-        .growth-bar:nth-child(1) {
+        .growth-bar.bar-one {
           left: 46px;
           height: 74px;
           animation-delay: 0s;
         }
 
-        .growth-bar:nth-child(2) {
+        .growth-bar.bar-two {
           left: 122px;
           height: 118px;
           animation-delay: 0.18s;
         }
 
-        .growth-bar:nth-child(3) {
+        .growth-bar.bar-three {
           left: 198px;
           height: 160px;
           animation-delay: 0.36s;
         }
 
-        .growth-bar:nth-child(4) {
+        .growth-bar.bar-four {
           left: 274px;
           height: 218px;
           animation-delay: 0.54s;
@@ -468,17 +459,6 @@ export default function PartnerPage() {
           animation: scoreFly 2.8s ease-in-out infinite;
         }
 
-        @keyframes partnerBgMove {
-          from {
-            background-position: center top;
-            transform: scale(1);
-          }
-          to {
-            background-position: center bottom;
-            transform: scale(1.04);
-          }
-        }
-
         @keyframes partnerLightMove {
           from {
             transform: translate3d(-1%, -1%, 0);
@@ -630,10 +610,10 @@ function renderVisual(type: Section["visual"]) {
     return (
       <div className="growth-visual" aria-hidden="true">
         <div className="growth-line" />
-        <div className="growth-bar" />
-        <div className="growth-bar" />
-        <div className="growth-bar" />
-        <div className="growth-bar" />
+        <div className="growth-bar bar-one" />
+        <div className="growth-bar bar-two" />
+        <div className="growth-bar bar-three" />
+        <div className="growth-bar bar-four" />
         <div className="point-orb one">+P</div>
         <div className="point-orb two">UP</div>
       </div>
