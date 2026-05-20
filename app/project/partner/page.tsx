@@ -1,117 +1,76 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 
 type Section = {
   eyebrow: string;
   title: string;
   description: string;
-  stats?: { label: string; value: string }[];
   points: string[];
+  stats: { label: string; value: string }[];
+  cta?: boolean;
 };
 
 const sections: Section[] = [
   {
-    eyebrow: "MIR PARTNER PROGRAM",
-    title: "MIR 合伙人计划",
+    eyebrow: "OPEN GROWTH PROJECT",
+    title: "面向所有玩家的长期成长计划",
     description:
-      "新版合伙人计划以本人行为为核心，围绕积分、星级、优惠券、签到和小游戏建立长期成长体系。原官网保留充值入口，新版官网承接合伙人权益、活动和账号服务。",
+      "这是一个更容易参与、更容易理解，也更适合长期陪伴玩家的成长项目。用户不需要研究复杂门槛或结算规则，只要持续参与官网活动、完成充值或游戏相关行为，就可以累积积分，逐步解锁更多优惠券、活动资格与专属权益。\n\n新版官网希望成为玩家与游戏长期连接的入口，让每一次参与都被记录，每一次成长都能转化为看得见的福利。",
     stats: [
-      { label: "成长核心", value: "积分" },
-      { label: "主要权益", value: "优惠券" },
-      { label: "关系模式", value: "个人" },
+      { label: "参与门槛", value: "低" },
+      { label: "核心方式", value: "积分" },
+      { label: "长期目标", value: "陪伴" },
     ],
     points: [
-      "取消复杂团队关系和三代返利规则。",
-      "用户通过本人充值、签到、小游戏和活动获得积分。",
-      "积分、星级、优惠券与钱包信息统一在新版官网展示。",
+      "不强调复杂关系或额外门槛，普通玩家也能直接参与。",
+      "通过积分获得优惠券、活动资格与更多充值折扣机会。",
+      "长期沉淀用户成长记录，为后续更多 Wemade 游戏内容提供统一入口。",
     ],
+    cta: true,
   },
   {
-    eyebrow: "POINT SYSTEM",
-    title: "积分与星级成长",
+    eyebrow: "POINT RULES",
+    title: "积分规则与成长目标",
     description:
-      "积分是判断用户成长和星级权益的核心指标。系统按月统计积分变化，并根据规则判断升级、保级或调整。",
+      "积分是新版体系的核心成长指标。用户可以通过本人充值、签到、活动、小游戏与后续成就任务获得积分；同时，补签、月度未达成保级要求等情况可能产生积分消耗或调整。\n\n积分的目标不是制造复杂计算，而是让用户清楚知道自己为什么成长、距离下一阶段还差多少，以及可以获得哪些实际优惠。",
     stats: [
-      { label: "星级体系", value: "8级" },
+      { label: "累计方式", value: "本人行为" },
       { label: "统计周期", value: "每月" },
-      { label: "保级规则", value: "按积分" },
+      { label: "成长结果", value: "星级" },
     ],
     points: [
-      "已导入用户的最终积分会作为新版官网起始积分。",
-      "未导入用户可根据历史充值记录自动计算积分。",
-      "导入时间之后的新充值和活动记录会按新版规则继续累计。",
+      "充值、签到、小游戏和活动奖励都会形成可追踪的积分记录。",
+      "星级根据积分成长判断，并影响可领取的优惠券权益。",
+      "补签会消耗积分；月度保级与调整规则会在页面和公告中明确展示。",
     ],
   },
   {
-    eyebrow: "COUPON BENEFITS",
-    title: "星级优惠券权益",
+    eyebrow: "DAILY EVENTS",
+    title: "签到、小游戏与全民参与活动",
     description:
-      "新版体系保留星级概念，但取消云币返利和现金返利。用户达到不同星级后，可领取对应额度和数量的充值优惠券。",
+      "新版官网会持续推出轻量活动，让用户即使不进行大额充值，也可以通过日常参与获得积分。每日签到、补签、连续签到奖励、小游戏挑战和限时活动，会让更多玩家以低门槛方式参与进来。\n\n这个项目不只面向少数高消费用户，也希望成为所有玩家都能参与、都能累积、都能获得回馈的全民型活动平台。",
     stats: [
-      { label: "云币返利", value: "取消" },
-      { label: "现金返利", value: "取消" },
-      { label: "替代权益", value: "优惠券" },
+      { label: "每日入口", value: "签到" },
+      { label: "轻量玩法", value: "小游戏" },
+      { label: "参与范围", value: "全员" },
     ],
     points: [
-      "优惠券可用于新版官网云币充值抵扣。",
-      "星级越高，可领取的优惠券数量和优惠力度越高。",
-      "优惠券状态会清晰区分未使用、已使用和已过期。",
+      "每日签到可获得积分，并用月历记录参与情况。",
+      "小游戏提供额外积分奖励，让活动参与更轻松。",
+      "未来可扩展节日活动、限时任务、游戏联动与品牌活动。",
     ],
-  },
-  {
-    eyebrow: "DAILY ACTIVITY",
-    title: "签到与小游戏",
-    description:
-      "新版官网将通过日常活动提升用户回访和参与度。签到、补签、连续签到奖励与小游戏奖励都可以帮助用户获得积分。",
-    stats: [
-      { label: "签到统计", value: "按月" },
-      { label: "补签方式", value: "积分" },
-      { label: "小游戏", value: "积分奖励" },
-    ],
-    points: [
-      "每日签到可获得积分，并在月历中展示签到记录。",
-      "漏签后可通过补签修复连续签到。",
-      "小游戏提供额外积分奖励，并配合风控防止异常操作。",
-    ],
-  },
-  {
-    eyebrow: "RULES & SAFETY",
-    title: "清晰稳定的运营规则",
-    description:
-      "新版体系减少复杂计算，让用户更容易理解自己的积分来源、星级变化和可领取权益，同时通过风控能力保护支付与优惠券流程。",
-    stats: [
-      { label: "异常价格", value: "检测" },
-      { label: "重复支付", value: "防护" },
-      { label: "异常账号", value: "冻结" },
-    ],
-    points: [
-      "用户仅通过本人充值、活动和成就累计积分。",
-      "异常价格、异常优惠券使用和高频支付会被识别。",
-      "重要规则调整会通过公告同步，便于用户追踪最新变化。",
-    ],
-  },
-  {
-    eyebrow: "BRAND PORTAL",
-    title: "长期用户与品牌入口",
-    description:
-      "新版官网不仅是合伙人中心，也将逐步承担 Wemade 游戏品牌页的角色，用于展示项目、活动、权益、客服与长期用户服务。",
-    stats: [
-      { label: "用户关系", value: "长期" },
-      { label: "品牌内容", value: "统一" },
-      { label: "活动入口", value: "集中" },
-    ],
-    points: [
-      "从单一游戏用户运营升级为长期用户资产运营。",
-      "持续活动引导用户回访并参与游戏内容。",
-      "后续可承载更多 Wemade 游戏资讯和活动入口。",
-    ],
+    cta: true,
   },
 ];
 
 export default function PartnerPage() {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const currentIndexRef = useRef(0);
+  const isAnimatingRef = useRef(false);
+  const [currentIndex, setCurrentIndex] = useState(0);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
 
   useEffect(() => {
@@ -142,143 +101,326 @@ export default function PartnerPage() {
     };
   }, []);
 
-  return (
-    <main className="hide-scrollbar" style={pageStyle}>
-      <section style={heroStyle}>
-        <p style={eyebrowStyle}>PARTNER CENTER</p>
-        <h1 style={heroTitleStyle}>从充值用户到长期合伙人</h1>
-        <p style={heroDescStyle}>
-          新版合伙人官网将合伙人身份、积分成长、星级优惠券、签到活动、小游戏和钱包服务集中到同一入口。
-        </p>
-        <div style={heroActionsStyle}>
-          <Link href={isLoggedIn ? "/profile" : "/signup"} style={primaryButtonStyle}>
-            {isLoggedIn ? "进入合伙人中心" : "立即加入合伙人计划"}
-          </Link>
-          <Link href="/profile/points-activity" style={secondaryButtonStyle}>
-            查看积分活动
-          </Link>
-        </div>
-      </section>
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
 
-      <section style={sectionGridStyle}>
-        {sections.map((section) => (
-          <article key={section.title} style={sectionCardStyle}>
-            <div>
-              <p style={cardEyebrowStyle}>{section.eyebrow}</p>
-              <h2 style={cardTitleStyle}>{section.title}</h2>
-              <p style={cardDescStyle}>{section.description}</p>
+    const getSectionTop = (index: number) => {
+      const section = el.querySelector<HTMLElement>(`[data-section-index="${index}"]`);
+      return section?.offsetTop ?? index * el.clientHeight;
+    };
+
+    const scrollToSection = (index: number, behavior: ScrollBehavior = "smooth") => {
+      currentIndexRef.current = index;
+      setCurrentIndex(index);
+      el.scrollTo({ top: getSectionTop(index), behavior });
+    };
+
+    const handleWheel = (event: WheelEvent) => {
+      event.preventDefault();
+      if (isAnimatingRef.current || Math.abs(event.deltaY) < 8) return;
+
+      const direction = event.deltaY > 0 ? 1 : -1;
+      const nextIndex = Math.min(sections.length - 1, Math.max(0, currentIndexRef.current + direction));
+      if (nextIndex === currentIndexRef.current) return;
+
+      isAnimatingRef.current = true;
+      scrollToSection(nextIndex);
+      window.setTimeout(() => {
+        isAnimatingRef.current = false;
+        scrollToSection(currentIndexRef.current, "auto");
+      }, 850);
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (isAnimatingRef.current || (event.key !== "ArrowDown" && event.key !== "ArrowUp")) return;
+
+      const direction = event.key === "ArrowDown" ? 1 : -1;
+      const nextIndex = Math.min(sections.length - 1, Math.max(0, currentIndexRef.current + direction));
+      if (nextIndex === currentIndexRef.current) return;
+
+      isAnimatingRef.current = true;
+      scrollToSection(nextIndex);
+      window.setTimeout(() => {
+        isAnimatingRef.current = false;
+        scrollToSection(currentIndexRef.current, "auto");
+      }, 850);
+    };
+
+    const handleScroll = () => {
+      if (isAnimatingRef.current) return;
+      const nextIndex = Math.round(el.scrollTop / Math.max(1, el.clientHeight));
+      const bounded = Math.min(sections.length - 1, Math.max(0, nextIndex));
+      currentIndexRef.current = bounded;
+      setCurrentIndex(bounded);
+    };
+
+    const handleResize = () => {
+      scrollToSection(currentIndexRef.current, "auto");
+    };
+
+    el.addEventListener("wheel", handleWheel, { passive: false });
+    el.addEventListener("scroll", handleScroll, { passive: true });
+    window.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("resize", handleResize);
+
+    return () => {
+      el.removeEventListener("wheel", handleWheel);
+      el.removeEventListener("scroll", handleScroll);
+      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("resize", handleResize);
+    };
+  }, []);
+
+  function goToSection(index: number) {
+    const el = containerRef.current;
+    if (!el) return;
+    const section = el.querySelector<HTMLElement>(`[data-section-index="${index}"]`);
+    currentIndexRef.current = index;
+    setCurrentIndex(index);
+    el.scrollTo({ top: section?.offsetTop ?? index * el.clientHeight, behavior: "smooth" });
+  }
+
+  return (
+    <div ref={containerRef} className="hide-scrollbar" style={pageStyle}>
+      <div style={indicatorStyle}>
+        {sections.map((section, index) => (
+          <button
+            key={section.title}
+            type="button"
+            onClick={() => goToSection(index)}
+            aria-label={section.title}
+            style={dotButtonStyle(currentIndex === index)}
+          />
+        ))}
+      </div>
+
+      {sections.map((section, index) => (
+        <section key={section.title} data-section-index={index} style={sectionStyle}>
+          <div style={contentGridStyle}>
+            <div style={textColumnStyle}>
+              <p style={eyebrowStyle}>{section.eyebrow}</p>
+              <h1 style={titleStyle}>{section.title}</h1>
+              <p style={descriptionStyle}>{section.description}</p>
+
+              <div style={pointsStyle}>
+                {section.points.map((point) => (
+                  <div key={point} style={pointStyle}>
+                    <span style={pointDotStyle} />
+                    <span>{point}</span>
+                  </div>
+                ))}
+              </div>
+
+              {section.cta && (
+                <div style={actionsStyle}>
+                  <Link href={isLoggedIn ? "/profile" : "/signup"} style={primaryButtonStyle}>
+                    {isLoggedIn ? "进入个人中心" : "立即参与"}
+                  </Link>
+                  <Link href="/profile/points-activity" style={secondaryButtonStyle}>
+                    查看积分活动
+                  </Link>
+                </div>
+              )}
             </div>
 
-            {section.stats && (
-              <div style={statsGridStyle}>
+            <div style={panelStyle}>
+              <p style={panelEyebrowStyle}>SECTION {String(index + 1).padStart(2, "0")}</p>
+              <h2 style={panelTitleStyle}>{section.title}</h2>
+              <div style={statsStyle}>
                 {section.stats.map((stat) => (
-                  <div key={`${section.title}-${stat.label}`} style={statStyle}>
+                  <div key={stat.label} style={statStyle}>
                     <strong style={statValueStyle}>{stat.value}</strong>
                     <span style={statLabelStyle}>{stat.label}</span>
                   </div>
                 ))}
               </div>
-            )}
-
-            <div style={pointListStyle}>
-              {section.points.map((point) => (
-                <div key={point} style={pointStyle}>
-                  <span style={dotStyle} />
-                  <span>{point}</span>
-                </div>
-              ))}
             </div>
-          </article>
-        ))}
-      </section>
-    </main>
+          </div>
+
+          {index < sections.length - 1 && (
+            <div style={scrollHintStyle}>
+              <span>向下滚动</span>
+              <span style={scrollLineStyle}>
+                <span style={scrollLineInnerStyle} />
+              </span>
+            </div>
+          )}
+        </section>
+      ))}
+
+      <style jsx>{`
+        @keyframes scrollHintMove {
+          0% {
+            transform: translateY(0);
+            opacity: 0.25;
+          }
+          50% {
+            transform: translateY(11px);
+            opacity: 1;
+          }
+          100% {
+            transform: translateY(22px);
+            opacity: 0.25;
+          }
+        }
+
+        @media (max-width: 920px) {
+          section > div {
+            grid-template-columns: 1fr !important;
+            padding: 32px 24px !important;
+            gap: 24px !important;
+          }
+
+          h1 {
+            font-size: 36px !important;
+          }
+        }
+      `}</style>
+    </div>
   );
 }
 
 const pageStyle: React.CSSProperties = {
-  minHeight: "calc(100vh - 81px)",
+  height: "calc(100vh - 81px)",
   overflowY: "auto",
+  scrollSnapType: "y mandatory",
+  scrollBehavior: "smooth",
   margin: "-40px",
   width: "calc(100% + 80px)",
-  padding: "64px 40px",
-  boxSizing: "border-box",
+  position: "relative",
   color: "#f8fafc",
   background:
-    "linear-gradient(180deg, rgba(5,5,8,0.70), rgba(7,7,12,0.96)), url('/login-bg.png') center/cover fixed",
+    "linear-gradient(180deg, rgba(5,5,8,0.54), rgba(7,7,12,0.82)), url('/login-bg.png') center/cover fixed",
 };
 
-const heroStyle: React.CSSProperties = {
-  maxWidth: "1050px",
-  margin: "0 auto 36px",
-  textAlign: "center",
+const indicatorStyle: React.CSSProperties = {
+  position: "fixed",
+  right: "28px",
+  top: "50%",
+  transform: "translateY(-50%)",
+  zIndex: 30,
+  display: "grid",
+  gap: "12px",
+};
+
+const dotButtonStyle = (active: boolean): React.CSSProperties => ({
+  width: active ? "30px" : "12px",
+  height: "12px",
+  borderRadius: "999px",
+  border: "none",
+  cursor: "pointer",
+  background: active ? "linear-gradient(90deg, #7c3aed, #c084fc)" : "rgba(255,255,255,0.26)",
+  boxShadow: active ? "0 0 18px rgba(124,58,237,0.5)" : "none",
+  transition: "0.25s",
+});
+
+const sectionStyle: React.CSSProperties = {
+  minHeight: "calc(100vh - 81px)",
+  scrollSnapAlign: "start",
+  position: "relative",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  background:
+    "radial-gradient(circle at top, rgba(124,58,237,0.13), rgba(7,7,12,0.08) 48%, rgba(4,4,8,0.28))",
+};
+
+const contentGridStyle: React.CSSProperties = {
+  width: "100%",
+  maxWidth: "1220px",
+  display: "grid",
+  gridTemplateColumns: "minmax(0, 1.15fr) minmax(300px, 0.85fr)",
+  gap: "44px",
+  alignItems: "center",
+  padding: "56px",
+  boxSizing: "border-box",
+};
+
+const textColumnStyle: React.CSSProperties = {
+  maxWidth: "760px",
 };
 
 const eyebrowStyle: React.CSSProperties = {
-  margin: "0 0 14px",
-  color: "#c4b5fd",
+  margin: "0 0 16px",
+  color: "#d8b4fe",
   fontSize: "13px",
   letterSpacing: "0.18em",
   fontWeight: 900,
 };
 
-const heroTitleStyle: React.CSSProperties = {
-  margin: "0 0 18px",
-  fontSize: "52px",
+const titleStyle: React.CSSProperties = {
+  margin: "0 0 22px",
+  fontSize: "58px",
   lineHeight: 1.12,
   fontWeight: 950,
 };
 
-const heroDescStyle: React.CSSProperties = {
-  maxWidth: "820px",
-  margin: "0 auto",
-  color: "#d8d5e5",
-  fontSize: "19px",
-  lineHeight: 1.85,
+const descriptionStyle: React.CSSProperties = {
+  margin: "0 0 28px",
+  color: "#d8d4e7",
+  fontSize: "18px",
+  lineHeight: 1.9,
+  whiteSpace: "pre-line",
 };
 
-const heroActionsStyle: React.CSSProperties = {
+const pointsStyle: React.CSSProperties = {
+  display: "grid",
+  gap: "12px",
+};
+
+const pointStyle: React.CSSProperties = {
   display: "flex",
-  justifyContent: "center",
+  alignItems: "flex-start",
+  gap: "12px",
+  color: "#f2efff",
+  fontSize: "16px",
+  lineHeight: 1.65,
+};
+
+const pointDotStyle: React.CSSProperties = {
+  width: "9px",
+  height: "9px",
+  borderRadius: "999px",
+  marginTop: "8px",
+  flexShrink: 0,
+  background: "#c084fc",
+  boxShadow: "0 0 12px rgba(192,132,252,0.55)",
+};
+
+const actionsStyle: React.CSSProperties = {
+  display: "flex",
   flexWrap: "wrap",
   gap: "14px",
-  marginTop: "28px",
+  marginTop: "30px",
 };
 
 const primaryButtonStyle: React.CSSProperties = {
-  padding: "14px 24px",
+  padding: "14px 26px",
   borderRadius: "12px",
   textDecoration: "none",
   color: "white",
   background: "linear-gradient(90deg, #7c3aed, #a855f7)",
   fontWeight: 900,
+  boxShadow: "0 14px 28px rgba(124,58,237,0.28)",
 };
 
 const secondaryButtonStyle: React.CSSProperties = {
   ...primaryButtonStyle,
-  background: "rgba(255,255,255,0.06)",
-  border: "1px solid rgba(255,255,255,0.14)",
+  background: "rgba(255,255,255,0.07)",
+  border: "1px solid rgba(255,255,255,0.16)",
+  boxShadow: "none",
 };
 
-const sectionGridStyle: React.CSSProperties = {
-  maxWidth: "1180px",
-  margin: "0 auto",
-  display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))",
-  gap: "18px",
-};
-
-const sectionCardStyle: React.CSSProperties = {
-  display: "grid",
-  gap: "22px",
-  alignContent: "start",
-  padding: "28px",
-  borderRadius: "18px",
-  background: "rgba(17,17,24,0.90)",
+const panelStyle: React.CSSProperties = {
+  padding: "30px",
+  borderRadius: "22px",
+  background: "rgba(15,15,22,0.88)",
   border: "1px solid rgba(196,181,253,0.16)",
-  boxShadow: "0 18px 32px rgba(0,0,0,0.24)",
+  boxShadow: "0 18px 36px rgba(0,0,0,0.28)",
 };
 
-const cardEyebrowStyle: React.CSSProperties = {
+const panelEyebrowStyle: React.CSSProperties = {
   margin: "0 0 10px",
   color: "#a78bfa",
   fontSize: "12px",
@@ -286,60 +428,61 @@ const cardEyebrowStyle: React.CSSProperties = {
   fontWeight: 900,
 };
 
-const cardTitleStyle: React.CSSProperties = {
-  margin: "0 0 12px",
-  fontSize: "26px",
+const panelTitleStyle: React.CSSProperties = {
+  margin: "0 0 24px",
+  fontSize: "24px",
 };
 
-const cardDescStyle: React.CSSProperties = {
-  margin: 0,
-  color: "#d4d1df",
-  lineHeight: 1.75,
-};
-
-const statsGridStyle: React.CSSProperties = {
+const statsStyle: React.CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "repeat(3, 1fr)",
-  gap: "10px",
+  gap: "12px",
 };
 
 const statStyle: React.CSSProperties = {
-  display: "grid",
-  gap: "6px",
-  textAlign: "center",
-  padding: "14px 10px",
-  borderRadius: "12px",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+  gap: "14px",
+  padding: "16px 18px",
+  borderRadius: "14px",
   background: "rgba(255,255,255,0.045)",
 };
 
 const statValueStyle: React.CSSProperties = {
   color: "#ddd6fe",
-  fontSize: "20px",
+  fontSize: "24px",
 };
 
 const statLabelStyle: React.CSSProperties = {
-  color: "#aaa6bb",
-  fontSize: "12px",
+  color: "#bbb6cc",
 };
 
-const pointListStyle: React.CSSProperties = {
+const scrollHintStyle: React.CSSProperties = {
+  position: "absolute",
+  left: "50%",
+  bottom: "24px",
+  transform: "translateX(-50%)",
   display: "grid",
-  gap: "10px",
+  justifyItems: "center",
+  gap: "8px",
+  color: "#c4b5fd",
+  fontSize: "12px",
+  letterSpacing: "0.18em",
 };
 
-const pointStyle: React.CSSProperties = {
-  display: "flex",
-  gap: "10px",
-  alignItems: "flex-start",
-  color: "#eeecf6",
-  lineHeight: 1.65,
-};
-
-const dotStyle: React.CSSProperties = {
-  width: "8px",
-  height: "8px",
-  marginTop: "9px",
+const scrollLineStyle: React.CSSProperties = {
+  width: "2px",
+  height: "34px",
   borderRadius: "999px",
-  flexShrink: 0,
-  background: "#a78bfa",
+  background: "rgba(255,255,255,0.18)",
+  overflow: "hidden",
+};
+
+const scrollLineInnerStyle: React.CSSProperties = {
+  display: "block",
+  width: "100%",
+  height: "12px",
+  borderRadius: "999px",
+  background: "linear-gradient(180deg, #c084fc, #7c3aed)",
+  animation: "scrollHintMove 1.6s ease-in-out infinite",
 };
