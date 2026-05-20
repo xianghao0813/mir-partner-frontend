@@ -68,6 +68,9 @@ export async function buildWalletSummary(
         await Promise.all(sdkWallet.orders.map((order) => mapOrderToTransaction(user.id, order)))
       ).map((transaction) => localTransactionById.get(transaction.id) ?? transaction)
     : [];
+  const resolvedCloudCoins = sdkWallet
+    ? sdkWallet.amount
+    : Math.max(localCloudCoins, websiteCloudCoins);
 
   return {
     account,
@@ -83,7 +86,7 @@ export async function buildWalletSummary(
         "mirPartnerCode",
       ]) || createPartnerCode(user.id),
     status: "正常",
-    cloudCoins: Math.max(sdkWallet?.amount ?? 0, localCloudCoins, websiteCloudCoins),
+    cloudCoins: resolvedCloudCoins,
     currentTier: getCurrentTier(readMirPoints(user.user_metadata)),
     transactions: normalizeWalletLedgerTransactions(mergeWalletTransactions([...localTransactions, ...sdkOrderTransactions])),
   };
